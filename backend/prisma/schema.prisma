@@ -1,0 +1,435 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      UserRole
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  activityLogs    ActivityLog[]
+  stockMovements  StockMovement[]
+  approvedDuties  DutyPayment[]
+  createdInvoices Invoice[]
+  Expense         Expense[]
+
+  @@map("users")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  module    String
+  details   Json?
+  userId    String
+  status    String // success, error, pending
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+model LoadingSheet {
+  id            String        @id @default(cuid())
+  shippingCode  String        @unique
+  shippingMark  String?
+  supplier      String?
+  shippingMode  String?
+  deposit       Decimal?
+  balanceAmount Decimal?
+  totalAmount   Decimal?
+  paymentDate   DateTime?
+  deliveryDate  DateTime?
+  loadingDate   DateTime
+  arrivalDate   DateTime?
+  status        LoadingStatus @default(IN_TRANSIT)
+  lrNo          String?
+  transporter   String?
+  totalCBM      Decimal?
+  totalWeight   Decimal?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  items          LoadingSheetItem[]
+  warehouseItems WarehouseItem[]
+  duties         DutyPayment[]
+
+  @@map("loading_sheets")
+}
+
+model LoadingSheetItem {
+  id             String   @id @default(cuid())
+  itemName       String
+  itemNo         String?
+  mark           String?
+  ctn            Int
+  pcs            Int
+  cbm            Decimal?
+  weight         Decimal?
+  unitPrice      Decimal?
+  totalPrice     Decimal?
+  hsnCode        String?
+  loadingSheetId String
+
+  // Relations
+  loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
+
+  @@map("loading_sheet_items")
+}
+
+model WarehouseItem {
+  id             String      @id @default(cuid())
+  itemName       String
+  itemNo         String?
+  mark           String?
+  quantity       Int         @default(0)
+  ctn            Int?
+  cbm            Decimal?
+  weight         Decimal?
+  minStockLevel  Int         @default(10)
+  status         StockStatus @default(AVAILABLE)
+  location       String?
+  loadingSheetId String
+
+  // Relations
+  loadingSheet LoadingSheet      @relation(fields: [loadingSheetId], references: [id])
+  movements    StockMovement[]
+  bifurcations BifurcationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("warehouse_items")
+}
+
+model StockMovement {
+  id               String       @id @default(cuid())
+  itemId           String
+  quantity         Int
+  movementType     MovementType // INWARD, OUTWARD
+  previousQuantity Int
+  newQuantity      Int
+  notes            String?
+  userId           String
+  createdAt        DateTime     @default(now())
+
+  // Relations
+  item WarehouseItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+model Bifurcation {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  status      BifurcationStatus @default(PENDING)
+  isLocked    Boolean           @default(false)
+  lockedBy    String?
+  lockedAt    DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  items BifurcationItem[]
+
+  @@map("bifurcations")
+}
+
+model BifurcationItem {
+  id                String   @id @default(cuid())
+  bifurcationId     String
+  warehouseItemId   String
+  clientId          String
+  allocatedQuantity Int
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  bifurcation   Bifurcation   @relation(fields: [bifurcationId], references: [id], onDelete: Cascade)
+  warehouseItem WarehouseItem @relation(fields: [warehouseItemId], references: [id])
+  client        Client        @relation(fields: [clientId], references: [id])
+
+  @@map("bifurcation_items")
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  gstin     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bifurcations  BifurcationItem[]
+  invoices      Invoice[]
+  ledgerEntries LedgerEntry[]
+  WhatsAppLog   WhatsAppLog[]
+
+  @@map("clients")
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  invoiceNo   String        @unique
+  clientId    String
+  invoiceDate DateTime      @default(now())
+  dueDate     DateTime
+  subtotal    Decimal
+  gstAmount   Decimal
+  discount    Decimal?      @default(0)
+  totalAmount Decimal
+  status      InvoiceStatus @default(PENDING)
+  notes       String?
+  createdById String
+  sentAt      DateTime?
+  paidAt      DateTime?
+
+  // Relations
+  client        Client        @relation(fields: [clientId], references: [id])
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  items         InvoiceItem[]
+  ledgerEntries LedgerEntry[]
+  whatsappLogs  WhatsAppLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  itemName    String
+  description String?
+  quantity    Int
+  unitPrice   Decimal
+  gstRate     Decimal
+  totalPrice  Decimal
+  hsnCode     String?
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model LedgerEntry {
+  id          String          @id @default(cuid())
+  clientId    String
+  invoiceId   String?
+  type        LedgerEntryType // PAYMENT, INVOICE, CREDIT_NOTE, DEBIT_NOTE
+  amount      Decimal
+  description String
+  paymentMode PaymentMode?
+  referenceNo String?
+  balance     Decimal
+  entryDate   DateTime        @default(now())
+
+  // Relations
+  client  Client   @relation(fields: [clientId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("ledger_entries")
+}
+
+model DutyPayment {
+  id             String     @id @default(cuid())
+  loadingSheetId String
+  hsCode         String?
+  currencyRate   Decimal?
+  dutyAmount     Decimal
+  taxAmount      Decimal
+  totalAmount    Decimal
+  paymentDate    DateTime?
+  status         DutyStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  documents      String[] // File paths
+  notes          String?
+
+  // Relations
+  loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id])
+  approvedBy   User?        @relation(fields: [approvedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("duty_payments")
+}
+
+model Expense {
+  id          String      @id @default(cuid())
+  category    String
+  description String
+  amount      Decimal
+  expenseDate DateTime
+  paymentMode PaymentMode
+  referenceNo String?
+  notes       String?
+  createdById String
+
+  // Relations
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("expenses")
+}
+
+model WhatsAppLog {
+  id          String        @id @default(cuid())
+  invoiceId   String?
+  clientId    String
+  messageType MessageType
+  templateId  String?
+  message     String
+  status      MessageStatus
+  error       String?
+  sentAt      DateTime      @default(now())
+
+  // Relations
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  client  Client   @relation(fields: [clientId], references: [id])
+
+  @@map("whatsapp_logs")
+}
+
+model SystemSetting {
+  id    String      @id @default(cuid())
+  key   String      @unique
+  value String
+  type  SettingType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  WAREHOUSE
+  ACCOUNTS
+  SALES
+  MANAGEMENT
+}
+
+enum LoadingStatus {
+  IN_TRANSIT
+  ARRIVED
+  WAREHOUSE
+  AVAILABLE
+  COMPLETED
+}
+
+enum StockStatus {
+  AVAILABLE
+  RESERVED
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum MovementType {
+  INWARD
+  OUTWARD
+  ADJUSTMENT
+}
+
+enum BifurcationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum LedgerEntryType {
+  INVOICE
+  PAYMENT
+  CREDIT_NOTE
+  DEBIT_NOTE
+  ADJUSTMENT
+}
+
+enum PaymentMode {
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  UPI
+  CARD
+  ONLINE
+}
+
+enum DutyStatus {
+  PENDING
+  CALCULATED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum MessageType {
+  INVOICE
+  PAYMENT_REMINDER
+  PAYMENT_RECEIVED
+  DISPATCH_UPDATE
+  GENERAL
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
