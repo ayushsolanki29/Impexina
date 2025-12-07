@@ -1,373 +1,475 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Toaster, toast } from "sonner";
 import {
-  RefreshCw,
-  Search,
+  Search as SearchIcon,
   Filter,
-  X,
-  CheckCircle,
-  Clock,
-  Divide,
-  Activity,
-  User,
-  PackageOpen,
-  Lock,
-  Unlock,
-  Plus,
-  Eye,
-  Trash2,
-  ChevronDown,
+  Edit3,
   Download,
-  MoreVertical,
-  Calendar,
-  BarChart3,
-  Users as UsersIcon,
-  Warehouse,
-  ArrowUpDown,
+  Save,
+  X,
+  Package,
+  Boxes,
+  Weight,
+  CurlyBraces,
 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { format } from "date-fns";
 
-/* ------------------- mock data (SIMULATING PRISMA DATA) ------------------- */
-const mockBifurcations = [
-  {
-    id: "BIF-001",
-    name: "Q4'24 Client Allocation - East",
-    description: "Initial stock distribution for major East coast clients.",
-    status: "PENDING",
-    isLocked: false,
-    clientCount: 4,
-    totalAllocatedUnits: 1200,
-    lockedBy: null,
-    createdAt: "2025-11-15T10:00:00Z",
-    updatedAt: "2025-11-15T10:00:00Z",
-  },
-  {
-    id: "BIF-002",
-    name: "Container PSDH-87 - Emergency",
-    description: "Urgent allocation for client C005 due to low stock.",
-    status: "IN_PROGRESS",
-    isLocked: true,
-    clientCount: 1,
-    totalAllocatedUnits: 350,
-    lockedBy: "Alice Johnson",
-    createdAt: "2025-11-18T14:30:00Z",
-    updatedAt: "2025-11-19T09:00:00Z",
-  },
-  {
-    id: "BIF-003",
-    name: "Q1'25 Planning Draft",
-    description: "Future planning draft, not executed.",
-    status: "COMPLETED",
-    isLocked: false,
-    clientCount: 8,
-    totalAllocatedUnits: 5000,
-    lockedBy: null,
-    createdAt: "2025-11-01T08:00:00Z",
-    updatedAt: "2025-11-05T11:00:00Z",
-  },
-  {
-    id: "BIF-004",
-    name: "Draft Allocation - Rejected",
-    description: "Allocation was canceled due to payment failure.",
-    status: "CANCELLED",
-    isLocked: false,
-    clientCount: 2,
-    totalAllocatedUnits: 150,
-    lockedBy: null,
-    createdAt: "2025-10-20T12:00:00Z",
-    updatedAt: "2025-10-21T15:00:00Z",
-  },
-];
-
-// Mock available warehouse stock for the creation modal
-const mockAvailableStock = [
-  { id: "WI-001", itemName: "FOOTREST Standard", availableQuantity: 500, mark: "BB-AMD" },
-  { id: "WI-002", itemName: "TELESCOPIC SHELF Deluxe", availableQuantity: 900, mark: "BB-AMD" },
-  { id: "WI-003", itemName: "TABLE RUNNER Pro", availableQuantity: 2016, mark: "SMWGC18" },
-];
-
-const mockClients = [
-  { id: "C001", name: "Alpha Corp" },
-  { id: "C002", name: "Beta Distributors" },
-  { id: "C003", name: "Gamma Retail" },
-];
-
-/* ------------------- helpers ------------------- */
-const formatDate = (d) => {
+/* ---------- helpers ---------- */
+function readLocal(key) {
   try {
-    return new Date(d).toLocaleDateString('en-IN');
+    return JSON.parse(localStorage.getItem(key) || "null") || [];
   } catch {
-    return "N/A";
+    return [];
   }
-};
+}
+function writeLocal(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+function fmt(n, digits = 2) {
+  if (n === null || n === undefined) return "-";
+  return Number(n).toFixed(digits);
+}
 
-const mockUser = { name: "Warehouse Manager", id: "U-1234" };
+/* ---------- demo seed ---------- */
+const DEMO_SEED = [
+  {
+    id: "sheet-1",
+    containerCode: "PSDH-86",
+    origin: "YIWU",
+    loadingDate: "2025-10-09",
+    deliveryDate: null,
+    invoiceNo: null,
+    clientName: "BB-AMD",
+    status: "draft",
+    tctn: 42,
+    tpcs: 1300,
+    tcbm: 4.585,
+    twt: 414,
+    items: [
+      {
+        id: "i1",
+        particular: "FOOTREST",
+        mark: "BB-AMD",
+        itemNo: "FOOTREST",
+        ctn: 5,
+        pcs: 100,
+        tpcs: 500,
+        cbm: 0.083,
+        tcbm: 0.417,
+        wt: 7,
+        twt: 35,
+      },
+      {
+        id: "i2",
+        particular: "TELESCOPIC SHELF",
+        mark: "BB-AMD",
+        itemNo: "TELESHELF",
+        ctn: 12,
+        pcs: 25,
+        tpcs: 300,
+        cbm: 0.113,
+        tcbm: 1.356,
+        wt: 17,
+        twt: 204,
+      },
+      {
+        id: "i3",
+        particular: "PET STORAGE BAG",
+        mark: "BB-AMD",
+        itemNo: "PETBAG",
+        ctn: 25,
+        pcs: 20,
+        tpcs: 500,
+        cbm: 0.112,
+        tcbm: 2.812,
+        wt: 7,
+        twt: 175,
+      },
+    ],
+  },
+  {
+    id: "sheet-2",
+    containerCode: "PSDH-86",
+    origin: "YIWU",
+    loadingDate: "2025-10-09",
+    deliveryDate: "2025-10-20",
+    invoiceNo: "643",
+    clientName: "BST-AD",
+    status: "completed",
+    tctn: 170,
+    tpcs: 5000,
+    tcbm: 11.2,
+    twt: 1200,
+    items: [
+      {
+        id: "i4",
+        particular: "STACKING STAND",
+        mark: "BST-AD",
+        itemNo: "STACK-1",
+        ctn: 20,
+        pcs: 6,
+        tpcs: 120,
+        cbm: 1.78,
+        tcbm: 35.6,
+        wt: 10,
+        twt: 200,
+      },
+    ],
+  },
+];
 
-// Extended status map for Bifurcation statuses
-const statusMap = {
-  PENDING: { label: "Pending", classes: "bg-amber-50 text-amber-700 border border-amber-200", icon: Clock },
-  IN_PROGRESS: { label: "In Progress", classes: "bg-blue-50 text-blue-700 border border-blue-200", icon: Activity },
-  COMPLETED: { label: "Completed", classes: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle },
-  CANCELLED: { label: "Cancelled", classes: "bg-rose-50 text-rose-700 border border-rose-200", icon: X },
-};
-
-// Status Tag Component
-const StatusTag = ({ status }) => {
-  const meta = statusMap[status] || { label: status, classes: "bg-gray-100 text-gray-800", icon: Divide };
-  const Icon = meta.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${meta.classes}`}>
-      <Icon className="w-3 h-3" />
-      <span>{meta.label}</span>
-    </span>
-  );
-};
-
-// Reusable Dropdown Filter Component
-const DropdownFilter = ({ icon: Icon, value, onChange, options }) => (
-  <div className="relative">
-    <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="appearance-none pl-9 pr-8 py-2.5 border border-gray-200 rounded-lg bg-white text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-    >
-      {options.map(opt => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-  </div>
-);
-
-// Stats Cards Component
-const StatsOverview = ({ bifurcations }) => {
-  const stats = [
-    {
-      label: "Total Bifurcations",
-      value: bifurcations.length,
-      icon: BarChart3,
-      color: "blue",
-    },
-    {
-      label: "In Progress",
-      value: bifurcations.filter(b => b.status === "IN_PROGRESS").length,
-      icon: Activity,
-      color: "blue",
-    },
-    {
-      label: "Pending Review",
-      value: bifurcations.filter(b => b.status === "PENDING").length,
-      icon: Clock,
-      color: "amber",
-    },
-    {
-      label: "Total Clients",
-      value: bifurcations.reduce((sum, b) => sum + b.clientCount, 0),
-      icon: UsersIcon,
-      color: "emerald",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {stats.map((stat, index) => (
-        <div key={index} className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-            </div>
-            <div className={`p-3 rounded-lg bg-${stat.color}-50`}>
-              <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-/* ------------------- MAIN COMPONENT ------------------- */
-export default function BifurcationManagement() {
-  const user = mockUser;
-  const authLoading = false;
+/* ---------------- component ---------------- */
+export default function BifurcationPage() {
+  const containerRef = useRef(null);
+  const parentRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
-  const [bifurcations, setBifurcations] = useState([]);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
-  const [selectedBifurcation, setSelectedBifurcation] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
+  const [sheets, setSheets] = useState([]);
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const qRef = useRef("");
+  const [originFilter, setOriginFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [minCtn, setMinCtn] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [overrides, setOverrides] = useState(
+    () => readLocal("igpl_bifurcation_overrides") || {}
+  );
+  const [editing, setEditing] = useState(null); // { key, draft }
 
+  // seed demo if empty
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        await new Promise((r) => setTimeout(r, 700));
-        setBifurcations(mockBifurcations);
-      } catch (err) {
-        setError("Failed to load bifurcations. Try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) {
-      fetch();
+    const existing = readLocal("igpl_loading");
+    if (!existing || existing.length === 0) {
+      writeLocal("igpl_loading", DEMO_SEED);
     }
   }, []);
 
-  const handleSort = (key) => {
-    setSortConfig({
-      key,
-      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-    });
-  };
+  // load sheets
+  useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(() => {
+      const raw = readLocal("igpl_loading");
+      const normalized = raw.map((s) => ({
+        ...s,
+        items: s.items || s.rows || [],
+        clientName:
+          s.clientName ||
+          (s.items && s.items[0]?.mark) ||
+          (s.rows && s.rows[0]?.mark) ||
+          "UNKNOWN",
+      }));
+      setSheets(normalized);
+      setLoading(false);
+    }, 140);
+    return () => clearTimeout(t);
+  }, []);
 
-  const visibleBifurcations = useMemo(() => {
-    let list = [...bifurcations];
-    
-    // Filtering
-    if (statusFilter !== "ALL") {
-      list = list.filter((b) => b.status === statusFilter);
-    }
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      list = list.filter(
-        (b) =>
-          b.name.toLowerCase().includes(q) ||
-          b.description.toLowerCase().includes(q) ||
-          b.id.toLowerCase().includes(q)
-      );
-    }
+  useEffect(() => {
+    setOverrides(readLocal("igpl_bifurcation_overrides") || {});
+  }, []);
 
-    // Sorting
-    list.sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
+  useEffect(() => {
+    writeLocal("igpl_bifurcation_overrides", overrides);
+  }, [overrides]);
+
+  // debounced search
+  useEffect(() => {
+    qRef.current = q;
+    const id = setTimeout(() => setDebouncedQ(qRef.current.trim()), 300);
+    return () => clearTimeout(id);
+  }, [q]);
+
+  // GROUP + AGGREGATE
+  const groups = useMemo(() => {
+    if (loading) return [];
+    const qLower = debouncedQ.toLowerCase();
+    const fromTs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
+    const toTs = dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
+    const minCtnN = minCtn ? Number(minCtn) : null;
+    const map = new Map();
+
+    for (const s of sheets) {
+      if (
+        originFilter &&
+        s.origin &&
+        !s.origin.toLowerCase().includes(originFilter.toLowerCase())
+      )
+        continue;
+      if (
+        statusFilter &&
+        (!s.status || s.status.toLowerCase() !== statusFilter.toLowerCase())
+      )
+        continue;
+      if (minCtnN !== null && Number(s.tctn || 0) < minCtnN) continue;
+      if (fromTs || toTs) {
+        const ld = s.loadingDate ? new Date(s.loadingDate).getTime() : null;
+        if (fromTs && (!ld || ld < fromTs)) continue;
+        if (toTs && (!ld || ld > toTs)) continue;
       }
-      if (a[sortConfig.key] > b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
+
+      if (qLower) {
+        const hay = `${s.clientName} ${s.id} ${s.containerCode} ${s.origin} ${
+          s.invoiceNo || ""
+        } ${s.tctn || ""} ${s.tpcs || ""}`.toLowerCase();
+        let match = hay.includes(qLower);
+        if (!match) {
+          for (const it of s.items || []) {
+            if (
+              (
+                (it.particular || "") +
+                " " +
+                (it.mark || "") +
+                " " +
+                (it.itemNo || "")
+              )
+                .toLowerCase()
+                .includes(qLower)
+            ) {
+              match = true;
+              break;
+            }
+          }
+        }
+        if (!match) continue;
       }
-      return 0;
+
+      const key = `${s.containerCode}__${s.clientName}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          containerCode: s.containerCode,
+          clientName: s.clientName,
+          sheets: [],
+          totals: { tctn: 0, tpcs: 0, tcbm: 0, twt: 0 },
+          loadingDate: s.loadingDate || null,
+        });
+      }
+      const g = map.get(key);
+      g.sheets.push(s);
+      g.totals.tctn += Number(s.tctn || 0);
+      g.totals.tpcs += Number(s.tpcs || 0);
+      g.totals.tcbm += Number(s.tcbm || 0);
+      g.totals.twt += Number(s.twt || 0);
+      if (!g.loadingDate || new Date(s.loadingDate) > new Date(g.loadingDate)) {
+        g.loadingDate = s.loadingDate;
+      }
+    }
+
+    const arr = Array.from(map.values()).map((g) => {
+      const prods = new Set();
+      for (const sh of g.sheets) {
+        for (const it of sh.items || []) {
+          if (it.particular) {
+            prods.add(it.particular);
+            if (prods.size >= 6) break;
+          }
+        }
+        if (prods.size >= 6) break;
+      }
+      const productStr = Array.from(prods).slice(0, 5).join(", ");
+      const ov = overrides[g.key] || null;
+      return {
+        ...g,
+        product: (ov && ov.product) || productStr || "MIX ITEM",
+        deliveryDate: ov ? ov.deliveryDate : null,
+        invoiceNo: ov ? ov.invoiceNo : null,
+        gst: ov ? ov.gst : null,
+        editedAt: ov ? ov.editedAt : null,
+      };
     });
 
-    return list;
-  }, [bifurcations, query, statusFilter, sortConfig]);
-
-  const updateBifurcation = (id, updates) => {
-    setBifurcations((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
+    arr.sort(
+      (a, b) =>
+        b.totals.tctn - a.totals.tctn ||
+        a.clientName.localeCompare(b.clientName)
     );
-  };
+    return arr;
+  }, [
+    sheets,
+    debouncedQ,
+    originFilter,
+    statusFilter,
+    dateFrom,
+    dateTo,
+    minCtn,
+    overrides,
+    loading,
+  ]);
 
-  const handleToggleLock = (bifurcation) => {
-    const newLockStatus = !bifurcation.isLocked;
-    const newLockedBy = newLockStatus ? user.name : null;
+  // High-level stats
+  const stats = useMemo(() => {
+    const totalGroups = groups.length;
+    const totalCtn = groups.reduce((sum, g) => sum + (g.totals.tctn || 0), 0);
+    const totalCbm = groups.reduce((sum, g) => sum + (g.totals.tcbm || 0), 0);
+    const totalWt = groups.reduce((sum, g) => sum + (g.totals.twt || 0), 0);
+    return { totalGroups, totalCtn, totalCbm, totalWt };
+  }, [groups]);
 
-    updateBifurcation(bifurcation.id, {
-      isLocked: newLockStatus,
-      lockedBy: newLockedBy,
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-lg text-gray-700">Authenticating...</div>
-      </div>
-    );
+  // CSV export
+  function exportCSV(list) {
+    const headers = [
+      "CODE",
+      "MARK",
+      "CTN",
+      "PRODUCT",
+      "TOTAL CBM",
+      "TOTAL WT",
+      "LOADING DATE",
+      "DELIVERY DATE",
+      "INV NO.",
+      "GST",
+      "STATUS",
+    ];
+    const rows = list.map((g) => [
+      g.containerCode,
+      g.clientName,
+      g.totals.tctn,
+      `"${String(g.product || "").replace(/"/g, "''")}"`,
+      fmt(g.totals.tcbm, 3),
+      fmt(g.totals.twt, 1),
+      g.loadingDate || "",
+      g.deliveryDate || "",
+      g.invoiceNo || "",
+      g.gst || "",
+      g.editedAt ? "Edited" : "System generated",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bifurcation_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  // Bifurcation Card Component
-  const BifurcationCard = ({ b }) => {
-    const lockIcon = b.isLocked ? Lock : Unlock;
-    const lockClass = b.isLocked
-      ? 'text-rose-600 bg-rose-50 hover:bg-rose-100 border-rose-200'
-      : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border-emerald-200';
+  function openEdit(group) {
+    setEditing({
+      key: group.key,
+      draft: {
+        containerCode: group.containerCode,
+        clientName: group.clientName,
+        product: group.product,
+        deliveryDate: group.deliveryDate || "",
+        invoiceNo: group.invoiceNo || "",
+        gst: group.gst || "",
+      },
+    });
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+    const { key, draft } = editing;
+    const now = new Date().toISOString();
+    const next = { ...(overrides || {}) };
+    next[key] = {
+      product: draft.product,
+      deliveryDate: draft.deliveryDate || null,
+      invoiceNo: draft.invoiceNo || null,
+      gst: draft.gst || null,
+      editedAt: now,
+    };
+    setOverrides(next);
+    setEditing(null);
+    toast.success("Bifurcation updated");
+  }
+
+  function doDeleteGroup(keyToRemove) {
+    const nextOverrides = { ...overrides };
+    delete nextOverrides[keyToRemove];
+    setOverrides(nextOverrides);
+    toast.success("Override removed. Row is now system generated.");
+  }
+
+  /* ---------- Virtualizer setup ---------- */
+  const rowHeight = 64;
+  const virtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => rowHeight,
+    overscan: 8,
+  });
+
+  // row renderer
+  const Row = ({ g, index }) => {
+    if (!g) return null;
+    const isEdited = !!g.editedAt;
+    const zebra = index % 2 === 0 ? "bg-white" : "bg-slate-50";
 
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-blue-300 transition-all duration-200">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">{b.name}</h3>
-              <StatusTag status={b.status} />
-            </div>
-            <p className="text-sm text-gray-600 mb-3">{b.description}</p>
-            <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                Created: {formatDate(b.createdAt)}
-              </span>
-              <span>•</span>
-              <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded border">
-                {b.id}
-              </span>
-            </div>
-          </div>
-          <button className="p-2 hover:bg-gray-50 rounded-lg transition">
-            <MoreVertical className="w-5 h-5 text-gray-400" />
+      <div
+        className={`px-4 py-3 border-b border-slate-100 flex items-center gap-3 text-sm ${zebra} hover:bg-sky-50/60 transition-colors`}
+        style={{ height: rowHeight }}
+      >
+        <div className="w-36 flex flex-col">
+          <span className="font-medium text-slate-900">
+            {g.containerCode}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide text-slate-400">
+            {(g.sheets && g.sheets[0]?.origin) || "-"}
+          </span>
+        </div>
+        <div className="w-44 flex flex-col">
+          <span className="font-semibold text-slate-900 truncate">
+            {g.clientName}
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] tracking-wide border ${
+              isEdited
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-slate-50 text-slate-500 border-slate-200"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isEdited ? "bg-amber-500" : "bg-slate-400"
+              }`}
+            />
+            {isEdited ? "Edited" : "System"}
+          </span>
+        </div>
+        <div className="flex-1 text-slate-700 truncate">{g.product}</div>
+        <div className="w-20 text-right font-semibold text-slate-900">
+          {g.totals.tctn}
+        </div>
+        <div className="w-28 text-right text-slate-700">
+          {fmt(g.totals.tcbm, 3)}
+        </div>
+        <div className="w-28 text-right text-slate-700">
+          {fmt(g.totals.twt, 1)}
+        </div>
+        <div className="w-28 text-xs text-slate-700">
+          {g.loadingDate ? format(new Date(g.loadingDate), "dd-MM-yy") : "-"}
+        </div>
+        <div className="w-28 text-xs text-slate-700">
+          {g.deliveryDate ? (
+            format(new Date(g.deliveryDate), "dd-MM-yy")
+          ) : (
+            <span className="text-[11px] text-slate-400">Not captured</span>
+          )}
+        </div>
+        <div className="w-28 text-xs text-slate-800">{g.invoiceNo || "—"}</div>
+        <div className="w-20 text-xs text-slate-800">{g.gst || "—"}</div>
+        <div className="w-36 flex items-center justify-end gap-1">
+          <button
+            onClick={() => openEdit(g)}
+            className="px-2 py-1 rounded-full bg-sky-50 text-sky-700 text-xs inline-flex items-center gap-1 border border-sky-100 hover:bg-sky-100 transition-colors"
+          >
+            <Edit3 className="w-3 h-3" />
+            Edit
           </button>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-            <UsersIcon className="w-4 h-4 text-blue-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-900">{b.clientCount}</p>
-              <p className="text-xs text-gray-500">Clients</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-            <PackageOpen className="w-4 h-4 text-emerald-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-900">{b.totalAllocatedUnits}</p>
-              <p className="text-xs text-gray-500">Total Units</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-            <Warehouse className="w-4 h-4 text-amber-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-900">{b.isLocked ? 'Locked' : 'Unlocked'}</p>
-              <p className="text-xs text-gray-500">Status</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-            <User className="w-4 h-4 text-purple-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-900 truncate">{b.lockedBy || 'Available'}</p>
-              <p className="text-xs text-gray-500">Locked By</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleToggleLock(b)}
-              disabled={b.isLocked && b.lockedBy !== user.name}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${lockClass} ${b.isLocked && b.lockedBy !== user.name ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Lock className="w-4 h-4" />
-              <span className="text-sm font-medium">{b.isLocked ? 'Unlock' : 'Lock'}</span>
-            </button>
-
-            <button
-              onClick={() => setSelectedBifurcation(b)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
-            >
-              <Eye className="w-4 h-4" />
-              <span className="text-sm font-medium">View</span>
-            </button>
-          </div>
-
-          <button className="p-2 text-gray-400 hover:text-gray-600 transition">
-            <Download className="w-4 h-4" />
+          <button
+            onClick={() => doDeleteGroup(g.key)}
+            className="px-2 py-1 rounded-full bg-rose-50 text-rose-700 text-xs border border-rose-100 hover:bg-rose-100 transition-colors"
+          >
+            Remove
           </button>
         </div>
       </div>
@@ -375,314 +477,351 @@ export default function BifurcationManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/30 font-sans">
-      {/* HEADER */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow">
-                  <Divide className="w-5 h-5" />
-                </div>
-                Bifurcation Management
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 py-8 px-4">
+      <Toaster position="top-right" richColors />
+      <div className="max-w-7xl mx-auto space-y-5" ref={containerRef}>
+        {/* header */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2">
+              <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 tracking-tight">
+                Bifurcation
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Allocate received warehouse stock to specific client orders
+              <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] uppercase tracking-wide text-sky-700">
+                Auto from loading sheets
+              </span>
+            </div>
+            <p className="text-xs md:text-sm text-slate-500 max-w-xl">
+              Review container-wise grouped loading sheets, update delivery /
+              invoice / GST, and export a clean bifurcation CSV for operations
+              and accounts.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-stretch gap-2 md:w-[360px]">
+            <div className="relative">
+              <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                }}
+                placeholder="Search client, container, invoice, product..."
+                className="w-full rounded-full border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-sky-500"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setFiltersOpen((o) => !o)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-sky-400 hover:text-sky-700 hover:bg-sky-50 transition-colors"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Filters
+              </button>
+              <button
+                onClick={() => exportCSV(groups)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 active:bg-sky-800 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* stats bar */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
+            <div className="rounded-xl bg-sky-50 p-2">
+              <Package className="w-4 h-4 text-sky-700" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Groups
+              </p>
+              <p className="text-lg font-semibold text-slate-900">
+                {stats.totalGroups}
               </p>
             </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setLoading(true) || setTimeout(() => setBifurcations(mockBifurcations) || setLoading(false), 500)}
-                className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition shadow-sm"
-              >
-                <RefreshCw className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setIsNewModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition shadow-lg shadow-blue-200/50"
-              >
-                <Plus className="w-4 h-4" />
-                New Bifurcation
-              </button>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
+            <div className="rounded-xl bg-sky-50 p-2">
+              <Boxes className="w-4 h-4 text-sky-700" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Total CTN
+              </p>
+              <p className="text-lg font-semibold text-slate-900">
+                {stats.totalCtn}
+              </p>
             </div>
           </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats Overview */}
-        <StatsOverview bifurcations={bifurcations} />
-
-        {/* CONTROLS */}
-        <div className="mb-8 bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-          <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-64">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search bifurcations..."
-                className="pl-11 pr-4 py-2.5 w-full rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              />
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
+            <div className="rounded-xl bg-sky-50 p-2">
+              <CurlyBraces className="w-4 h-4 text-sky-700" />
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Status Filter */}
-              <DropdownFilter
-                icon={Filter}
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={[
-                  { value: "ALL", label: "All Statuses" },
-                  { value: "PENDING", label: "Pending" },
-                  { value: "IN_PROGRESS", label: "In Progress" },
-                  { value: "COMPLETED", label: "Completed" },
-                  { value: "CANCELLED", label: "Cancelled" },
-                ]}
-              />
-
-              {/* Sort Dropdown */}
-              <DropdownFilter
-                icon={ArrowUpDown}
-                value={sortConfig.key}
-                onChange={(key) => handleSort(key)}
-                options={[
-                  { value: "createdAt", label: "Sort by Date" },
-                  { value: "name", label: "Sort by Name" },
-                  { value: "totalAllocatedUnits", label: "Sort by Units" },
-                ]}
-              />
+            <div className="space-y-0.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Total CBM
+              </p>
+              <p className="text-lg font-semibold text-slate-900">
+                {fmt(stats.totalCbm, 2)}
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* CONTENT */}
-        <section>
-          {loading ? (
-            // Skeleton Loader
-            <div className="space-y-6">
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={n}
-                  className="animate-pulse bg-white rounded-xl p-6 border border-gray-100 h-48"
-                >
-                  <div className="flex gap-4 mb-4">
-                    <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-                    <div className="h-6 bg-gray-200 rounded w-20"></div>
-                  </div>
-                  <div className="h-3 bg-gray-200 rounded w-3/4 mb-6"></div>
-                  <div className="grid grid-cols-4 gap-4 mb-6">
-                    {[1, 2, 3, 4].map((m) => (
-                      <div key={m} className="h-12 bg-gray-200 rounded"></div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="h-8 bg-gray-200 rounded w-24"></div>
-                    <div className="h-8 bg-gray-200 rounded w-20"></div>
-                  </div>
-                </div>
-              ))}
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
+            <div className="rounded-xl bg-sky-50 p-2">
+              <Weight className="w-4 h-4 text-sky-700" />
             </div>
-          ) : (
-            // Bifurcation List
-            <div className="space-y-6">
-              {visibleBifurcations.length === 0 ? (
-                <div className="bg-white p-12 rounded-xl border border-gray-100 shadow-sm text-center">
-                  <Divide className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No bifurcations found</h3>
-                  <p className="text-gray-500 mb-6">Try adjusting your search or filters</p>
-                  <button
-                    onClick={() => setIsNewModalOpen(true)}
-                    className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
-                  >
-                    Create New Bifurcation
-                  </button>
-                </div>
-              ) : (
-                <div className="grid gap-6">
-                  {visibleBifurcations.map((b) => (
-                    <BifurcationCard key={b.id} b={b} />
-                  ))}
-                </div>
-              )}
+            <div className="space-y-0.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Total Weight
+              </p>
+              <p className="text-lg font-semibold text-slate-900">
+                {fmt(stats.totalWt, 1)}
+              </p>
             </div>
-          )}
+          </div>
         </section>
-      </main>
 
-      {/* MODALS */}
-      {isNewModalOpen && (
-        <NewBifurcationModal
-          onClose={() => setIsNewModalOpen(false)}
-          onSave={(newBif) => {
-            setBifurcations(prev => [newBif, ...prev]);
-            setIsNewModalOpen(false);
-          }}
-        />
-      )}
+        {/* filters */}
+        <section
+          className={`transform-gpu transition-all duration-200 ${
+            filtersOpen
+              ? "opacity-100 translate-y-0 max-h-40"
+              : "opacity-0 -translate-y-1 max-h-0 pointer-events-none"
+          }`}
+        >
+          <div
+            id="bif-filters"
+            className="bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-1 md:grid-cols-6 gap-2 text-xs text-slate-800 shadow-sm"
+          >
+            <input
+              placeholder="Origin"
+              value={originFilter}
+              onChange={(e) => setOriginFilter(e.target.value)}
+              className="py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            >
+              <option value="">All status</option>
+              <option value="draft">Draft</option>
+              <option value="completed">Completed</option>
+            </select>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <input
+              placeholder="Min CTN"
+              value={minCtn}
+              onChange={(e) => setMinCtn(e.target.value)}
+              className="py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setOriginFilter("");
+                  setStatusFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                  setMinCtn("");
+                  setQ("");
+                }}
+                className="px-3 py-2 rounded-xl bg-slate-100 text-xs text-slate-700 hover:bg-slate-200 transition-colors"
+              >
+                Reset filters
+              </button>
+            </div>
+          </div>
+        </section>
 
-      {selectedBifurcation && (
-        <DetailBifurcationModal
-          bifurcation={selectedBifurcation}
-          onClose={() => setSelectedBifurcation(null)}
-          onUpdate={updateBifurcation}
-        />
+        {/* table card */}
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          {/* header row */}
+          <div className="px-4 py-3 flex items-center gap-3 text-[11px] font-medium text-slate-500 uppercase tracking-wide bg-slate-50 border-b border-slate-200">
+            <div className="w-36">Code</div>
+            <div className="w-44">Mark</div>
+            <div className="flex-1">Product</div>
+            <div className="w-20 text-right">CTN</div>
+            <div className="w-28 text-right">Total CBM</div>
+            <div className="w-28 text-right">Total WT</div>
+            <div className="w-28">Loading Date</div>
+            <div className="w-28">Delivery Date</div>
+            <div className="w-28">Inv No.</div>
+            <div className="w-20">GST</div>
+            <div className="w-36 text-right">Action</div>
+          </div>
+
+          {/* virtualized list */}
+          <div className="">
+            {loading ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                Loading bifurcation…
+              </div>
+            ) : groups.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                No bifurcation rows match the current filters.
+              </div>
+            ) : (
+              <div ref={parentRef} style={{ height: 600, overflow: "auto" }}>
+                <div
+                  style={{
+                    height: virtualizer.getTotalSize(),
+                    width: "100%",
+                    position: "relative",
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const g = groups[virtualRow.index];
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        <Row g={g} index={virtualRow.index} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* Edit modal */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-2xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-slate-700">
+                  {editing.draft.clientName} —{" "}
+                  <span className="font-semibold text-slate-900">
+                    {editing.draft.containerCode}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500">
+                  Override product summary, delivery date, invoice number and
+                  GST. Row will be marked as{" "}
+                  <span className="font-semibold text-amber-600">
+                    Edited
+                  </span>
+                  .
+                </div>
+              </div>
+              <button
+                onClick={() => setEditing(null)}
+                className="p-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-slate-500">
+                  Product summary
+                </label>
+                <input
+                  value={editing.draft.product}
+                  onChange={(e) =>
+                    setEditing((st) => ({
+                      ...st,
+                      draft: { ...st.draft, product: e.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-500">
+                  Delivery date
+                </label>
+                <input
+                  type="date"
+                  value={editing.draft.deliveryDate}
+                  onChange={(e) =>
+                    setEditing((st) => ({
+                      ...st,
+                      draft: { ...st.draft, deliveryDate: e.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-500">
+                  Invoice no.
+                </label>
+                <input
+                  value={editing.draft.invoiceNo}
+                  onChange={(e) =>
+                    setEditing((st) => ({
+                      ...st,
+                      draft: { ...st.draft, invoiceNo: e.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-500">GST</label>
+                <input
+                  value={editing.draft.gst}
+                  onChange={(e) =>
+                    setEditing((st) => ({
+                      ...st,
+                      draft: { ...st.draft, gst: e.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setEditing(null)}
+                className="px-4 py-2 rounded-full border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                className="px-4 py-2 rounded-full bg-sky-600 text-xs font-semibold text-white inline-flex items-center gap-2 shadow-sm hover:bg-sky-700 active:bg-sky-800 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                Save changes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
-
-// Detail View Modal
-const DetailBifurcationModal = ({ bifurcation, onClose, onUpdate }) => {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-          <div>
-            <h2 className="text-xl font-bold">Bifurcation Details</h2>
-            <p className="text-blue-100 text-sm mt-1">{bifurcation.id}</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Name</label>
-                <p className="text-lg font-semibold text-gray-900 mt-1">{bifurcation.name}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Description</label>
-                <p className="text-gray-700 mt-1">{bifurcation.description}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Status</label>
-                  <div className="mt-1"><StatusTag status={bifurcation.status} /></div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Locked</label>
-                  <p className="text-gray-900 font-medium mt-1">{bifurcation.isLocked ? 'Yes' : 'No'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Clients</label>
-                  <p className="text-gray-900 font-medium mt-1">{bifurcation.clientCount}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Total Units</label>
-                  <p className="text-gray-900 font-medium mt-1">{bifurcation.totalAllocatedUnits}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            <button
-              onClick={() => onUpdate(bifurcation.id, { status: 'COMPLETED' })}
-              className="w-full py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition"
-            >
-              Mark as Completed
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// New Bifurcation Creation Modal (Simplified for brevity)
-const NewBifurcationModal = ({ onClose, onSave }) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = () => {
-    if (!name.trim()) {
-      alert("Please enter a bifurcation name");
-      return;
-    }
-
-    setIsSaving(true);
-    setTimeout(() => {
-      const newBif = {
-        id: `BIF-${Math.floor(Math.random() * 1000) + 1000}`,
-        name: name,
-        description: description,
-        status: 'PENDING',
-        isLocked: false,
-        clientCount: 1,
-        totalAllocatedUnits: 0,
-        lockedBy: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      onSave(newBif);
-      setIsSaving(false);
-    }, 1000);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-          <h2 className="text-xl font-bold">Create New Bifurcation</h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Bifurcation Name *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g., Q1 Alpha Corp Allocation"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Description</label>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows="3"
-                placeholder="Notes about this allocation..."
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving || !name.trim()}
-              className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? 'Creating...' : 'Create Bifurcation'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
