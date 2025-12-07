@@ -21,15 +21,15 @@ server.listen(PORT, () => {
 
 // Graceful Shutdown
 const shutdown = () => {
-  console.log("\n⚠️  Shutting down server...");
+  console.log("\n Shutting down server...");
 
   server.close(() => {
-    console.log("✅ Server closed safely.");
+    console.log("Server closed safely.");
     process.exit(0);
   });
 
   setTimeout(() => {
-    console.log("⏳ Forced shutdown due to timeout.");
+    console.log("Forced shutdown due to timeout.");
     process.exit(1);
   }, 5000);
 };

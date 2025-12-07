@@ -1,592 +1,873 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Toaster, toast } from "sonner";
 import {
-  X,
+  ChevronLeft,
   Plus,
+  ImageIcon,
+  Save,
   Trash2,
-  Ship,
-  Calendar,
-  CreditCard,
-  Scale,
-  MapPin,
-  PackageOpen,
-  ArrowLeft,
-  UploadCloud,
-  FileText,
-  Info,
-  CheckCircle,
-  AlertCircle
+  Zap,
+  Copy,
 } from "lucide-react";
 
-// --- INITIAL DATA STRUCTURES ---
-const initialItem = {
-  id: Date.now(),
-  itemName: "",
-  itemNo: "",
+/**
+ * NewLoadingPage — bluish theme
+ * - Palette: slate base + sky (blue) accents
+ * - Auto-calculates T.PCS, T.CBM, T.WT
+ * - Totals card sticky at top-right (blue)
+ * - Mark (client) dropdown opens on focus
+ * - Photo upload + preview
+ * - Keyboard: Enter -> next; Ctrl+N -> Add; Ctrl+S -> Save
+ * - Persists to localStorage for Save & Save & New
+ */
+
+const EMPTY_ROW = {
+  id: null,
+  photo: null,
+  particular: "",
   mark: "",
+  _markQuery: "",
+  _markOpen: false,
+  itemNo: "",
   ctn: 0,
   pcs: 0,
+  tpcs: 0,
+  unit: "PCS",
   cbm: 0,
-  weight: 0,
+  tcbm: 0,
+  wt: 0,
+  twt: 0,
 };
 
-const initialFormState = {
-  shippingCode: "",
-  shippingMark: "",
-  supplier: "",
-  loadingDate: new Date().toISOString().substring(0, 10),
-  arrivalDate: "",
-  items: [{ ...initialItem }],
-};
+function useBlockBrowserShortcuts({ enabled, handlers = {}, blockAll = true }) {
+  useEffect(() => {
+    if (!enabled) return;
 
-// --- MAIN COMPONENT: AddLoadingSheet ---
-export default function AddLoadingSheet() {
-  const [formData, setFormData] = useState(initialFormState);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [itemIdCounter, setItemIdCounter] = useState(Date.now());
-  const [activeItemTab, setActiveItemTab] = useState('manual');
-  const [csvFile, setCsvFile] = useState(null);
-  const [showTips, setShowTips] = useState(true);
+    function isEditable(el) {
+      if (!el) return false;
+      const tag = el.tagName;
+      return el.isContentEditable || tag === "INPUT" || tag === "TEXTAREA";
+    }
 
-  // Calculate totals
-  const totals = useMemo(() => {
-    return formData.items.reduce(
-      (acc, item) => {
-        acc.totalCBM += parseFloat(item.cbm || 0);
-        acc.totalWeight += parseFloat(item.weight || 0);
-        acc.totalCartons += parseFloat(item.ctn || 0);
+    function normalize(e) {
+      const parts = [];
+      if (e.ctrlKey) parts.push("Ctrl");
+      if (e.metaKey) parts.push("Meta");
+      if (e.altKey) parts.push("Alt");
+      if (e.shiftKey) parts.push("Shift");
+      let k = e.key;
+      if (k === " ") k = "Space";
+      if (k === "Esc") k = "Escape";
+      if (k.startsWith("Arrow")) k = k.replace("Arrow", "");
+      if (k.length === 1) k = k.toUpperCase();
+      parts.push(k);
+      return parts.join("+");
+    }
+
+    function onKeyDown(e) {
+      const combo = normalize(e);
+      if (handlers && handlers[combo]) {
+        try {
+          e.preventDefault();
+        } catch {}
+        handlers[combo](e);
+        return;
+      }
+
+      const editing = isEditable(e.target);
+      const commonlyBlocked = new Set([
+        "Ctrl+R",
+        "Meta+R",
+        "Ctrl+Shift+R",
+        "F5",
+        "Ctrl+W",
+        "Meta+W",
+        "Ctrl+T",
+        "Meta+T",
+        "Ctrl+N",
+        "Meta+N",
+        "Ctrl+Shift+N",
+        "Ctrl+F",
+        "Ctrl+G",
+        "Ctrl+H",
+        "Ctrl+Tab",
+        "Meta+Tab",
+      
+      ]);
+      if (blockAll && commonlyBlocked.has(combo)) {
+        if (editing) {
+          const allowedInEdit = new Set([
+            "Ctrl+C",
+            "Ctrl+V",
+            "Ctrl+X",
+            "Ctrl+A",
+            "Meta+C",
+            "Meta+V",
+            "Meta+X",
+            "Meta+A",
+          ]);
+          if (allowedInEdit.has(combo)) return;
+        }
+        try {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        } catch {}
+        toast("App shortcut active");
+        return;
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [enabled, handlers, blockAll]);
+}
+
+export default function NewLoadingPage() {
+  const router = useRouter();
+  const firstRef = useRef(null);
+  const rowRefs = useRef({});
+
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+
+  // header fields
+  const [containerCode, setContainerCode] = useState("PSDH-86");
+  const [origin, setOrigin] = useState("YIWU");
+  const [loadingDate] = useState(new Date().toISOString().slice(0, 10));
+
+  // rows and clients
+  const [rows, setRows] = useState(() => [
+    {
+      ...EMPTY_ROW,
+      id: `r-${Date.now()}`,
+      particular: "FOOTREST",
+      mark: "BB-AMD",
+      itemNo: "FOOTREST",
+      ctn: 5,
+      pcs: 100,
+      cbm: 0.083,
+      wt: 7,
+      tpcs: 5 * 100,
+      tcbm: Number((5 * 0.083).toFixed(3)),
+      twt: Number((5 * 7).toFixed(2)),
+      _markOpen: true,
+    },
+  ]);
+  const [clients, setClients] = useState(["BB-AMD", "RAJ", "SMWINK", "KD"]);
+
+  // derived totals
+  function recalcRowDerived(r) {
+    const c = Number(r.ctn || 0);
+    const pcs = Number(r.pcs || 0);
+    const cbm = Number(r.cbm || 0);
+    const wt = Number(r.wt || 0);
+    return {
+      ...r,
+      tpcs: Number(c * pcs),
+      tcbm: Number((c * cbm).toFixed(3)),
+      twt: Number((c * wt).toFixed(2)),
+    };
+  }
+
+  function updateRow(id, field, value) {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value };
+        if (["ctn", "pcs", "cbm", "wt"].includes(field))
+          return recalcRowDerived(updated);
+        return updated;
+      })
+    );
+  }
+
+  function addRow(autoFocus = false) {
+    const newRow = { ...EMPTY_ROW, id: `r-${Date.now()}`, _markOpen: true };
+    setRows((p) => [...p, newRow]);
+    toast.success("New item added (draft)");
+    if (autoFocus)
+      setTimeout(() => rowRefs.current[`${newRow.id}_particular`]?.focus(), 60);
+  }
+
+  function duplicateRow(r) {
+    const dup = { ...r, id: `r-${Date.now()}` };
+    setRows((prev) => {
+      const idx = prev.findIndex((x) => x.id === r.id);
+      const copy = [...prev];
+      copy.splice(idx + 1, 0, dup);
+      return copy;
+    });
+    toast.success("Row duplicated");
+  }
+
+  function removeRow(id) {
+    setRows((p) => p.filter((r) => r.id !== id));
+    toast.success("Row removed");
+  }
+
+  function ensureClient(name) {
+    if (!name) return;
+    if (!clients.includes(name)) setClients((prev) => [name, ...prev]);
+  }
+
+  function handleFileInput(file, rowId) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => updateRow(rowId, "photo", ev.target.result);
+    reader.readAsDataURL(file);
+  }
+  function onDropFile(e, rowId) {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFileInput(f, rowId);
+  }
+  function onChooseFile(e, rowId) {
+    const f = e.target.files?.[0];
+    if (f) handleFileInput(f, rowId);
+  }
+
+  // totals
+  function computeTotals(list = rows) {
+    return list.reduce(
+      (acc, r) => {
+        acc.ctn += Number(r.ctn || 0);
+        acc.tpcs += Number(r.tpcs || 0);
+        acc.tcbm += Number(r.tcbm || 0);
+        acc.twt += Number(r.twt || 0);
         return acc;
       },
-      { totalCBM: 0, totalWeight: 0, totalCartons: 0 }
+      { ctn: 0, tpcs: 0, tcbm: 0, twt: 0 }
     );
-  }, [formData.items]);
+  }
+  const totals = computeTotals();
 
-  // Form validation
-  const formErrors = useMemo(() => {
-    const errors = [];
-    if (!formData.shippingCode) errors.push("Shipping Code is required");
-    if (!formData.supplier) errors.push("Supplier is required");
-    if (formData.items.some(item => !item.itemName)) {
-      errors.push("All items must have a name");
-    }
-    return errors;
-  }, [formData]);
-
-  // --- HANDLERS ---
-  const handleFieldChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // shortcuts handlers
+  const handlers = {
+    "Ctrl+N": () => addRow(true),
+    "Meta+N": () => addRow(true),
+    "Ctrl+S": (e) => {
+      e.preventDefault();
+      handleSave();
+    },
+    "Meta+S": (e) => {
+      e.preventDefault();
+      handleSave();
+    },
+    "Ctrl+Shift+N": () => addRow(true),
+    "Meta+Shift+N": () => addRow(true),
   };
+  useBlockBrowserShortcuts({
+    enabled: shortcutsEnabled,
+    handlers,
+    blockAll: true,
+  });
 
-  const handleItemChange = (itemId, fieldName, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      items: prev.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              [fieldName]: 
-                ['itemName', 'itemNo', 'mark'].includes(fieldName) ? value : parseFloat(value) || 0,
-            }
-          : item
-      ),
-    }));
-  };
-
-  const handleAddItem = () => {
-    const newId = itemIdCounter + 1;
-    setItemIdCounter(newId);
-    setFormData((prev) => ({
-      ...prev,
-      items: [...prev.items, { ...initialItem, id: newId }],
-    }));
-  };
-
-  const handleRemoveItem = (itemId) => {
-    if (formData.items.length === 1) return; 
-    setFormData((prev) => ({
-      ...prev,
-      items: prev.items.filter((item) => item.id !== itemId),
-    }));
-  };
-
-  const handleCSVUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === 'text/csv') {
-      setCsvFile(file);
-      // In real implementation, parse CSV and populate items
-      alert(`CSV file "${file.name}" selected. Processing...`);
-    } else {
-      alert('Please upload a valid CSV file.');
-      setCsvFile(null);
-    }
-  };
-
-  const handleSubmit = async (e) => {
+  // focus-next behaviour on Enter
+  function onEnterFocusNext(e) {
+    if (e.key !== "Enter") return;
     e.preventDefault();
-    
-    if (formErrors.length > 0) {
-      alert("Please fix the errors before submitting:\n" + formErrors.join("\n"));
+    const inputs = Array.from(
+      document.querySelectorAll(
+        "input[data-row-input], select[data-row-input], textarea[data-row-input]"
+      )
+    ).filter((el) => !el.disabled && el.tabIndex !== -1);
+    const idx = inputs.indexOf(e.target);
+    if (idx > -1 && idx < inputs.length - 1) {
+      inputs[idx + 1].focus();
       return;
     }
+    addRow(true);
+  }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  useEffect(() => {
+    setTimeout(() => firstRef.current?.focus(), 80);
+  }, []);
 
-    console.log("Submitting Loading Sheet:", {
-      ...formData,
-      calculatedTotals: totals,
-    });
+  // mark dropdown helpers
+  function openMarkForRow(id) {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, _markOpen: true } : { ...r, _markOpen: false }
+      )
+    );
+    setTimeout(() => rowRefs.current[`${id}_mark`]?.focus(), 40);
+  }
+  function closeMarkDropdowns() {
+    setRows((prev) =>
+      prev.map((r) =>
+        r._markOpen ? { ...r, _markOpen: false, _markQuery: "" } : r
+      )
+    );
+  }
 
-    setIsSubmitting(false);
-    setFormData(initialFormState);
-    setCsvFile(null);
-    alert('Loading Sheet Created Successfully!');
-  };
+  // local persistence
+  function savePayloadToLocal(payload) {
+    const existing = JSON.parse(localStorage.getItem("igpl_loading") || "[]");
+    localStorage.setItem(
+      "igpl_loading",
+      JSON.stringify([payload, ...existing])
+    );
+  }
 
-  // --- UI COMPONENTS ---
-  const TextInput = ({ label, name, type = "text", value, placeholder, required = false, icon: Icon, info, onChange }) => (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700 block">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-        {info && (
-          <div className="group relative">
-            <Info className="w-4 h-4 text-gray-400 cursor-help" />
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-              {info}
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="relative">
-        {Icon && <Icon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />}
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange || handleFieldChange}
-          placeholder={placeholder}
-          required={required}
-          className={`w-full px-4 py-3 border border-gray-300 rounded-lg text-sm transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            Icon ? 'pl-10' : ''
-          } ${value ? 'bg-blue-50 border-blue-200' : 'bg-white'}`}
-        />
-      </div>
-    </div>
-  );
+  function handleSave() {
+    if (!containerCode.trim()) return toast.error("Container code required");
+    if (rows.length === 0) return toast.error("Add at least one row");
 
-  const ItemInput = ({ item, onChange, isLast }) => (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-all">
-      {/* Item Name */}
-      <div className="md:col-span-3">
-        <TextInput 
-          label="Item Name" 
-          value={item.itemName} 
-          onChange={(e) => onChange(item.id, 'itemName', e.target.value)}
-          placeholder="e.g., Folding Chairs"
-          required
-          info="Product description as it appears on invoice"
-        />
-      </div>
-      
-      {/* Item Number */}
-      <div className="md:col-span-2">
-        <TextInput 
-          label="Item Number" 
-          value={item.itemNo} 
-          onChange={(e) => onChange(item.id, 'itemNo', e.target.value)}
-          placeholder="SKU or Product ID"
-          info="Internal product identifier"
-        />
-      </div>
+    rows.forEach((r) => ensureClient(r.mark));
 
-      {/* Mark */}
-      <div className="md:col-span-2">
-        <TextInput 
-          label="Shipping Mark" 
-          value={item.mark} 
-          onChange={(e) => onChange(item.id, 'mark', e.target.value)}
-          placeholder="e.g., BB-AMD"
-          info="Markings on shipping containers"
-        />
-      </div>
-      
-      {/* Quantities */}
-      {[
-        { field: 'ctn', label: 'Cartons', placeholder: '0' },
-        { field: 'pcs', label: 'Pieces', placeholder: '0' },
-        { field: 'cbm', label: 'CBM', placeholder: '0.00' },
-        { field: 'weight', label: 'Weight (kg)', placeholder: '0.00' }
-      ].map(({ field, label, placeholder }) => (
-        <div key={field} className="md:col-span-1 space-y-2">
-          <label className="text-xs font-medium text-gray-500 block uppercase tracking-wide">
-            {label}
-          </label>
-          <input
-            type="number"
-            step={['cbm', 'weight'].includes(field) ? '0.01' : '1'}
-            value={item[field]}
-            onChange={(e) => onChange(item.id, field, e.target.value)}
-            min="0"
-            placeholder={placeholder}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 transition-all"
-          />
-        </div>
-      ))}
+    const payload = {
+      id: `sheet-${Date.now()}`,
+      containerCode,
+      origin,
+      loadingDate,
+      status: "draft",
+      totals,
+      rows,
+      createdAt: new Date().toISOString(),
+    };
 
-      {/* Action Button */}
-      <div className="md:col-span-1 flex justify-center">
-        <button
-          type="button"
-          onClick={() => handleRemoveItem(item.id)}
-          disabled={isLast}
-          className={`p-2 rounded-lg transition-all ${
-            isLast 
-              ? 'text-gray-300 bg-gray-100 cursor-not-allowed' 
-              : 'text-red-600 bg-red-50 hover:bg-red-100 hover:scale-105'
-          }`}
-          title={isLast ? "At least one item required" : "Remove this item"}
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
+    savePayloadToLocal(payload);
+    toast.success("Saved");
+    setTimeout(() => router.push("/dashboard/loading"), 350);
+  }
 
-  const CSVUploadSection = () => (
-    <div className="p-6 bg-white rounded-lg border border-gray-200 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Bulk Upload Items</h3>
-          <p className="text-sm text-gray-600">Upload CSV file with multiple items at once</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => alert("Downloading CSV template...")}
-          className="flex items-center gap-2 px-4 py-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
-        >
-          <FileText className="w-4 h-4" />
-          <span className="text-sm font-medium">Download Template</span>
-        </button>
-      </div>
-      
-      <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
-        <input 
-          type="file" 
-          accept=".csv" 
-          onChange={handleCSVUpload} 
-          className="hidden" 
-          id="csv-upload"
-        />
-        <label htmlFor="csv-upload" className="cursor-pointer block">
-          <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-lg font-semibold text-gray-700 mb-2">
-            {csvFile ? `Ready to process: ${csvFile.name}` : "Upload your CSV file"}
-          </p>
-          <p className="text-sm text-gray-500 max-w-md mx-auto">
-            Drag and drop your CSV file here, or click to browse. 
-            Supports up to 10,000 items per file.
-          </p>
-        </label>
-        {csvFile && (
-          <button
-            type="button"
-            onClick={() => setCsvFile(null)}
-            className="mt-4 text-sm text-red-600 hover:text-red-700 flex items-center justify-center gap-1 mx-auto"
-          >
-            <X className="w-4 h-4" />
-            Remove File
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  function handleSaveAndNew() {
+    if (!containerCode.trim()) return toast.error("Container code required");
+    if (rows.length === 0) return toast.error("Add at least one row");
 
-  const ManualEntrySection = () => (
-    <div className="p-6 bg-white rounded-lg border border-gray-200 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Manual Item Entry</h3>
-        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-          {formData.items.length} item{formData.items.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+    rows.forEach((r) => ensureClient(r.mark));
 
-      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-        {formData.items.map((item, index) => (
-          <ItemInput
-            key={item.id}
-            item={item}
-            onChange={handleItemChange}
-            isLast={formData.items.length === 1}
-          />
-        ))}
-      </div>
-      
-      <button
-        type="button"
-        onClick={handleAddItem}
-        className="w-full py-4 border-2 border-dashed border-blue-300 text-blue-600 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-50 hover:border-blue-400 transition-all"
-      >
-        <Plus className="w-5 h-5" />
-        <span className="font-semibold">Add Another Item</span>
-      </button>
-    </div>
-  );
+    const payload = {
+      id: `sheet-${Date.now()}`,
+      containerCode,
+      origin,
+      loadingDate,
+      status: "draft",
+      totals,
+      rows,
+      createdAt: new Date().toISOString(),
+    };
+    savePayloadToLocal(payload);
+    toast.success("Saved — ready for new");
 
+    setRows([{ ...EMPTY_ROW, id: `r-${Date.now()}`, _markOpen: true }]);
+    setTimeout(() => firstRef.current?.focus(), 80);
+  }
+
+  // ---------------- UI ----------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50/30">
-      {/* HEADER */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
+    <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
+      <Toaster position="top-right" />
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => window.history.back()}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => router.push("/dashboard/loading")}
+              className="text-sm text-slate-600 inline-flex items-center gap-2"
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back to Sheets</span>
+              <ChevronLeft className="w-4 h-4" /> Back
             </button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900">Create Loading Sheet</h1>
-              <p className="text-gray-600 mt-1">Add new shipment details and item information</p>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                New Loading — Fast Entry
+              </h2>
+              <div className="text-sm text-slate-500">
+                Only the item fields — optimized for speed
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-sky-50 text-sky-700">
+              <input
+                type="checkbox"
+                checked={shortcutsEnabled}
+                onChange={(e) => setShortcutsEnabled(e.target.checked)}
+              />
+              Shortcuts
+            </label>
+
+            <div className="text-xs text-slate-500 flex items-center gap-3 px-3 py-1 border rounded">
+              <div className="flex items-center gap-1">
+                <Zap className="w-4 h-4 text-sky-500" /> <span>Ctrl+N</span>
+              </div>
+              <div className="text-slate-400">|</div>
+              <div className="flex items-center gap-1">
+                <Save className="w-4 h-4 text-sky-600" /> <span>Ctrl+S</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center gap-2 bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded shadow"
+            >
+              <Save className="w-4 h-4" /> Save
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow border overflow-hidden">
+          {/* header + totals */}
+          <div className="px-6 py-4 border-b grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="text-xs text-slate-600">Container Code</label>
+              <input
+                data-row-input
+                ref={firstRef}
+                value={containerCode}
+                onChange={(e) => setContainerCode(e.target.value)}
+                onKeyDown={onEnterFocusNext}
+                className="w-full border border-slate-200 px-3 py-2 rounded mt-1 focus:ring-2 focus:ring-sky-100"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-600">Origin</label>
+              <input
+                data-row-input
+                value={origin}
+                onChange={(e) => setOrigin(e.target.value)}
+                onKeyDown={onEnterFocusNext}
+                className="w-full border border-slate-200 px-3 py-2 rounded mt-1 focus:ring-2 focus:ring-sky-100"
+              />
+            </div>
+
+            <div className="md:col-span-1 flex items-center justify-end">
+              <div className="bg-gradient-to-r from-sky-50 to-sky-100 border border-slate-100 px-4 py-3 rounded-md shadow-sm w-full md:w-auto">
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">CTN</div>
+                    <div className="text-2xl font-semibold text-slate-900">
+                      {totals.ctn}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">T.PCS</div>
+                    <div className="text-2xl font-semibold text-slate-900">
+                      {totals.tpcs}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">T.CBM</div>
+                    <div className="text-2xl font-semibold text-slate-900">
+                      {Number(totals.tcbm).toFixed(3)}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">T.WT (KG)</div>
+                    <div className="text-2xl font-semibold text-slate-900">
+                      {Number(totals.twt).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400 mt-2 text-right">
+                  Auto-calculated
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* decorative strip */}
+          <div className="px-6 py-2">
+            <div className="w-full bg-slate-100 h-1 rounded overflow-hidden">
+              <div
+                className="h-1 rounded bg-gradient-to-r from-sky-400 to-sky-300 transition-all duration-700"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.round((totals.ctn / Math.max(1, 200)) * 100)
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* rows table */}
+          <div
+            className="px-4 py-4 overflow-x-auto"
+            onClick={closeMarkDropdowns}
+          >
+            <table className="min-w-full">
+              <thead className="text-xs text-slate-600 bg-slate-50">
+                <tr>
+                  <th className="px-2 py-2">Photo</th>
+                  <th className="px-2 py-2">Particular</th>
+                  <th className="px-2 py-2">Mark (Client)</th>
+                  <th className="px-2 py-2">Item No</th>
+                  <th className="px-2 py-2">CTN</th>
+                  <th className="px-2 py-2">PCS</th>
+                  <th className="px-2 py-2">T.PCS</th>
+                  <th className="px-2 py-2">CBM</th>
+                  <th className="px-2 py-2">T.CBM</th>
+                  <th className="px-2 py-2">WT</th>
+                  <th className="px-2 py-2">T.WT</th>
+                  <th className="px-2 py-2">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    {/* Photo */}
+                    <td className="px-2 py-2 align-top">
+                      <div
+                        onDrop={(e) => onDropFile(e, r.id)}
+                        onDragOver={(e) => e.preventDefault()}
+                        className="w-20 h-16 border border-dashed rounded flex items-center justify-center bg-white/60"
+                      >
+                        {r.photo ? (
+                          <img
+                            src={r.photo}
+                            alt="preview"
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <label className="flex flex-col items-center justify-center cursor-pointer text-slate-400 text-xs">
+                            <ImageIcon className="w-5 h-5" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => onChooseFile(e, r.id)}
+                              className="hidden"
+                            />
+                            <span className="mt-1">Upload</span>
+                          </label>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Particular */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        ref={(el) =>
+                          (rowRefs.current[`${r.id}_particular`] = el)
+                        }
+                        value={r.particular}
+                        onChange={(e) =>
+                          updateRow(r.id, "particular", e.target.value)
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-52 border border-slate-200 px-2 py-1 rounded text-sm"
+                        placeholder="Particular"
+                      />
+                    </td>
+
+                    {/* Mark */}
+                    <td className="px-2 py-2 align-top">
+                      <div
+                        className="relative"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          data-row-input
+                          ref={(el) => (rowRefs.current[`${r.id}_mark`] = el)}
+                          value={r.mark}
+                          onFocus={() => openMarkForRow(r.id)}
+                          onChange={(e) => {
+                            updateRow(r.id, "mark", e.target.value);
+                            setRows((prev) =>
+                              prev.map((rr) =>
+                                rr.id === r.id
+                                  ? {
+                                      ...rr,
+                                      _markQuery: e.target.value,
+                                      _markOpen: true,
+                                    }
+                                  : rr
+                              )
+                            );
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const v = e.target.value.trim();
+                              if (v) ensureClient(v);
+                              setRows((prev) =>
+                                prev.map((rr) =>
+                                  rr.id === r.id
+                                    ? {
+                                        ...rr,
+                                        _markOpen: false,
+                                        _markQuery: "",
+                                      }
+                                    : rr
+                                )
+                              );
+                              onEnterFocusNext(e);
+                            } else onEnterFocusNext(e);
+                          }}
+                          placeholder="Client name"
+                          className="w-36 border border-slate-200 px-2 py-1 rounded text-sm"
+                        />
+                        {r._markOpen && (
+                          <ul className="absolute left-0 mt-1 w-36 bg-white border rounded shadow-sm max-h-36 overflow-auto text-sm z-30">
+                            {clients
+                              .filter((c) =>
+                                c
+                                  .toLowerCase()
+                                  .includes((r._markQuery || "").toLowerCase())
+                              )
+                              .map((c) => (
+                                <li
+                                  key={c}
+                                  className="px-2 py-1 hover:bg-sky-50 cursor-pointer"
+                                  onMouseDown={(ev) => {
+                                    ev.preventDefault();
+                                    updateRow(r.id, "mark", c);
+                                    setRows((prev) =>
+                                      prev.map((rr) =>
+                                        rr.id === r.id
+                                          ? {
+                                              ...rr,
+                                              _markOpen: false,
+                                              _markQuery: "",
+                                            }
+                                          : rr
+                                      )
+                                    );
+                                  }}
+                                >
+                                  {c}
+                                </li>
+                              ))}
+                            <li className="px-2 py-1 text-xs text-slate-500">
+                              Press Enter to create new client
+                            </li>
+                          </ul>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Item No */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        value={r.itemNo}
+                        onChange={(e) =>
+                          updateRow(r.id, "itemNo", e.target.value)
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-36 border border-slate-200 px-2 py-1 rounded text-sm"
+                        placeholder="Item No"
+                      />
+                    </td>
+
+                    {/* CTN */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        value={r.ctn}
+                        type="number"
+                        onChange={(e) =>
+                          updateRow(r.id, "ctn", Number(e.target.value || 0))
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-20 border border-slate-200 px-2 py-1 rounded text-sm text-right"
+                      />
+                    </td>
+
+                    {/* PCS */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        value={r.pcs}
+                        type="number"
+                        onChange={(e) =>
+                          updateRow(r.id, "pcs", Number(e.target.value || 0))
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-20 border border-slate-200 px-2 py-1 rounded text-sm text-right"
+                      />
+                    </td>
+
+                    {/* T.PCS */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="w-20 text-right text-sm font-medium text-slate-700">
+                        {Number(r.tpcs || 0)}
+                      </div>
+                    </td>
+
+                    {/* CBM */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        value={r.cbm}
+                        type="number"
+                        step="0.001"
+                        onChange={(e) =>
+                          updateRow(r.id, "cbm", Number(e.target.value || 0))
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-24 border border-slate-200 px-2 py-1 rounded text-sm text-right"
+                      />
+                    </td>
+
+                    {/* T.CBM */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="w-24 text-right text-sm font-medium text-slate-700">
+                        {Number(r.tcbm || 0).toFixed(3)}
+                      </div>
+                    </td>
+
+                    {/* WT */}
+                    <td className="px-2 py-2 align-top">
+                      <input
+                        data-row-input
+                        value={r.wt}
+                        type="number"
+                        onChange={(e) =>
+                          updateRow(r.id, "wt", Number(e.target.value || 0))
+                        }
+                        onKeyDown={onEnterFocusNext}
+                        className="w-20 border border-slate-200 px-2 py-1 rounded text-sm text-right"
+                      />
+                    </td>
+
+                    {/* T.WT */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="w-24 text-right text-sm font-medium text-slate-700">
+                        {Number(r.twt || 0).toFixed(2)}
+                      </div>
+                    </td>
+
+                    {/* actions */}
+                    <td className="px-2 py-2 align-top">
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => duplicateRow(r)}
+                          className="text-xs px-2 py-1 rounded bg-slate-50 border text-slate-700 inline-flex items-center gap-1"
+                        >
+                          <Copy className="w-3 h-3" /> Duplicate
+                        </button>
+                        <button
+                          onClick={() => removeRow(r.id)}
+                          className="text-xs px-2 py-1 rounded bg-rose-50 text-rose-700"
+                        >
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+
+              {/* totals footer with blueish bg */}
+              <tfoot>
+                <tr>
+                  <td colSpan={4} className="px-3 py-3 bg-slate-100">
+                    <div className="text-sm font-medium text-slate-700">
+                      TOTAL
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 bg-slate-100 text-right">
+                    <div className="text-lg font-semibold text-slate-900">
+                      {totals.ctn}
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 bg-slate-100" />
+
+                  <td className="px-3 py-3 bg-slate-100 text-right">
+                    <div className="text-lg font-semibold text-slate-900">
+                      {totals.tpcs}
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 bg-slate-100 text-right">
+                    <div className="text-lg font-semibold text-slate-900">
+                      {Number(totals.tcbm).toFixed(3)}
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 bg-slate-100" />
+
+                  <td className="px-3 py-3 bg-slate-100 text-right">
+                    <div className="text-lg font-semibold text-slate-900">
+                      {Number(totals.twt).toFixed(2)}
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 bg-slate-100" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* bottom toolbar */}
+          <div className="px-6 py-4 border-t flex items-center justify-between bg-gradient-to-t from-white/60 to-slate-50">
+            <div className="text-xs text-slate-500">
+              Enter → next •{" "}
+              <span className="font-medium text-slate-700">Ctrl+N</span> → add •{" "}
+              <span className="font-medium text-slate-700">Ctrl+S</span> → save
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => addRow(true)}
+                className="inline-flex items-center gap-2 bg-sky-50 text-sky-700 px-3 py-2 rounded border hover:bg-sky-100"
+                title="Add item (Ctrl+N)"
+              >
+                <Plus className="w-4 h-4" /> Add Item
+              </button>
+
+              <button
+                onClick={handleSaveAndNew}
+                className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded hover:bg-slate-900"
+                title="Save and clear for new"
+              >
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    d="M12 5v14M5 12h14"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>{" "}
+                Save & New
+              </button>
+
+              <button
+                onClick={handleSave}
+                className="inline-flex items-center gap-2 bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded"
+              >
+                <Save className="w-4 h-4" /> Save
+              </button>
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Tips */}
-        {showTips && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-8">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-blue-900 mb-1">Quick Tips</h3>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Fill in required fields marked with *</li>
-                    <li>• Add at least one item with complete details</li>
-                    <li>• Use bulk CSV upload for multiple items</li>
-                    <li>• Totals are calculated automatically</li>
-                  </ul>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowTips(false)}
-                className="text-blue-400 hover:text-blue-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Section 1: Shipment Details */}
-          <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 font-bold text-sm">1</span>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Shipment Information</h2>
-                <p className="text-gray-600">Basic details about this shipment</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <TextInput 
-                  label="Shipping Code" 
-                  name="shippingCode" 
-                  value={formData.shippingCode}
-                  icon={Ship}
-                  placeholder="e.g., PSDH-91"
-                  required
-                  info="Unique identifier for this shipment"
-                />
-                <TextInput 
-                  label="Shipping Mark" 
-                  name="shippingMark" 
-                  value={formData.shippingMark}
-                  icon={MapPin}
-                  placeholder="e.g., SMWGC20"
-                  required
-                  info="Markings on shipping containers"
-                />
-              </div>
-              
-              <div className="space-y-6">
-                <TextInput 
-                  label="Supplier Name" 
-                  name="supplier" 
-                  value={formData.supplier}
-                  placeholder="e.g., YIWU ZHOULAI TRADING"
-                  required
-                  info="Company or individual supplying goods"
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <TextInput 
-                    label="Loading Date" 
-                    name="loadingDate" 
-                    type="date" 
-                    value={formData.loadingDate}
-                    icon={Calendar}
-                    required
-                  />
-                  <TextInput 
-                    label="Arrival Date" 
-                    name="arrivalDate" 
-                    type="date" 
-                    value={formData.arrivalDate}
-                    icon={Calendar}
-                    info="Expected arrival date at destination"
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Section 2: Items */}
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span className="text-green-600 font-bold text-sm">2</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Item Details</h2>
-                  <p className="text-gray-600">Add products included in this shipment</p>
-                </div>
-              </div>
-
-              {/* Tab Navigation */}
-              <div className="flex border-b border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setActiveItemTab('manual')}
-                  className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium transition-colors ${
-                    activeItemTab === 'manual'
-                      ? 'border-blue-500 text-blue-600 bg-blue-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Plus className="w-4 h-4" />
-                  Manual Entry
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveItemTab('csv')}
-                  className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium transition-colors ${
-                    activeItemTab === 'csv'
-                      ? 'border-blue-500 text-blue-600 bg-blue-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <UploadCloud className="w-4 h-4" />
-                  Bulk CSV Upload
-                </button>
-              </div>
-            </div>
-
-            {activeItemTab === 'manual' && <ManualEntrySection />}
-            {activeItemTab === 'csv' && <CSVUploadSection />}
-          </section>
-
-          {/* Summary & Submit */}
-          <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <span className="text-purple-600 font-bold text-sm">3</span>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Summary & Submit</h2>
-                <p className="text-gray-600">Review totals and create loading sheet</p>
-              </div>
-            </div>
-
-            {/* Totals Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
-                <div className="flex items-center gap-3">
-                  <PackageOpen className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="text-sm text-blue-700 font-medium">Total Items</p>
-                    <p className="text-2xl font-bold text-blue-900">{formData.items.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="w-8 h-8 text-green-600" />
-                  <div>
-                    <p className="text-sm text-green-700 font-medium">Total CBM</p>
-                    <p className="text-2xl font-bold text-green-900">{totals.totalCBM.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-xl border border-orange-200">
-                <div className="flex items-center gap-3">
-                  <Scale className="w-8 h-8 text-orange-600" />
-                  <div>
-                    <p className="text-sm text-orange-700 font-medium">Total Weight</p>
-                    <p className="text-2xl font-bold text-orange-900">{totals.totalWeight.toFixed(2)} kg</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">
-                <div className="flex items-center gap-3">
-                  <PackageOpen className="w-8 h-8 text-purple-600" />
-                  <div>
-                    <p className="text-sm text-purple-700 font-medium">Total Cartons</p>
-                    <p className="text-2xl font-bold text-purple-900">{totals.totalCartons}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Validation & Submit */}
-            <div className="flex items-center justify-between pt-6 border-t border-gray-200">
-              <div className="flex items-center gap-3">
-                {formErrors.length === 0 ? (
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="font-medium">All required fields are complete</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-amber-600">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="font-medium">{formErrors.length} issue{formErrors.length !== 1 ? 's' : ''} to fix</span>
-                  </div>
-                )}
-              </div>
-              
-              <button
-                type="submit"
-                disabled={isSubmitting || formErrors.length > 0}
-                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating Sheet...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5" />
-                    Create Loading Sheet
-                  </>
-                )}
-              </button>
-            </div>
-          </section>
-        </form>
-      </main>
+      </div>
     </div>
   );
+
+  // local helper placed after JSX because it's referenced earlier.
+  function handleSaveAndNew() {
+    if (!containerCode.trim()) return toast.error("Container code required");
+    if (rows.length === 0) return toast.error("Add at least one row");
+
+    rows.forEach((r) => ensureClient(r.mark));
+
+    const payload = {
+      id: `sheet-${Date.now()}`,
+      containerCode,
+      origin,
+      loadingDate,
+      status: "draft",
+      totals,
+      rows,
+      createdAt: new Date().toISOString(),
+    };
+    savePayloadToLocal(payload);
+    toast.success("Saved — ready for new");
+
+    setRows([{ ...EMPTY_ROW, id: `r-${Date.now()}`, _markOpen: true }]);
+    setTimeout(() => firstRef.current?.focus(), 80);
+  }
 }
