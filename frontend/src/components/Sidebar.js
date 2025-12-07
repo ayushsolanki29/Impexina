@@ -214,7 +214,7 @@ function getActiveInfo(path) {
 /* ----------------------------- Component ----------------------------- */
 export default function SidebarAdvanced({
   role = "admin",
-  currentPath = "/dashboard",
+  currentPath = "/dashboard/",
   counts = {},
 }) {
   const router = useRouter();
