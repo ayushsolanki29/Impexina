@@ -42,23 +42,7 @@ const MENU = [
     icon: Box,
     path: "/dashboard/loading",
     roles: ["admin", "mod", "employee"],
-    children: [
-      {
-        key: "loading_list",
-        label: "All Loadings",
-        path: "/dashboard/loading",
-      },
-      {
-        key: "loading_new",
-        label: "New Loading",
-        path: "/dashboard/loading/new",
-      },
-      {
-        key: "loading_bulk",
-        label: "Bulk Import",
-        path: "/dashboard/loading/import",
-      },
-    ],
+ 
   },
   {
     key: "bifurcation",
@@ -214,7 +198,7 @@ function getActiveInfo(path) {
 /* ----------------------------- Component ----------------------------- */
 export default function SidebarAdvanced({
   role = "admin",
-  currentPath = "/dashboard/",
+  currentPath = "dashboard",
   counts = {},
 }) {
   const router = useRouter();

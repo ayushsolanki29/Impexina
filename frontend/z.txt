@@ -1,0 +1,15 @@
+Loading sheet
+  id,
+  photo,
+  shippingMark,
+  ctnMark,
+  particular
+  itemNo,        
+  ctn,
+  pcs,
+  cbm,
+  wt,
+  tpcs,
+  tcbm,
+  twt
+  

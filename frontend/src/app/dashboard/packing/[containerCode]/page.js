@@ -10,11 +10,14 @@ import {
   Download,
   Save,
   X,
+  Banknote,
+  Weight,
+  Package,
 } from "lucide-react";
 
 const STORAGE_KEY = "igpl_packing_v1";
 
-// demo seed (matches screenshot-ish / sample PDF)
+// demo seed matching your table structure
 const DEMO = {
   meta: {
     companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
@@ -28,8 +31,15 @@ const DEMO = {
     from: "CHINA",
     to: "NHAVA SHEVA INDIA",
     gst: "27AAHCI1462J1ZG",
-    bankDetail:
-      "BENEFICIARY'S BANK NAME: ZHEJIANG TAILONG COMMERCIAL BANK\nBENEFICIARY NAME: YIWU ZHOULAI TRADING CO.,LIMITED",
+
+    // Bank details fields
+    bankName: "ZHEJIANG TAILONG COMMERCIAL BANK",
+    beneficiaryName: "YIWU ZHOULAI TRADING CO.,LIMITED",
+    swiftBic: "ZJTLCNBHXXX",
+    bankAddress:
+      "ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE",
+    accountNumber: "33080020201000155179",
+
     signatureText: "Authorized Signatory",
   },
   items: [
@@ -37,7 +47,6 @@ const DEMO = {
       id: "i1",
       itemNumber: "BB-AMD",
       particular: "FOOTREST",
-      mark: "BB-AMD",
       ctn: 5,
       qtyPerCtn: 100,
       unit: "PCS",
@@ -45,14 +54,11 @@ const DEMO = {
       kg: 7,
       tKg: 35.0,
       mix: "",
-      hsn: "",
-      photo: null,
     },
     {
       id: "i2",
       itemNumber: "SMWGC18",
       particular: "TABLE RUNNER",
-      mark: "SMWGC18",
       ctn: 21,
       qtyPerCtn: 96,
       unit: "PCS",
@@ -60,14 +66,11 @@ const DEMO = {
       kg: 18,
       tKg: 378.0,
       mix: "",
-      hsn: "",
-      photo: null,
     },
     {
       id: "i3",
       itemNumber: "EXPRESS",
       particular: "WALL HOOK",
-      mark: "EXPRESS",
       ctn: 1,
       qtyPerCtn: 100,
       unit: "PCS",
@@ -75,8 +78,6 @@ const DEMO = {
       kg: 1,
       tKg: 1.0,
       mix: "",
-      hsn: "",
-      photo: null,
     },
   ],
 };
@@ -144,7 +145,12 @@ export default function PackingListPage() {
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      writeStorage({ meta, items, signature, signatureName: signaturePreviewName });
+      writeStorage({
+        meta,
+        items,
+        signature,
+        signatureName: signaturePreviewName,
+      });
       setLastSaved(new Date().toLocaleTimeString());
     }, 700);
 
@@ -174,7 +180,6 @@ export default function PackingListPage() {
       id: uid("item"),
       itemNumber: "",
       particular: "",
-      mark: "",
       ctn: 0,
       qtyPerCtn: 0,
       unit: "PCS",
@@ -182,8 +187,6 @@ export default function PackingListPage() {
       kg: 0,
       tKg: 0,
       mix: "",
-      hsn: "",
-      photo: null,
     };
   }
 
@@ -192,7 +195,10 @@ export default function PackingListPage() {
   }
 
   function addMultipleRows(count) {
-    setItems((s) => [...s, ...Array.from({ length: count }, () => baseEmptyRow())]);
+    setItems((s) => [
+      ...s,
+      ...Array.from({ length: count }, () => baseEmptyRow()),
+    ]);
   }
 
   function insertRowAfter(id) {
@@ -275,7 +281,7 @@ export default function PackingListPage() {
       .replace(/>/g, "&gt;");
   }
 
-  // printable HTML – tuned to look like your PDF
+  // printable HTML – matching your exact table structure
   function buildPrintableHTML() {
     const headerHtml = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -291,7 +297,9 @@ export default function PackingListPage() {
           <div style="font-weight:700;font-size:16px;margin-bottom:4px;">PACKING LIST</div>
           <div>INV NO.: <strong>${escapeHtml(meta.invNo || "")}</strong></div>
           <div>DATE: <strong>${escapeHtml(meta.date || "")}</strong></div>
-          <div style="margin-top:4px;">FROM: <strong>${escapeHtml(meta.from || "")}</strong></div>
+          <div style="margin-top:4px;">FROM: <strong>${escapeHtml(
+            meta.from || ""
+          )}</strong></div>
           <div>TO: <strong>${escapeHtml(meta.to || "")}</strong></div>
         </div>
       </div>
@@ -303,9 +311,6 @@ export default function PackingListPage() {
           )}</div>
           <div style="white-space:pre-wrap;">${escapeHtml(
             meta.sellerAddress || ""
-          )}</div>
-          <div style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(
-            meta.bankDetail || ""
           )}</div>
         </div>
         <div style="width:220px;">
@@ -332,9 +337,6 @@ export default function PackingListPage() {
           <td style="border:1px solid #000;padding:4px;font-size:11px;">${escapeHtml(
             it.particular || ""
           )}</td>
-          <td style="border:1px solid #000;padding:4px;font-size:11px;">${escapeHtml(
-            it.mark || ""
-          )}</td>
           <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
             it.ctn || 0
           )}</td>
@@ -353,21 +355,16 @@ export default function PackingListPage() {
           <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
             it.tKg || 0
           )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-size:11px;">${escapeHtml(
-            it.mix || ""
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-size:11px;">${escapeHtml(
-            it.hsn || ""
-          )}</td>
+       
         </tr>`;
       })
       .join("");
 
-    const totalRow = `<tr>
-      <td colspan="5" style="border:1px solid #000;padding:5px;font-weight:700;text-align:left;font-size:11px;">
+    const totalRow = `<tr style="background-color:#f0f0f0;">
+      <td colspan="3" style="border:1px solid #000;padding:5px;font-weight:700;text-align:left;font-size:11px;">
         TOTAL
       </td>
-      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;">
+      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;background-color:#fffacd;">
         ${totals.ctn}
       </td>
       <td style="border:1px solid #000;padding:5px;"></td>
@@ -376,15 +373,41 @@ export default function PackingListPage() {
         ${totals.tQty}
       </td>
       <td style="border:1px solid #000;padding:5px;"></td>
-      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;">
+      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;background-color:#d0f0ff;">
         ${totals.tKg.toFixed(2)}
       </td>
-      <td style="border:1px solid #000;padding:5px;" colspan="2"></td>
+      <td style="border:1px solid #000;padding:5px;"></td>
     </tr>`;
+
+    // Bank details section
+    const bankDetailsHtml = `
+      <div style="margin-top:12px;padding:8px;border:1px solid #000;font-size:11px;">
+        <div style="font-weight:700;margin-bottom:4px;text-transform:uppercase;">Bank Detail:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+          <div><strong>BENEFICIARY'S BANK NAME:</strong> ${escapeHtml(
+            meta.bankName || ""
+          )}</div>
+          <div><strong>SWIFT BIC:</strong> ${escapeHtml(
+            meta.swiftBic || ""
+          )}</div>
+          <div><strong>BENEFICIARY NAME:</strong> ${escapeHtml(
+            meta.beneficiaryName || ""
+          )}</div>
+          <div><strong>BENEFICIARY A/C NO.:</strong> ${escapeHtml(
+            meta.accountNumber || ""
+          )}</div>
+          <div style="grid-column:1/-1"><strong>BENEFICIARY'S BANK ADD:</strong> ${escapeHtml(
+            meta.bankAddress || ""
+          )}</div>
+        </div>
+      </div>
+    `;
 
     const signatureHtml = signature
       ? `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;">
-          <div style="font-size:11px;">${escapeHtml(meta.signatureText || "")}</div>
+          <div style="font-size:11px;">${escapeHtml(
+            meta.signatureText || ""
+          )}</div>
           <div style="text-align:center;">
             <img src="${signature}" style="max-width:220px;max-height:80px;object-fit:contain;display:block;margin-bottom:4px;" />
             <div style="font-size:11px;">Stamp / Signature</div>
@@ -425,6 +448,12 @@ export default function PackingListPage() {
     td {
       border: 1px solid #000;
     }
+    .highlight-ctn {
+      background-color: #fffacd !important;
+    }
+    .highlight-weight {
+      background-color: #d0f0ff !important;
+    }
   </style>
 </head>
 <body>
@@ -436,15 +465,13 @@ export default function PackingListPage() {
         <th style="width:90px;">Item Number</th>
         <th style="width:80px;">Photo</th>
         <th>Descriptions</th>
-        <th style="width:110px;">Mark</th>
         <th style="width:60px;">Ctn.</th>
         <th style="width:80px;">Qty./ Ctn</th>
         <th style="width:55px;">Unit</th>
         <th style="width:80px;">T-QTY</th>
         <th style="width:55px;">KG</th>
         <th style="width:65px;">T.KG</th>
-        <th style="width:55px;">MIX</th>
-        <th style="width:70px;">HSN</th>
+    
       </tr>
     </thead>
     <tbody>
@@ -452,6 +479,7 @@ export default function PackingListPage() {
       ${totalRow}
     </tbody>
   </table>
+  ${bankDetailsHtml}
   ${signatureHtml}
 </body>
 </html>`;
@@ -471,13 +499,18 @@ export default function PackingListPage() {
     if (!w) return toast.error("Popup blocked");
     w.document.open();
     w.document.write(
-      html + '<script>setTimeout(()=>window.print(),200);</script>'
+      html + "<script>setTimeout(()=>window.print(),200);</script>"
     );
     w.document.close();
   }
 
   function handleSaveNow() {
-    writeStorage({ meta, items, signature, signatureName: signaturePreviewName });
+    writeStorage({
+      meta,
+      items,
+      signature,
+      signatureName: signaturePreviewName,
+    });
     setLastSaved(new Date().toLocaleTimeString());
     toast.success("Saved to browser storage");
   }
@@ -493,7 +526,8 @@ export default function PackingListPage() {
               Packing List — Editor
             </h2>
             <div className="text-sm text-slate-500">
-              Edit all fields, upload item photos & signature, then preview / print.
+              Edit all fields, upload item photos & signature, then preview /
+              print.
             </div>
             {lastSaved && (
               <div className="mt-1 text-xs text-emerald-600">
@@ -580,17 +614,13 @@ export default function PackingListPage() {
             <input
               type="date"
               value={meta.date}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, date: e.target.value }))
-              }
+              onChange={(e) => setMeta((m) => ({ ...m, date: e.target.value }))}
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
             <label className="text-xs text-slate-600 mt-2 block">From</label>
             <input
               value={meta.from}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, from: e.target.value }))
-              }
+              onChange={(e) => setMeta((m) => ({ ...m, from: e.target.value }))}
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
             <label className="text-xs text-slate-600 mt-2 block">
@@ -598,9 +628,7 @@ export default function PackingListPage() {
             </label>
             <input
               value={meta.to}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, to: e.target.value }))
-              }
+              onChange={(e) => setMeta((m) => ({ ...m, to: e.target.value }))}
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
             <label className="text-xs text-slate-600 mt-2 block">
@@ -608,40 +636,133 @@ export default function PackingListPage() {
             </label>
             <input
               value={meta.gst}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, gst: e.target.value }))
-              }
+              onChange={(e) => setMeta((m) => ({ ...m, gst: e.target.value }))}
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
           </div>
         </div>
 
-        {/* Bank / Notes */}
-        <div className="bg-white border rounded p-3 mb-4">
-          <label className="text-xs text-slate-600">Bank / Misc detail</label>
-          <textarea
-            value={meta.bankDetail || ""}
-            onChange={(e) =>
-              setMeta((m) => ({ ...m, bankDetail: e.target.value }))
-            }
-            className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            rows={2}
-          />
+        {/* Bank Details Section */}
+        <div className="bg-white border rounded p-4 mb-4 border-l-4 border-l-blue-500">
+          <div className="flex items-center gap-2 mb-3">
+            <Banknote className="w-5 h-5 text-blue-600" />
+            <h3 className="text-sm font-semibold text-slate-800">
+              Bank Detail
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-600 block">
+                BENEFICIARY'S BANK NAME
+              </label>
+              <input
+                value={meta.bankName || ""}
+                onChange={(e) =>
+                  setMeta((m) => ({ ...m, bankName: e.target.value }))
+                }
+                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                placeholder="ZHEJIANG TAILONG COMMERCIAL BANK"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600 block">SWIFT BIC</label>
+              <input
+                value={meta.swiftBic || ""}
+                onChange={(e) =>
+                  setMeta((m) => ({ ...m, swiftBic: e.target.value }))
+                }
+                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                placeholder="ZJTLCNBHXXX"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600 block">
+                BENEFICIARY NAME
+              </label>
+              <input
+                value={meta.beneficiaryName || ""}
+                onChange={(e) =>
+                  setMeta((m) => ({ ...m, beneficiaryName: e.target.value }))
+                }
+                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                placeholder="YIWU ZHOULAI TRADING CO.,LIMITED"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600 block">
+                BENEFICIARY A/C NO.
+              </label>
+              <input
+                value={meta.accountNumber || ""}
+                onChange={(e) =>
+                  setMeta((m) => ({ ...m, accountNumber: e.target.value }))
+                }
+                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                placeholder="33080020201000155179"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-600 block">
+                BENEFICIARY'S BANK ADD
+              </label>
+              <textarea
+                value={meta.bankAddress || ""}
+                onChange={(e) =>
+                  setMeta((m) => ({ ...m, bankAddress: e.target.value }))
+                }
+                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                rows={2}
+                placeholder="ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Quick totals + add controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2 text-sm">
-          <div className="flex flex-wrap gap-4 text-slate-700">
-            <span>
-              <span className="font-semibold">{totals.ctn}</span> cartons
-            </span>
-            <span>
-              <span className="font-semibold">{totals.tQty}</span> total quantity
-            </span>
-            <span>
-              <span className="font-semibold">{totals.tKg.toFixed(2)}</span> total KG
-            </span>
+        {/* Highlighted Totals Section */}
+        <div className="bg-white border rounded p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Package className="w-4 h-4 text-yellow-700" />
+              <span className="text-xs font-semibold text-yellow-800">
+                TOTAL CTN
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-yellow-900">
+              {totals.ctn}
+            </div>
+            <div className="text-xs text-yellow-600 mt-1">Cartons</div>
           </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Weight className="w-4 h-4 text-blue-700" />
+              <span className="text-xs font-semibold text-blue-800">
+                TOTAL WEIGHT
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-blue-900">
+              {totals.tKg.toFixed(2)}
+            </div>
+            <div className="text-xs text-blue-600 mt-1">Kilograms</div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded p-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Package className="w-4 h-4 text-slate-700" />
+              <span className="text-xs font-semibold text-slate-800">
+                TOTAL QUANTITY
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {totals.tQty}
+            </div>
+            <div className="text-xs text-slate-600 mt-1">Units</div>
+          </div>
+        </div>
+
+        {/* Quick add controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2 text-sm">
           <div className="flex flex-wrap gap-2">
             <button
               onClick={addRow}
@@ -676,7 +797,7 @@ export default function PackingListPage() {
           </div>
         </div>
 
-        {/* Items table editor */}
+        {/* Items table editor - EXACTLY matching your table structure */}
         <div className="bg-white border rounded overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-slate-50 text-xs text-slate-600">
@@ -685,7 +806,6 @@ export default function PackingListPage() {
                 <th className="px-2 py-2">Item Number</th>
                 <th className="px-2 py-2">Photo</th>
                 <th className="px-2 py-2">Descriptions</th>
-                <th className="px-2 py-2">Mark</th>
                 <th className="px-2 py-2">Ctn.</th>
                 <th className="px-2 py-2">Qty./ Ctn</th>
                 <th className="px-2 py-2">Unit</th>
@@ -742,26 +862,18 @@ export default function PackingListPage() {
                   </td>
                   <td className="px-2 py-2">
                     <input
-                      value={it.mark}
-                      onChange={(e) =>
-                        updateRow(it.id, "mark", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-36"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
                       type="number"
                       value={it.ctn}
                       onChange={(e) =>
                         handleChangeNumber(it.id, "ctn", e.target.value)
                       }
-                      className="border px-2 py-1 rounded text-xs w-20 text-right"
+                      className="border px-2 py-1 rounded text-xs w-20 text-right bg-yellow-50"
                     />
                   </td>
                   <td className="px-2 py-2">
                     <input
                       type="number"
+                      step="0.01"
                       value={it.qtyPerCtn}
                       onChange={(e) =>
                         handleChangeNumber(it.id, "qtyPerCtn", e.target.value)
@@ -772,9 +884,7 @@ export default function PackingListPage() {
                   <td className="px-2 py-2">
                     <input
                       value={it.unit}
-                      onChange={(e) =>
-                        updateRow(it.id, "unit", e.target.value)
-                      }
+                      onChange={(e) => updateRow(it.id, "unit", e.target.value)}
                       className="border px-2 py-1 rounded text-xs w-20"
                     />
                   </td>
@@ -784,6 +894,7 @@ export default function PackingListPage() {
                   <td className="px-2 py-2">
                     <input
                       type="number"
+                      step="0.01"
                       value={it.kg}
                       onChange={(e) =>
                         handleChangeNumber(it.id, "kg", e.target.value)
@@ -791,24 +902,13 @@ export default function PackingListPage() {
                       className="border px-2 py-1 rounded text-xs w-20 text-right"
                     />
                   </td>
-                  <td className="px-2 py-2 text-right text-xs">
+                  <td className="px-2 py-2 text-right text-xs bg-blue-50">
                     {Number(it.tKg || 0).toFixed(2)}
                   </td>
                   <td className="px-2 py-2">
                     <input
                       value={it.mix}
-                      onChange={(e) =>
-                        updateRow(it.id, "mix", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-24"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.hsn}
-                      onChange={(e) =>
-                        updateRow(it.id, "hsn", e.target.value)
-                      }
+                      onChange={(e) => updateRow(it.id, "mix", e.target.value)}
                       className="border px-2 py-1 rounded text-xs w-24"
                     />
                   </td>
@@ -840,10 +940,10 @@ export default function PackingListPage() {
             </tbody>
             <tfoot className="bg-slate-50 text-xs">
               <tr>
-                <td colSpan={5} className="px-2 py-2 font-semibold">
+                <td colSpan={4} className="px-2 py-2 font-semibold">
                   TOTAL
                 </td>
-                <td className="px-2 py-2 text-right font-semibold">
+                <td className="px-2 py-2 text-right font-semibold bg-yellow-100">
                   {totals.ctn}
                 </td>
                 <td className="px-2 py-2" />
@@ -852,10 +952,10 @@ export default function PackingListPage() {
                   {totals.tQty}
                 </td>
                 <td className="px-2 py-2" />
-                <td className="px-2 py-2 text-right font-semibold">
+                <td className="px-2 py-2 text-right font-semibold bg-blue-100">
                   {totals.tKg.toFixed(2)}
                 </td>
-                <td colSpan={3} />
+                <td colSpan={2} />
               </tr>
             </tfoot>
           </table>
@@ -878,7 +978,11 @@ export default function PackingListPage() {
                 )}
               </div>
               <div>
-                <input type="file" accept="image/*" onChange={uploadSignature} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={uploadSignature}
+                />
                 <div className="text-xs text-slate-500 mt-2">
                   File: {signaturePreviewName || "none"}
                 </div>
@@ -906,7 +1010,9 @@ export default function PackingListPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-md shadow-xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-3 border-b">
-              <div className="font-semibold text-sm">Packing List — Preview</div>
+              <div className="font-semibold text-sm">
+                Packing List — Preview
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={printPreview}

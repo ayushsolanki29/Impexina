@@ -2,13 +2,13 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'SLEXIM ERP',
+  title: 'IGPL — Impexina ERP',
   description: 'Import Logistics & Sales Management System',
   // manifest file
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'SLEXIM ERP',
+    title: 'IGPL — Impexina ERP',
   },
 
 
