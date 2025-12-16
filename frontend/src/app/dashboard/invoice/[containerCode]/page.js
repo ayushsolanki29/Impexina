@@ -272,191 +272,170 @@ export default function CommercialInvoicePage() {
   }
 
   // Printable HTML – matching your invoice style
-  function buildPrintableHTML() {
-    const headerHtml = `
-      <div style="border:1px solid #000;padding:4px 8px;">
-        <div style="text-align:center;font-size:16px;font-weight:bold;text-transform:uppercase;">
-          ${escapeHtml(meta.companyName)}
-        </div>
-        <div style="text-align:center;font-size:10px;margin-top:2px;">
-          ${escapeHtml(meta.companyAddress)}
-        </div>
-      </div>
+function buildPrintableHTML() {
+  const rowsHtml = items
+    .map((it, i) => {
+      const photo = it.photo
+        ? `<img src="${it.photo}" style="max-width:45px;max-height:35px;" />`
+        : "";
+      return `
+<tr>
+  <td class="c">${i + 1}</td>
+  <td class="c">${escapeHtml(it.itemNumber)}</td>
+  <td class="c">${photo}</td>
+  <td>${escapeHtml(it.description)}</td>
+  <td class="r">${it.ctn}</td>
+  <td class="r">${it.qtyPerCtn}</td>
+  <td class="c">${escapeHtml(it.unit)}</td>
+  <td class="r">${it.tQty}</td>
+  <td class="r">${Number(it.unitPrice).toFixed(2)}</td>
+  <td class="r">${Number(it.amountUsd).toFixed(2)}</td>
+</tr>`;
+    })
+    .join("");
 
-      <div style="border-left:1px solid #000;border-right:1px solid #000;border-bottom:1px solid #000;padding:4px 8px;">
-        <div style="text-align:center;font-size:13px;font-weight:bold;text-decoration:underline;">
-          ${escapeHtml(meta.title || "COMMERCIAL INVOICE")}
-        </div>
-
-        <div style="margin-top:4px;display:flex;font-size:11px;gap:12px;">
-          <div style="flex:2;">
-            <div style="font-weight:bold;margin-bottom:2px;">
-              ${escapeHtml(meta.buyerName || "")}
-            </div>
-            <div style="white-space:pre-wrap;">
-              ${escapeHtml(meta.buyerAddress || "")}
-            </div>
-            <div style="margin-top:4px;">${escapeHtml(meta.buyerIEC || "")}</div>
-            <div>${escapeHtml(meta.buyerGST || "")}</div>
-            <div>${escapeHtml(meta.buyerEmail || "")}</div>
-          </div>
-          <div style="flex:1;">
-            <div>INV NO.: <strong>${escapeHtml(meta.invNo || "")}</strong></div>
-            <div>DATE: <strong>${escapeHtml(meta.date || "")}</strong></div>
-            <div>NHAVA SHEVA INDIA</div>
-            <div>FROM: ${escapeHtml(meta.from || "")}</div>
-            <div>TO: ${escapeHtml(meta.to || "")}</div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const rowsHtml = items
-      .map((it, i) => {
-        const photoTd = it.photo
-          ? `<td style="border:1px solid #000;padding:3px;text-align:center;">
-               <img src="${it.photo}" style="max-width:55px;max-height:45px;object-fit:cover;" />
-             </td>`
-          : `<td style="border:1px solid #000;padding:3px;text-align:center;"></td>`;
-        return `<tr>
-          <td style="border:1px solid #000;padding:3px;text-align:center;font-size:10px;">${i +
-            1}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:center;font-size:10px;">${escapeHtml(
-            it.itemNumber || ""
-          )}</td>
-          ${photoTd}
-          <td style="border:1px solid #000;padding:3px;font-size:10px;">${escapeHtml(
-            it.description || ""
-          )}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:10px;">${escapeHtml(
-            it.ctn || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:10px;">${escapeHtml(
-            it.qtyPerCtn || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:center;font-size:10px;">${escapeHtml(
-            it.unit || ""
-          )}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:10px;">${escapeHtml(
-            it.tQty || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:10px;">${Number(
-            it.unitPrice || 0
-          ).toFixed(2)}</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:10px;">${Number(
-            it.amountUsd || 0
-          ).toFixed(2)}</td>
-        </tr>`;
-      })
-      .join("");
-
-    const totalRow = `
-      <tr>
-        <td colspan="4" style="border:1px solid #000;padding:4px;font-weight:bold;font-size:10px;text-align:left;">TOTAL</td>
-        <td style="border:1px solid #000;padding:4px;text-align:right;font-weight:bold;font-size:10px;">${
-          totals.ctn
-        }</td>
-        <td style="border:1px solid #000;padding:4px;"></td>
-        <td style="border:1px solid #000;padding:4px;"></td>
-        <td style="border:1px solid #000;padding:4px;text-align:right;font-weight:bold;font-size:10px;">${
-          totals.tQty
-        }</td>
-        <td style="border:1px solid #000;padding:4px;"></td>
-        <td style="border:1px solid #000;padding:4px;text-align:right;font-weight:bold;font-size:10px;">${totals.amount.toFixed(
-          2
-        )}</td>
-      </tr>
-    `;
-
-    const cifHtml = `
-      <div style="border-left:1px solid #000;border-right:1px solid #000;border-bottom:1px solid #000;padding:4px 8px;font-size:11px;">
-        ${escapeHtml(meta.cifText || "")}
-      </div>
-    `;
-
-    const bankHtml = `
-      <div style="border:1px solid #000;border-top:none;padding:4px 8px;font-size:11px;white-space:pre-wrap;">
-        <div style="font-weight:bold;margin-bottom:4px;">Bank Details:</div>
-        ${escapeHtml(meta.bankDetail || "")}
-      </div>
-    `;
-
-    const signatureHtml = `
-      <div style="margin-top:18px;display:flex;justify-content:flex-end;">
-        <div style="text-align:center;font-size:10px;">
-          ${
-            signature
-              ? `<img src="${signature}" style="max-width:220px;max-height:70px;object-fit:contain;display:block;margin-bottom:4px;" />`
-              : ""
-          }
-          <div style="white-space:pre-wrap;">${escapeHtml(
-            meta.signatureText || ""
-          )}</div>
-        </div>
-      </div>
-    `;
-
-    const html = `<!doctype html>
+  return `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Commercial Invoice</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 12px;
-      color: #000;
-      margin: 0;
-      padding: 18px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th {
-      border: 1px solid #000;
-      padding: 4px;
-      font-size: 10px;
-      background: #f3f3f3;
-      text-align: center;
-    }
-    td {
-      border: 1px solid #000;
-    }
-  </style>
+<meta charset="utf-8"/>
+<title>Commercial Invoice</title>
+
+<style>
+@page { size:A4; margin:10mm; }
+
+body {
+  font-family: Cambria, "Cambria Math", "Times New Roman", serif;
+  font-size: 10.5px;
+  color:#000;
+  margin:0;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+
+td, th {
+  border:1px solid #888;
+  padding:3px 4px;
+  vertical-align:top;
+}
+
+.c { text-align:center; }
+.r { text-align:right; }
+.b { font-weight:bold; }
+</style>
 </head>
+
 <body>
-  ${headerHtml}
-  <table style="border-left:1px solid #000;border-right:1px solid #000;border-bottom:1px solid #000;margin-top:6px;">
-    <thead>
-      <tr>
-        <th style="width:30px;">S.N.</th>
-        <th style="width:80px;">ITEM NO.</th>
-        <th style="width:80px;">Photo</th>
-        <th>Descriptions</th>
-        <th style="width:50px;">Ctn.</th>
-        <th style="width:70px;">Qty./ Ctn</th>
-        <th style="width:45px;">Unit</th>
-        <th style="width:70px;">T-Qty</th>
-        <th style="width:65px;">U.price</th>
-        <th style="width:80px;">Amount/USD</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rowsHtml}
-      ${totalRow}
-    </tbody>
-  </table>
-  ${cifHtml}
-  ${bankHtml}
-  ${signatureHtml}
+
+<!-- HEADER -->
+<table>
+<tr>
+  <td class="c b" style="font-size:16px;">
+    ${escapeHtml(meta.companyName)}
+  </td>
+</tr>
+<tr>
+  <td class="c">
+    ${escapeHtml(meta.companyAddress)}
+  </td>
+</tr>
+<tr>
+  <td class="c b" style="font-size:14px;">
+    ${escapeHtml(meta.title)}
+  </td>
+</tr>
+</table>
+
+<!-- BUYER + INVOICE -->
+<table>
+<tr>
+<td style="width:65%;">
+  <b>${escapeHtml(meta.buyerName)}</b><br/>
+  ${escapeHtml(meta.buyerAddress).replace(/\n/g, "<br/>")}<br/>
+  ${escapeHtml(meta.buyerIEC)}<br/>
+  ${escapeHtml(meta.buyerGST)}<br/>
+  ${escapeHtml(meta.buyerEmail)}
+</td>
+<td style="width:35%;">
+  <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
+  <b>DATE:</b> ${escapeHtml(meta.date)}<br/>
+  <b>${escapeHtml(meta.to)}</b><br/>
+  <b>FROM:</b> ${escapeHtml(meta.from)}
+</td>
+</tr>
+</table>
+
+<!-- ITEMS -->
+<table>
+<thead>
+<tr class="b">
+  <th>S.N.</th>
+  <th>ITEM NO.</th>
+  <th>Photo</th>
+  <th>Descriptions</th>
+  <th>Ctn.</th>
+  <th>Qty./Ctn</th>
+  <th>Unit</th>
+  <th>T-Qty</th>
+  <th>U.price</th>
+  <th>Amount/USD</th>
+</tr>
+</thead>
+
+<tbody>
+${rowsHtml}
+
+<tr class="b">
+  <td colspan="4">TOTAL</td>
+  <td class="r">${totals.ctn}</td>
+  <td></td>
+  <td></td>
+  <td class="r">${totals.tQty}</td>
+  <td></td>
+  <td class="r">${totals.amount.toFixed(2)}</td>
+</tr>
+</tbody>
+</table>
+
+<!-- CIF -->
+<table>
+<tr>
+  <td class="b">
+    ${escapeHtml(meta.cifText)}
+  </td>
+</tr>
+</table>
+
+<!-- BANK -->
+<table>
+<tr><td class="b">Bank Detail:</td></tr>
+${escapeHtml(meta.bankDetail)
+  .split("\n")
+  .map((l) => `<tr><td>${l}</td></tr>`)
+  .join("")}
+</table>
+
+<!-- SIGN -->
+<table>
+<tr>
+  <td></td>
+  <td class="c">
+    ${
+      signature
+        ? `<img src="${signature}" style="max-height:55px"/><br/>`
+        : ""
+    }
+    ${escapeHtml(meta.signatureText).replace(/\n/g, "<br/>")}
+  </td>
+</tr>
+</table>
+
 </body>
 </html>`;
+}
 
-    return html;
-  }
 
   function openPreview() {
     const html = buildPrintableHTML();

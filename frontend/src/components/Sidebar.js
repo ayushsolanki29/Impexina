@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Home,
   Box,
@@ -16,6 +16,11 @@ import {
   ChevronDown,
   ChevronRight,
   Warehouse,
+  ContainerIcon,
+  Grid,
+  Calculator,
+  DollarSignIcon,
+  PcCase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -42,7 +47,6 @@ const MENU = [
     icon: Box,
     path: "/dashboard/loading",
     roles: ["admin", "mod", "employee"],
- 
   },
   {
     key: "bifurcation",
@@ -65,11 +69,53 @@ const MENU = [
     path: "/dashboard/invoice",
     roles: ["admin", "mod", "accounts"],
   },
+
+  // Example navigation item
+  {
+    key: "Containers",
+    label: "Containers",
+    icon: ContainerIcon,
+    path: "/dashboard/containers",
+    roles: ["admin", "mod", "accounts"],
+    children: [
+      {
+        key: "summary",
+        label: "Summary",
+        path: "/dashboard/container-summary",
+      },
+      {
+        key: "containers",
+        label: "Containers",
+        path: "/dashboard/containers",
+      },
+    ],
+  },
   {
     key: "warehouse",
     label: "Warehouse Plan",
     icon: Warehouse,
     path: "/dashboard/warehouse",
+    roles: ["admin", "mod", "accounts"],
+  },
+  {
+    key: "accounts",
+    label: "Accounts",
+    icon: Calculator,
+    path: "/dashboard/accounts",
+    roles: ["admin", "mod", "accounts"],
+  },
+  {
+    key: "clients",
+    label: "Clients",
+    icon: PcCase,
+    path: "/dashboard/clients",
+    roles: ["admin", "mod", "accounts"],
+  },
+   {
+    key: "expenses",
+    label: "Expenses",
+    icon: DollarSignIcon,
+    path: "/dashboard/expenses",
     roles: ["admin", "mod", "accounts"],
   },
   {
@@ -79,13 +125,13 @@ const MENU = [
     path: "/dashboard/users",
     roles: ["admin"],
   },
-  {
-    key: "settings",
-    label: "Settings",
-    icon: Settings,
-    path: "/dashboard/settings",
-    roles: ["admin"],
-  },
+  // {
+  //   key: "settings",
+  //   label: "Settings",
+  //   icon: Settings,
+  //   path: "/dashboard/settings",
+  //   roles: ["admin"],
+  // },
 ];
 
 /* ----------------------------- Helpers ----------------------------- */
@@ -133,75 +179,64 @@ function Badge({ count, tone = "blue" }) {
 }
 
 /**
- * Active match logic:
- * - chooses the MOST SPECIFIC matching path (longest)
- * - checks children as well
- * - e.g.:
- *   - "/dashboard/loading" -> "loading"
- *   - "/dashboard/loading/new" -> "loading" + child "/dashboard/loading/new"
+ * IMPROVED MATCH LOGIC:
+ * Finds the menu item with the longest matching path prefix.
  */
-function getActiveInfo(path) {
-  let bestMatch = { key: null, childPath: null, score: -1 };
+function getActiveInfo(currentPath, menuItems) {
+  let activeKey = null;
+  let activeChildPath = null;
+  let maxMatchLength = 0;
 
-  // Helper to score matches
-  function scoreMatch(itemPath, isExact = false) {
-    if (isExact) return 1000 + itemPath.length;
-    return itemPath.length;
-  }
+  // Normalize path (remove trailing slash for comparison)
+  const normalizedPath = currentPath.endsWith("/")
+    ? currentPath.slice(0, -1)
+    : currentPath;
 
-  for (const item of MENU) {
-    // Check exact match with parent item
-    if (item.path === path) {
-      return { activeKey: item.key, activeChildPath: null };
-    }
-
-    // Check if current path starts with item path (for parent routes)
-    if (path.startsWith(item.path + "/") && item.path !== "/dashboard") {
-      const score = scoreMatch(item.path);
-      if (score > bestMatch.score) {
-        bestMatch = { key: item.key, childPath: null, score };
-      }
-    }
-
-    // Check children
+  for (const item of menuItems) {
+    // 1. Check Children First (most specific)
     if (item.children) {
       for (const child of item.children) {
-        // Exact match with child
-        if (child.path === path) {
+        if (
+          normalizedPath === child.path ||
+          normalizedPath.startsWith(child.path + "/")
+        ) {
+          // Found a child match, this is definitely the one
           return { activeKey: item.key, activeChildPath: child.path };
         }
+      }
+    }
 
-        // Path starts with child path (for deeper nested routes)
-        if (path.startsWith(child.path + "/")) {
-          const score = scoreMatch(child.path);
-          if (score > bestMatch.score) {
-            bestMatch = { key: item.key, childPath: child.path, score };
-          }
-        }
+    // 2. Check Parent Path
+    // Logic: Does the current URL start with this item's path?
+    // Ex: /dashboard/loading/new starts with /dashboard/loading
+    if (
+      normalizedPath === item.path ||
+      normalizedPath.startsWith(item.path + "/")
+    ) {
+      // If this match is longer (more specific) than previous ones, take it.
+      // Ex: /dashboard (len 10) vs /dashboard/loading (len 18) -> Loading wins
+      if (item.path.length > maxMatchLength) {
+        maxMatchLength = item.path.length;
+        activeKey = item.key;
+        activeChildPath = null;
       }
     }
   }
 
-  // If we found a best match, return it
-  if (bestMatch.key) {
-    return { activeKey: bestMatch.key, activeChildPath: bestMatch.childPath };
-  }
-
-  // Default to dashboard only if we're exactly on /dashboard or no other match
-  if (path === "/dashboard" || path.startsWith("/dashboard")) {
-    return { activeKey: "dashboard", activeChildPath: null };
-  }
-
-  return { activeKey: null, activeChildPath: null };
+  return { activeKey, activeChildPath };
 }
 
 /* ----------------------------- Component ----------------------------- */
 export default function SidebarAdvanced({
   role = "admin",
-  currentPath = "dashboard",
+  currentPath: propPath, // Rename prop to avoid confusion
   counts = {},
 }) {
   const router = useRouter();
+  // Use propPath if provided (manual override), otherwise use auto-detected pathname
+  const pathname = usePathname();
+  const currentPath = propPath || pathname || "";
+
   const [open, setOpen] = useState(true); // expanded
   const [compactTooltip, setCompactTooltip] = useState({
     show: false,
@@ -213,44 +248,30 @@ export default function SidebarAdvanced({
 
   const [expandedMap, setExpandedMap] = useState({});
 
-  // Expand submenus based on current path
-  useEffect(() => {
-    const map = {};
-    MENU.forEach((m) => {
-      if (m.children) {
-        // Check if current path matches any child
-        const hasActiveChild = m.children.some(
-          (c) => currentPath === c.path || currentPath.startsWith(c.path + "/")
-        );
-        // Check if current path matches the parent itself
-        const isParentActive =
-          currentPath === m.path || currentPath.startsWith(m.path + "/");
-
-        if (hasActiveChild || isParentActive) {
-          map[m.key] = true;
-        }
-      }
-    });
-    setExpandedMap(map);
-  }, [currentPath]);
-
   // Filter menu based on user role
   const visible = useMemo(
     () => MENU.filter((m) => m.roles.includes(role)),
     [role]
   );
 
-  // Get active menu item
+  // Get active menu item using the improved logic
   const { activeKey, activeChildPath } = useMemo(
-    () => getActiveInfo(currentPath),
+    () => getActiveInfo(currentPath, MENU),
     [currentPath]
   );
+
+  // Expand submenus based on active state
+  useEffect(() => {
+    if (activeKey && MENU.find((m) => m.key === activeKey)?.children) {
+      setExpandedMap((prev) => ({ ...prev, [activeKey]: true }));
+    }
+  }, [activeKey]);
 
   // animated indicator bar
   const indicatorRef = useRef(null);
   const itemsRef = useRef({}); // key -> element
 
-  // Update indicator position - FIXED: removed 'visible' from dependencies
+  // Update indicator position
   useEffect(() => {
     const el = itemsRef.current[activeKey];
     const indicator = indicatorRef.current;
@@ -264,7 +285,7 @@ export default function SidebarAdvanced({
     } else if (indicator) {
       indicator.style.opacity = "0";
     }
-  }, [activeKey, open]); // Removed 'visible' from dependencies
+  }, [activeKey, open, visible]); // Added visible to dependencies to recalc on role change
 
   function navTo(p) {
     if (!p) return;
@@ -337,7 +358,7 @@ export default function SidebarAdvanced({
       {/* active indicator bar */}
       <div
         ref={indicatorRef}
-        className="pointer-events-none absolute left-0 w-1 bg-sky-600 rounded-full transition-transform duration-300"
+        className="pointer-events-none absolute left-0 w-1 bg-sky-600 rounded-full transition-all duration-300 ease-in-out"
         style={{ top: 0, left: 0, height: 0, opacity: 0 }}
       />
 

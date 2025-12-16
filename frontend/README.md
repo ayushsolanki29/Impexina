@@ -1,36 +1,206 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 📦 Logistics & Container Management System
 
-## Getting Started
+## 1. Sidebar
 
-First, run the development server:
+- Fix sidebar alignment and behavior
+- Ensure UI consistency across all modules
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2. Loading Sheet (New)
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### Field & Logic Changes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- ❌ Remove **Total Pieces**
+- ✅ Add fields from **Summary Sheet**:
+  - Date
+  - CTN
+  - Total Weight
+  - CBM
+- Disable **item entry** once upper (summary) fields are filled
+- Auto-generate **Particular** using **Item No**
+- Rename **Mark** → **Shipping Mark**
+- Remove **Client**
+- Add **CTN Mark** beside Shipping Mark
+- Optimize scrolling for wide-width screens
 
-## Learn More
+### UI & UX
 
-To learn more about Next.js, take a look at the following resources:
+- Add all required **date fields**
+- Adjust fonts (uniform & readable)
+- UI must remain **constant**
+- Add **Back Button**
+  - Keyboard shortcut: **ESC**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 3. Container Overview
 
-## Deploy on Vercel
+### Functional Changes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Add **Status**
+  - `Loaded | In Sea | Delivered`
+- Optimize **Search**
+- Add **Date Filter**
+- ❌ Remove **Pieces**
+- ❌ Remove “Totals across visible containers”
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Totals Section
+
+- Total CTN
+- Total Weight
+- Total CBM
+
+### Other Improvements
+
+- Replace **Sheets** with **Clients Count**
+- Download options:
+  - PDF
+  - Image
+  - Excel Export
+- Combine **Shipping Mark + CTN Mark** (Preview only)
+- Client Summary:
+  - Copy button
+- ❌ Remove **Send** option
+
+---
+
+## 4. Bifurcation
+
+- ❌ Remove stats section
+- Data should follow **Loading Sheet**
+- Item name:
+  - Dynamic OR
+  - Auto-calculated
+
+---
+
+## 5. Packing List
+
+- HSN:
+  - Data purpose only
+  - ❌ Not shown in Print
+- Master Company:
+  - **YIWU ZHOULAI TRADING CO., LIMITED**
+- Combine **Shipping Mark + CTN Mark** (Preview only)
+- Highlight:
+  - Total Weight
+  - Total CBM
+  - Total CTN
+
+---
+
+## 6. Invoice
+
+- HSN:
+  - Data only
+  - ❌ Not shown in Print
+
+---
+
+## 7. Warehouse Plan
+
+- Fix logic same as **Bifurcation**
+
+---
+
+## 8. New Module – Container Summary
+
+- Flow Position:
+  - After **Invoice**
+  - Before **Warehouse Plan**
+- Exact format as Sheet
+- Status:
+  - `Loaded | In Sea | Delivered`
+
+---
+
+## 9. Accounts Module
+
+- Client-wise accounting
+- Default state: **Empty**
+- Fetch by:
+  - Container
+  - Client
+- Add **New Client**
+  - From Account
+  - To Account
+
+### Special Requirement
+
+- Separate workflow for:
+  - **David**
+  - **Dineshbhai**
+- Direct sheet creation every time a new sheet is required
+
+---
+
+## 10. Clients Master
+
+- Centralized client management
+
+---
+
+## 11. Expense Management
+
+- **Mumbai**
+  - Reference: `OCT 25 PAYMENT.xlsx (CONT tab)`
+- Container-wise expenses
+- Reports:
+  - Weekly
+  - Monthly
+  - Yearly
+  - As per available data
+- State-wise expense tracking
+
+---
+
+## 12. Client Order Tracker
+
+- Exact behavior like Sheet
+
+---
+
+## 13. Global Announcement
+
+- System-wide announcements
+
+---
+
+## 🔄 System Flow
+
+1. Loading Sheet
+2. Bifurcation
+3. Packing List
+   - Address Master
+4. Invoice
+   - Address Master
+5. Container Summary
+6. Warehouse Plan
+7. Accounts
+   - Main
+   - David
+   - Dinesh
+8. Client Order Tracker
+9. Expense
+   - Mumbai
+   - Ahmedabad
+10. Client Master (Lead Management)
+11. User Management
+
+- Profile Management
+
+12. Dashboard
+13. Employee Performance Tracking
+14. Container Progress Record
+15. Backups
+16. Role-Based Access System
+
+---
+
+## 🚀 Future Pipeline
+
+1. Team Communication (Chat Feature)
+2. Attendance Management
+3. Dark Mode & UI Improvements
+4. WhatsApp Integration

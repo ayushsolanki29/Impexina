@@ -282,210 +282,176 @@ export default function PackingListPage() {
   }
 
   // printable HTML – matching your exact table structure
-  function buildPrintableHTML() {
-    const headerHtml = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
-          <div style="font-weight:800;font-size:20px;text-transform:uppercase;">
-            ${escapeHtml(meta.companyName)}
-          </div>
-          <div style="margin-top:4px;white-space:pre-wrap;font-size:11px;color:#111;">
-            ${escapeHtml(meta.companyAddress)}
-          </div>
-        </div>
-        <div style="text-align:right;font-size:12px;">
-          <div style="font-weight:700;font-size:16px;margin-bottom:4px;">PACKING LIST</div>
-          <div>INV NO.: <strong>${escapeHtml(meta.invNo || "")}</strong></div>
-          <div>DATE: <strong>${escapeHtml(meta.date || "")}</strong></div>
-          <div style="margin-top:4px;">FROM: <strong>${escapeHtml(
-            meta.from || ""
-          )}</strong></div>
-          <div>TO: <strong>${escapeHtml(meta.to || "")}</strong></div>
-        </div>
-      </div>
+ function buildPrintableHTML() {
+  const rowsHtml = items
+    .map((it, i) => {
+      const photoCell = it.photo
+        ? `<img src="${it.photo}" style="max-width:55px;max-height:40px;" />`
+        : "";
+      return `
+<tr>
+  <td class="center">${i + 1}</td>
+  <td class="center">${escapeHtml(it.itemNumber)}</td>
+  <td class="center">${photoCell}</td>
+  <td>${escapeHtml(it.particular)}</td>
+  <td class="right">${it.ctn}</td>
+  <td class="right">${it.qtyPerCtn}</td>
+  <td class="center">${escapeHtml(it.unit)}</td>
+  <td class="right">${it.tQty}</td>
+  <td class="right">${it.kg}</td>
+  <td class="right">${Number(it.tKg).toFixed(2)}</td>
+</tr>`;
+    })
+    .join("");
 
-      <div style="margin-top:4px;display:flex;gap:12px;font-size:11px;">
-        <div style="flex:1;">
-          <div style="font-weight:700;margin-bottom:2px;">${escapeHtml(
-            meta.sellerName || ""
-          )}</div>
-          <div style="white-space:pre-wrap;">${escapeHtml(
-            meta.sellerAddress || ""
-          )}</div>
-        </div>
-        <div style="width:220px;">
-          <div><strong>GST:</strong> ${escapeHtml(meta.gst || "")}</div>
-        </div>
-      </div>
-    `;
-
-    const rowsHtml = items
-      .map((it, i) => {
-        const photoTd = it.photo
-          ? `<td style="border:1px solid #000;padding:4px;text-align:center;">
-               <img src="${it.photo}" style="max-width:60px;max-height:40px;object-fit:cover;" />
-             </td>`
-          : `<td style="border:1px solid #000;padding:4px;text-align:center;">-</td>`;
-        return `<tr>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-size:11px;">${
-            i + 1
-          }</td>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-size:11px;">${escapeHtml(
-            it.itemNumber || ""
-          )}</td>
-          ${photoTd}
-          <td style="border:1px solid #000;padding:4px;font-size:11px;">${escapeHtml(
-            it.particular || ""
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
-            it.ctn || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
-            it.qtyPerCtn || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-size:11px;">${escapeHtml(
-            it.unit || ""
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
-            it.tQty || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
-            it.kg || 0
-          )}</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:11px;">${escapeHtml(
-            it.tKg || 0
-          )}</td>
-       
-        </tr>`;
-      })
-      .join("");
-
-    const totalRow = `<tr style="background-color:#f0f0f0;">
-      <td colspan="3" style="border:1px solid #000;padding:5px;font-weight:700;text-align:left;font-size:11px;">
-        TOTAL
-      </td>
-      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;background-color:#fffacd;">
-        ${totals.ctn}
-      </td>
-      <td style="border:1px solid #000;padding:5px;"></td>
-      <td style="border:1px solid #000;padding:5px;"></td>
-      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;">
-        ${totals.tQty}
-      </td>
-      <td style="border:1px solid #000;padding:5px;"></td>
-      <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700;font-size:11px;background-color:#d0f0ff;">
-        ${totals.tKg.toFixed(2)}
-      </td>
-      <td style="border:1px solid #000;padding:5px;"></td>
-    </tr>`;
-
-    // Bank details section
-    const bankDetailsHtml = `
-      <div style="margin-top:12px;padding:8px;border:1px solid #000;font-size:11px;">
-        <div style="font-weight:700;margin-bottom:4px;text-transform:uppercase;">Bank Detail:</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-          <div><strong>BENEFICIARY'S BANK NAME:</strong> ${escapeHtml(
-            meta.bankName || ""
-          )}</div>
-          <div><strong>SWIFT BIC:</strong> ${escapeHtml(
-            meta.swiftBic || ""
-          )}</div>
-          <div><strong>BENEFICIARY NAME:</strong> ${escapeHtml(
-            meta.beneficiaryName || ""
-          )}</div>
-          <div><strong>BENEFICIARY A/C NO.:</strong> ${escapeHtml(
-            meta.accountNumber || ""
-          )}</div>
-          <div style="grid-column:1/-1"><strong>BENEFICIARY'S BANK ADD:</strong> ${escapeHtml(
-            meta.bankAddress || ""
-          )}</div>
-        </div>
-      </div>
-    `;
-
-    const signatureHtml = signature
-      ? `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;">
-          <div style="font-size:11px;">${escapeHtml(
-            meta.signatureText || ""
-          )}</div>
-          <div style="text-align:center;">
-            <img src="${signature}" style="max-width:220px;max-height:80px;object-fit:contain;display:block;margin-bottom:4px;" />
-            <div style="font-size:11px;">Stamp / Signature</div>
-          </div>
-        </div>`
-      : `<div style="margin-top:18px;font-size:11px;color:#6b6b6b;">
-          Signature / Stamp:
-          <span style="margin-left:4px;">____________________________</span>
-        </div>`;
-
-    const html = `<!doctype html>
+  return `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Packing List</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      color: #000;
-      padding: 18px;
-      margin: 0;
-      font-size: 12px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-    }
-    th {
-      border: 1px solid #000;
-      padding: 5px;
-      background: #f3f3f3;
-      font-size: 11px;
-      text-align: center;
-    }
-    td {
-      border: 1px solid #000;
-    }
-    .highlight-ctn {
-      background-color: #fffacd !important;
-    }
-    .highlight-weight {
-      background-color: #d0f0ff !important;
-    }
-  </style>
+<meta charset="utf-8"/>
+<title>Packing List</title>
+
+<style>
+@page { size:A4; margin:10mm; }
+
+body {
+font-family: Cambria, "Cambria Math", "Times New Roman", serif;
+
+  font-size: 11px;
+  color: #000;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+
+th, td {
+  border:1px solid #000;
+  padding:4px;
+}
+
+th {
+  text-align:center;
+  font-weight:bold;
+}
+.company-name {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.packing-title {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.center { text-align:center; }
+.right { text-align:right; }
+.bold { font-weight:bold; }
+</style>
 </head>
+
 <body>
-  ${headerHtml}
-  <table>
-    <thead>
-      <tr>
-        <th style="width:35px;">S.N.</th>
-        <th style="width:90px;">Item Number</th>
-        <th style="width:80px;">Photo</th>
-        <th>Descriptions</th>
-        <th style="width:60px;">Ctn.</th>
-        <th style="width:80px;">Qty./ Ctn</th>
-        <th style="width:55px;">Unit</th>
-        <th style="width:80px;">T-QTY</th>
-        <th style="width:55px;">KG</th>
-        <th style="width:65px;">T.KG</th>
-    
-      </tr>
-    </thead>
-    <tbody>
-      ${rowsHtml}
-      ${totalRow}
-    </tbody>
-  </table>
-  ${bankDetailsHtml}
-  ${signatureHtml}
+
+<!-- COMPANY HEADER -->
+<table>
+<tr>
+  <td class="center bold company-name" style="font-size:20px;">
+    ${escapeHtml(meta.companyName)}
+  </td>
+</tr>
+<tr>
+  <td class="center">
+    ${escapeHtml(meta.companyAddress)}
+  </td>
+</tr>
+<tr>
+  <td class="center bold packing-title " style="font-size:24px;">
+    PACKING LIST
+  </td>
+</tr>
+</table>
+
+<!-- SELLER + INVOICE -->
+<table>
+<tr>
+  <td style="width:65%;vertical-align:top;">
+    <b>${escapeHtml(meta.sellerName)}</b><br/>
+    ${escapeHtml(meta.sellerAddress)}<br/>
+    IEC NO.: AAHCI1462J<br/>
+    GST NO.: ${escapeHtml(meta.gst)}<br/>
+    EMAIL: impexina91@gmail.com
+  </td>
+  <td style="width:35%;vertical-align:top;">
+    <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
+    <b>DATE :</b> ${escapeHtml(meta.date)}<br/>
+    <b>NHAVA SHEVA INDIA</b><br/>
+    <b>FROM:</b> ${escapeHtml(meta.from)}
+  </td>
+</tr>
+</table>
+
+<!-- ITEMS TABLE -->
+<table>
+<thead>
+<tr>
+  <th>S.N.</th>
+  <th>Item Number</th>
+  <th>Photo</th>
+  <th>Descriptions</th>
+  <th>Ctn.</th>
+  <th>Qty./ Ctn</th>
+  <th>Unit</th>
+  <th>T-QTY</th>
+  <th>KG</th>
+  <th>T.KG</th>
+</tr>
+</thead>
+
+<tbody>
+${rowsHtml}
+
+<tr class="bold">
+  <td colspan="4" class="center">TOTAL</td>
+  <td class="right">${totals.ctn}</td>
+  <td></td>
+  <td></td>
+  <td class="right">${totals.tQty}</td>
+  <td></td>
+  <td class="right">${totals.tKg.toFixed(2)}</td>
+</tr>
+</tbody>
+</table>
+
+<!-- BANK DETAIL -->
+<table style="margin-top:8px;">
+<tr><td class="bold">Bank Detail:</td></tr>
+<tr><td><b>BENEFICIARY’S BANK NAME:</b> ${escapeHtml(meta.bankName)}</td></tr>
+<tr><td><b>BENEFICIARY NAME :</b> ${escapeHtml(meta.beneficiaryName)}</td></tr>
+<tr><td><b>SWIFT BIC:</b> ${escapeHtml(meta.swiftBic)}</td></tr>
+<tr><td><b>BENEFICIARY’S BANK ADD:</b> ${escapeHtml(meta.bankAddress)}</td></tr>
+<tr><td><b>BENEFICIARY A/C NO.:</b> ${escapeHtml(meta.accountNumber)}</td></tr>
+</table>
+
+<!-- SIGNATURE -->
+<table style="margin-top:12px;">
+<tr>
+  <td></td>
+  <td class="center">
+    ${
+      signature
+        ? `<img src="${signature}" style="max-height:70px"/><br/>`
+        : ""
+    }
+    ${escapeHtml(meta.signatureText)}
+  </td>
+</tr>
+</table>
+
 </body>
 </html>`;
+}
 
-    return html;
-  }
+
 
   function openPreview() {
     const html = buildPrintableHTML();
