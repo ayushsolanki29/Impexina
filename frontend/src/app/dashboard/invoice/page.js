@@ -2,11 +2,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "sonner";
-import { 
-  Search, 
-  Download, 
-  Filter, 
-  ChevronLeft, 
+import {
+  Search,
+  Download,
+  Filter,
+  ChevronLeft,
   Plus,
   FileText,
   Eye,
@@ -22,7 +22,7 @@ import {
   MoreVertical,
   CheckCircle,
   Clock,
-  XCircle
+  XCircle,
 } from "lucide-react";
 
 const INVOICE_KEY = "igpl_invoices_v1";
@@ -37,11 +37,6 @@ const DEMO_INVOICES = [
       buyerName: "IMPEXINA GLOBAL PVT LTD",
       invNo: "ICPLEY86",
       date: "2025-10-09",
-      from: "CHINA",
-      to: "NHAVA SHEVA INDIA",
-      poNo: "PO-2025-001",
-      currency: "USD",
-      terms: "CIF"
     },
     origin: "YIWU",
     status: "completed",
@@ -58,11 +53,6 @@ const DEMO_INVOICES = [
       buyerName: "SOME OTHER BUYER",
       invNo: "ICPLX22",
       date: "2025-09-20",
-      from: "CHINA",
-      to: "MUNDRA INDIA",
-      poNo: "PO-2025-002",
-      currency: "USD",
-      terms: "FOB"
     },
     origin: "YIWU",
     status: "draft",
@@ -83,7 +73,7 @@ const DEMO_INVOICES = [
       to: "MUMBAI INDIA",
       poNo: "PO-2025-003",
       currency: "USD",
-      terms: "EXW"
+      terms: "EXW",
     },
     origin: "SHANGHAI",
     status: "pending",
@@ -100,11 +90,6 @@ const DEMO_INVOICES = [
       buyerName: "INDIAN TRADERS PVT",
       invNo: "ICPLA45",
       date: "2025-10-12",
-      from: "GUANGZHOU",
-      to: "CHENNAI INDIA",
-      poNo: "PO-2025-004",
-      currency: "USD",
-      terms: "CIF"
     },
     origin: "GUANGZHOU",
     status: "completed",
@@ -196,53 +181,68 @@ export default function InvoicesPage() {
   // Filter invoices
   const filteredInvoices = useMemo(() => {
     if (loading) return [];
-    
-    return invoices.filter(inv => {
-      // Status filter
-      if (statusFilter !== "all" && inv.status !== statusFilter) {
-        return false;
-      }
-      
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const searchable = [
-          inv.meta?.invNo,
-          inv.meta?.buyerName,
-          inv.meta?.companyName,
-          inv.meta?.poNo,
-          inv.origin,
-          inv.meta?.from,
-          inv.meta?.to
-        ].join(" ").toLowerCase();
-        
-        return searchable.includes(query);
-      }
-      
-      return true;
-    }).sort((a, b) => {
-      // Sort by date (newest first)
-      const dateA = new Date(a.meta?.date || a.createdAt);
-      const dateB = new Date(b.meta?.date || b.createdAt);
-      return dateB - dateA;
-    });
+
+    return invoices
+      .filter((inv) => {
+        // Status filter
+        if (statusFilter !== "all" && inv.status !== statusFilter) {
+          return false;
+        }
+
+        // Search filter
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const searchable = [
+            inv.meta?.invNo,
+            inv.meta?.buyerName,
+            inv.meta?.companyName,
+            inv.meta?.poNo,
+            inv.origin,
+            inv.meta?.from,
+            inv.meta?.to,
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          return searchable.includes(query);
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by date (newest first)
+        const dateA = new Date(a.meta?.date || a.createdAt);
+        const dateB = new Date(b.meta?.date || b.createdAt);
+        return dateB - dateA;
+      });
   }, [invoices, searchQuery, statusFilter, loading]);
 
   // Calculate summary stats
   const summaryStats = useMemo(() => {
     const totalInvoices = filteredInvoices.length;
-    const totalAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.tAmount || 0), 0);
-    const totalCTN = filteredInvoices.reduce((sum, inv) => sum + (inv.tctn || 0), 0);
-    const totalQty = filteredInvoices.reduce((sum, inv) => sum + (inv.tQty || 0), 0);
-    const completed = filteredInvoices.filter(inv => inv.status === "completed").length;
-    
+    const totalAmount = filteredInvoices.reduce(
+      (sum, inv) => sum + (inv.tAmount || 0),
+      0
+    );
+    const totalCTN = filteredInvoices.reduce(
+      (sum, inv) => sum + (inv.tctn || 0),
+      0
+    );
+    const totalQty = filteredInvoices.reduce(
+      (sum, inv) => sum + (inv.tQty || 0),
+      0
+    );
+    const completed = filteredInvoices.filter(
+      (inv) => inv.status === "completed"
+    ).length;
+
     return {
       totalInvoices,
       totalAmount,
       totalCTN,
       totalQty,
       completed,
-      pending: totalInvoices - completed
+      pending: totalInvoices - completed,
     };
   }, [filteredInvoices]);
 
@@ -255,7 +255,7 @@ export default function InvoicesPage() {
   };
 
   const handleDeleteInvoice = (id) => {
-    const updatedInvoices = invoices.filter(inv => inv.id !== id);
+    const updatedInvoices = invoices.filter((inv) => inv.id !== id);
     setInvoices(updatedInvoices);
     writeLocal(INVOICE_KEY, updatedInvoices);
     setShowDeleteModal(null);
@@ -264,8 +264,17 @@ export default function InvoicesPage() {
 
   const handleExportAll = () => {
     // Simple CSV export
-    const headers = ["Invoice No", "Buyer", "Company", "Date", "CTN", "Quantity", "Amount", "Status"];
-    const rows = filteredInvoices.map(inv => [
+    const headers = [
+      "Invoice No",
+      "Buyer",
+      "Company",
+      "Date",
+      "CTN",
+      "Quantity",
+      "Amount",
+      "Status",
+    ];
+    const rows = filteredInvoices.map((inv) => [
       inv.meta?.invNo || "",
       inv.meta?.buyerName || "",
       inv.meta?.companyName || "",
@@ -273,15 +282,19 @@ export default function InvoicesPage() {
       inv.tctn || 0,
       inv.tQty || 0,
       inv.tAmount || 0,
-      inv.status || ""
+      inv.status || "",
     ]);
-    
-    const csv = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
+
+    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+      "\n"
+    );
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `invoices_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `invoices_export_${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     a.click();
     toast.success("All invoices exported as CSV");
   };
@@ -557,8 +570,9 @@ export default function InvoicesPage() {
       {/* Results Info */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm text-gray-600">
-          Showing <span className="font-semibold">{filteredInvoices.length}</span>{" "}
-          of <span className="font-semibold">{invoices.length}</span> invoices
+          Showing{" "}
+          <span className="font-semibold">{filteredInvoices.length}</span> of{" "}
+          <span className="font-semibold">{invoices.length}</span> invoices
         </div>
         <div className="text-sm text-gray-600">
           {statusFilter !== "all" && `Filtered by: ${statusFilter}`}
@@ -602,11 +616,15 @@ export default function InvoicesPage() {
                           {invoice.meta?.invNo || "No Invoice No"}
                         </h3>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(invoice.status)}`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(
+                          invoice.status
+                        )}`}
+                      >
                         {invoice.status.toUpperCase()}
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4" />
@@ -674,32 +692,6 @@ export default function InvoicesPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Additional Info */}
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-                    <div>
-                      <span className="font-medium">From:</span>{" "}
-                      {invoice.meta?.from || "N/A"}
-                    </div>
-                    <div>
-                      <span className="font-medium">To:</span>{" "}
-                      {invoice.meta?.to || "N/A"}
-                    </div>
-                    <div>
-                      <span className="font-medium">PO No:</span>{" "}
-                      {invoice.meta?.poNo || "N/A"}
-                    </div>
-                    <div>
-                      <span className="font-medium">Terms:</span>{" "}
-                      {invoice.meta?.terms || "N/A"}
-                    </div>
-                    <div>
-                      <span className="font-medium">Currency:</span>{" "}
-                      {invoice.meta?.currency || "N/A"}
-                    </div>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
@@ -714,11 +706,12 @@ export default function InvoicesPage() {
               <Trash2 className="w-6 h-6 text-red-600" />
               <h3 className="text-lg font-semibold">Delete Invoice</h3>
             </div>
-            
+
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this invoice? This action cannot be undone.
+              Are you sure you want to delete this invoice? This action cannot
+              be undone.
             </p>
-            
+
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteModal(null)}

@@ -6,21 +6,31 @@ import {
   Box,
   ClipboardList,
   FileText,
-  Settings,
   Users,
   LogOut,
-  DockIcon,
+  Package,
+  Truck,
   ChevronLeft,
   Plus,
   Eye,
   ChevronDown,
   ChevronRight,
   Warehouse,
-  ContainerIcon,
-  Grid,
+  Container,
   Calculator,
-  DollarSignIcon,
-  PcCase,
+  DollarSign,
+  Briefcase,
+  FileSpreadsheet,
+  BarChart3,
+  UserCog,
+  ClipboardCheck,
+  Settings,
+  Layers,
+  FileBarChart,
+  Shield,
+  Target,
+  CheckSquare,
+  // ContainerIcon and PcCase removed as we have better alternatives
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -30,6 +40,7 @@ import { Button } from "@/components/ui/button";
  * - Animated active indicator bar
  * - Role-based highlights
  * - Multi-level menu (submodules)
+ * - Improved, more relevant icons for all cases
  */
 
 /* ----------------------------- Menu (with submodules) ----------------------------- */
@@ -40,53 +51,59 @@ const MENU = [
     icon: Home,
     path: "/dashboard",
     roles: ["admin", "mod", "employee", "newjoinner"],
+    description: "Overview and analytics"
   },
   {
     key: "loading",
     label: "Loading Sheet",
-    icon: Box,
+    icon: Truck,
     path: "/dashboard/loading",
     roles: ["admin", "mod", "employee"],
+    description: "Manage loading operations"
   },
   {
     key: "bifurcation",
     label: "Bifurcation",
-    icon: ClipboardList,
+    icon: Layers,
     path: "/dashboard/bifurcation",
     roles: ["admin", "mod"],
+    description: "Split and categorize shipments"
   },
   {
     key: "packing",
     label: "Packing List",
-    icon: FileText,
+    icon: Package,
     path: "/dashboard/packing",
     roles: ["admin", "mod", "employee"],
+    description: "Create and manage packing lists"
   },
   {
     key: "invoice",
     label: "Invoice",
-    icon: DockIcon,
+    icon: FileSpreadsheet,
     path: "/dashboard/invoice",
     roles: ["admin", "mod", "accounts"],
+    description: "Generate and track invoices"
   },
-
-  // Example navigation item
   {
-    key: "Containers",
+    key: "containers",
     label: "Containers",
-    icon: ContainerIcon,
+    icon: Container,
     path: "/dashboard/containers",
     roles: ["admin", "mod", "accounts"],
+    description: "Container management",
     children: [
       {
-        key: "summary",
+        key: "container-summary",
         label: "Summary",
         path: "/dashboard/container-summary",
+        icon: BarChart3
       },
       {
-        key: "containers",
-        label: "Containers",
+        key: "containers-list",
+        label: "All Containers",
         path: "/dashboard/containers",
+        icon: Container
       },
     ],
   },
@@ -96,6 +113,7 @@ const MENU = [
     icon: Warehouse,
     path: "/dashboard/warehouse",
     roles: ["admin", "mod", "accounts"],
+    description: "Warehouse layout and planning"
   },
   {
     key: "accounts",
@@ -103,34 +121,63 @@ const MENU = [
     icon: Calculator,
     path: "/dashboard/accounts",
     roles: ["admin", "mod", "accounts"],
+    description: "Financial accounts and ledgers"
   },
   {
     key: "clients",
     label: "Clients",
-    icon: PcCase,
+    icon: Briefcase,
     path: "/dashboard/clients",
     roles: ["admin", "mod", "accounts"],
+    description: "Client management portal"
   },
-   {
+  {
     key: "expenses",
     label: "Expenses",
-    icon: DollarSignIcon,
+    icon: DollarSign,
     path: "/dashboard/expenses",
     roles: ["admin", "mod", "accounts"],
+    description: "Track and manage expenses"
   },
   {
     key: "users",
     label: "User Management",
-    icon: Users,
+    icon: UserCog,
     path: "/dashboard/users",
     roles: ["admin"],
+    description: "Manage system users and permissions"
+  },
+  {
+    key: "order-tracker",
+    label: "Order Tracker",
+    icon: ClipboardCheck,
+    path: "/dashboard/order-tracker",
+    roles: ["admin", "mod"],
+    description: "Track order status and progress"
+  },
+  {
+    key: "tasks",
+    label: "Task Management",
+    icon: CheckSquare,
+    path: "/dashboard/tasks",
+    roles: ["admin", "mod"],
+    description: "Assign and track team tasks"
   },
   // {
+  //   key: "reports",
+  //   label: "Reports",
+  //   icon: FileBarChart,
+  //   path: "/dashboard/reports",
+  //   roles: ["admin", "mod", "accounts"],
+  //   description: "Generate system reports"
+  // },
+  // {
   //   key: "settings",
-  //   label: "Settings",
+  //   label: "System Settings",
   //   icon: Settings,
   //   path: "/dashboard/settings",
   //   roles: ["admin"],
+  //   description: "Configure system preferences"
   // },
 ];
 
@@ -138,36 +185,52 @@ const MENU = [
 function roleColor(role) {
   switch (role) {
     case "admin":
-      return { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-100" };
+      return { 
+        bg: "bg-red-50", 
+        text: "text-red-700", 
+        border: "border-red-100",
+        gradient: "from-red-50 to-rose-50"
+      };
     case "employee":
       return {
         bg: "bg-emerald-50",
         text: "text-emerald-700",
-        ring: "ring-emerald-100",
+        border: "border-emerald-100",
+        gradient: "from-emerald-50 to-green-50"
       };
     case "mod":
       return {
         bg: "bg-amber-50",
         text: "text-amber-800",
-        ring: "ring-amber-100",
+        border: "border-amber-100",
+        gradient: "from-amber-50 to-orange-50"
+      };
+    case "accounts":
+      return {
+        bg: "bg-blue-50",
+        text: "text-blue-700",
+        border: "border-blue-100",
+        gradient: "from-blue-50 to-cyan-50"
       };
     default:
       return {
         bg: "bg-slate-50",
         text: "text-slate-700",
-        ring: "ring-slate-100",
+        border: "border-slate-100",
+        gradient: "from-slate-50 to-gray-50"
       };
   }
 }
 
 function Badge({ count, tone = "blue" }) {
-  if (count === undefined) return null;
+  if (count === undefined || count === 0) return null;
   const disp = count > 999 ? "999+" : count;
   const toneClass = {
-    blue: "bg-blue-50 text-blue-700",
-    red: "bg-red-50 text-red-700",
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-800",
+    blue: "bg-blue-50 text-blue-700 border border-blue-100",
+    red: "bg-red-50 text-red-700 border border-red-100",
+    green: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+    amber: "bg-amber-50 text-amber-800 border border-amber-100",
+    purple: "bg-purple-50 text-purple-700 border border-purple-100",
   }[tone];
   return (
     <span
@@ -207,14 +270,10 @@ function getActiveInfo(currentPath, menuItems) {
     }
 
     // 2. Check Parent Path
-    // Logic: Does the current URL start with this item's path?
-    // Ex: /dashboard/loading/new starts with /dashboard/loading
     if (
       normalizedPath === item.path ||
       normalizedPath.startsWith(item.path + "/")
     ) {
-      // If this match is longer (more specific) than previous ones, take it.
-      // Ex: /dashboard (len 10) vs /dashboard/loading (len 18) -> Loading wins
       if (item.path.length > maxMatchLength) {
         maxMatchLength = item.path.length;
         activeKey = item.key;
@@ -229,20 +288,20 @@ function getActiveInfo(currentPath, menuItems) {
 /* ----------------------------- Component ----------------------------- */
 export default function SidebarAdvanced({
   role = "admin",
-  currentPath: propPath, // Rename prop to avoid confusion
+  currentPath: propPath,
   counts = {},
 }) {
   const router = useRouter();
-  // Use propPath if provided (manual override), otherwise use auto-detected pathname
   const pathname = usePathname();
   const currentPath = propPath || pathname || "";
 
-  const [open, setOpen] = useState(true); // expanded
+  const [open, setOpen] = useState(true);
   const [compactTooltip, setCompactTooltip] = useState({
     show: false,
     x: 0,
     y: 0,
-    content: "",
+    content: null,
+    item: null,
   });
   const containerRef = useRef(null);
 
@@ -269,7 +328,7 @@ export default function SidebarAdvanced({
 
   // animated indicator bar
   const indicatorRef = useRef(null);
-  const itemsRef = useRef({}); // key -> element
+  const itemsRef = useRef({});
 
   // Update indicator position
   useEffect(() => {
@@ -285,7 +344,7 @@ export default function SidebarAdvanced({
     } else if (indicator) {
       indicator.style.opacity = "0";
     }
-  }, [activeKey, open, visible]); // Added visible to dependencies to recalc on role change
+  }, [activeKey, open, visible]);
 
   function navTo(p) {
     if (!p) return;
@@ -297,19 +356,20 @@ export default function SidebarAdvanced({
   }
 
   // compact tooltip handlers
-  function showCompactTooltip(e, content) {
+  function showCompactTooltip(e, item) {
     if (open) return;
     const rect = containerRef.current.getBoundingClientRect();
     setCompactTooltip({
       show: true,
       x: rect.right + 12,
       y: e.currentTarget.getBoundingClientRect().top + window.scrollY,
-      content,
+      content: renderTooltipContent(item),
+      item,
     });
   }
 
   function hideCompactTooltip() {
-    setCompactTooltip({ show: false, x: 0, y: 0, content: "" });
+    setCompactTooltip({ show: false, x: 0, y: 0, content: null, item: null });
   }
 
   return (
@@ -317,7 +377,7 @@ export default function SidebarAdvanced({
       ref={containerRef}
       className={`relative flex flex-col h-screen transition-all duration-200 ${
         open ? "w-64" : "w-20"
-      } bg-white/95 border-r border-slate-200 shadow-sm`}
+      } bg-white/95 border-r border-slate-200 shadow-sm backdrop-blur-sm`}
       aria-label="Main sidebar"
     >
       {/* Top brand */}
@@ -328,7 +388,7 @@ export default function SidebarAdvanced({
               open ? "w-11 h-11" : "w-10 h-10"
             } bg-gradient-to-br from-sky-600 to-blue-600 text-white font-semibold shadow-sm`}
           >
-            IG
+            <Truck className="w-5 h-5" />
           </div>
           {open && (
             <div>
@@ -345,10 +405,10 @@ export default function SidebarAdvanced({
         <button
           aria-label="Toggle sidebar"
           onClick={() => setOpen((s) => !s)}
-          className="p-1.5 rounded-full hover:bg-slate-100 border border-slate-200"
+          className="p-1.5 rounded-full hover:bg-slate-100 border border-slate-200 transition-colors"
         >
           <ChevronLeft
-            className={`w-4 h-4 text-slate-600 transition-transform ${
+            className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
               open ? "" : "rotate-180"
             }`}
           />
@@ -358,7 +418,7 @@ export default function SidebarAdvanced({
       {/* active indicator bar */}
       <div
         ref={indicatorRef}
-        className="pointer-events-none absolute left-0 w-1 bg-sky-600 rounded-full transition-all duration-300 ease-in-out"
+        className="pointer-events-none absolute left-0 w-1 bg-gradient-to-b from-sky-500 to-blue-600 rounded-full transition-all duration-300 ease-in-out"
         style={{ top: 0, left: 0, height: 0, opacity: 0 }}
       />
 
@@ -368,45 +428,44 @@ export default function SidebarAdvanced({
           {visible.map((item) => {
             const Icon = item.icon;
             const isActive = item.key === activeKey;
+            const hasChildren = item.children && item.children.length > 0;
 
             return (
               <li key={item.key} className="relative">
                 <div
                   ref={(el) => (itemsRef.current[item.key] = el)}
-                  onMouseEnter={(e) =>
-                    showCompactTooltip(e, renderTooltipContent(item))
-                  }
+                  onMouseEnter={(e) => showCompactTooltip(e, item)}
                   onMouseLeave={hideCompactTooltip}
-                  className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150 ${
                     isActive
-                      ? "bg-sky-50/90 text-sky-900"
-                      : "hover:bg-slate-50 text-slate-700"
+                      ? "bg-gradient-to-r from-sky-50/90 to-blue-50/70 text-sky-900 shadow-sm"
+                      : "hover:bg-slate-50/80 text-slate-700 hover:text-slate-900"
                   }`}
                 >
                   <button
                     onClick={() => {
-                      if (item.children) {
+                      if (hasChildren) {
                         toggleGroup(item.key);
                       } else {
                         navTo(item.path);
                       }
                     }}
-                    className="flex items-center gap-3 w-full text-left"
+                    className="flex items-center gap-3 w-full text-left group"
                     aria-expanded={
-                      item.children ? !!expandedMap[item.key] : undefined
+                      hasChildren ? !!expandedMap[item.key] : undefined
                     }
                     title={!open ? item.label : undefined}
                   >
                     <div
-                      className={`rounded-lg p-2 shrink-0 ${
+                      className={`rounded-lg p-2 shrink-0 transition-all duration-150 ${
                         isActive
                           ? "bg-white shadow-sm border border-sky-100"
-                          : "bg-white/0"
+                          : "bg-white/0 group-hover:bg-white/50 group-hover:shadow-xs"
                       }`}
                     >
                       <Icon
-                        className={`w-5 h-5 ${
-                          isActive ? "text-sky-600" : "text-slate-600"
+                        className={`w-5 h-5 transition-colors ${
+                          isActive ? "text-sky-600" : "text-slate-600 group-hover:text-slate-800"
                         }`}
                       />
                     </div>
@@ -414,19 +473,34 @@ export default function SidebarAdvanced({
                     {open && (
                       <>
                         <div className="flex-1 flex items-center justify-between">
-                          <span
-                            className={`text-sm ${
-                              isActive ? "font-semibold" : "font-medium"
-                            }`}
-                          >
-                            {item.label}
-                          </span>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-sm ${
+                                isActive ? "font-semibold" : "font-medium"
+                              }`}
+                            >
+                              {item.label}
+                            </span>
+                            {/* {item.description && (
+                              <span className="text-xs text-slate-500 mt-0.5">
+                                {item.description}
+                              </span>
+                            )} */}
+                          </div>
                           <div className="flex items-center gap-2">
                             {item.key === "loading" &&
                               counts.loading !== undefined && (
                                 <Badge count={counts.loading} tone="blue" />
                               )}
-                            {item.children && (
+                            {item.key === "tasks" &&
+                              counts.tasks !== undefined && (
+                                <Badge count={counts.tasks} tone="amber" />
+                              )}
+                            {item.key === "order-tracker" &&
+                              counts.orders !== undefined && (
+                                <Badge count={counts.orders} tone="green" />
+                              )}
+                            {hasChildren && (
                               <span className="text-slate-400">
                                 {expandedMap[item.key] ? (
                                   <ChevronDown className="w-4 h-4" />
@@ -443,20 +517,22 @@ export default function SidebarAdvanced({
                 </div>
 
                 {/* children (multi-level) */}
-                {item.children && open && expandedMap[item.key] && (
+                {hasChildren && open && expandedMap[item.key] && (
                   <ul className="mt-1 ml-10 space-y-0.5 border-l border-slate-100">
                     {item.children.map((c) => {
+                      const ChildIcon = c.icon || item.icon;
                       const isChildActive = activeChildPath === c.path;
                       return (
                         <li key={c.key}>
                           <button
                             onClick={() => navTo(c.path)}
-                            className={`w-full text-left px-3 py-1.5 rounded-md text-xs flex items-center justify-between ${
+                            className={`w-full text-left px-3 py-2 rounded-md text-xs flex items-center gap-2 transition-colors ${
                               isChildActive
-                                ? "bg-sky-50 text-sky-800 font-semibold border border-sky-100"
+                                ? "bg-gradient-to-r from-sky-50/80 to-blue-50/60 text-sky-800 font-semibold border border-sky-100"
                                 : "hover:bg-slate-50 text-slate-700"
                             }`}
                           >
+                            <ChildIcon className="w-3.5 h-3.5" />
                             <span>{c.label}</span>
                           </button>
                         </li>
@@ -479,31 +555,31 @@ export default function SidebarAdvanced({
           <div className="flex gap-2 flex-col">
             <Button
               onClick={() => navTo("/dashboard/loading/new")}
-              className="w-full bg-sky-600 text-white hover:bg-sky-700"
+              className="w-full bg-gradient-to-r from-sky-600 to-blue-600 text-white hover:from-sky-700 hover:to-blue-700 shadow-sm"
               size="sm"
             >
               <Plus className="w-4 h-4 mr-1" />
-              {open && <span>New Loading</span>}
+              {open && <span>New Loading Sheet</span>}
             </Button>
             <Button
-              onClick={() => navTo("/dashboard/bifurcation")}
+              onClick={() => navTo("/dashboard/invoice/new")}
               variant="outline"
-              className="w-full border-sky-100 hover:bg-sky-50"
+              className="w-full border-sky-100 hover:bg-sky-50 hover:border-sky-200"
               size="sm"
             >
-              <Eye className="w-4 h-4 mr-1 text-sky-600" />
-              {open && <span>Bifurcation</span>}
+              <FileSpreadsheet className="w-4 h-4 mr-1 text-sky-600" />
+              {open && <span>Create Invoice</span>}
             </Button>
           </div>
         </div>
       </nav>
 
       {/* footer */}
-      <div className="px-4 py-4 border-t border-slate-200 bg-slate-50/80 flex items-center gap-3">
+      <div className="px-4 py-4 border-t border-slate-200 bg-gradient-to-r from-slate-50/80 to-gray-50/80 flex items-center gap-3">
         <div
-          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold ${
-            roleColor(role).bg
-          } ${roleColor(role).text}`}
+          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold border ${
+            roleColor(role).border
+          } ${roleColor(role).bg} ${roleColor(role).text}`}
         >
           {role?.[0]?.toUpperCase() || "U"}
         </div>
@@ -515,7 +591,7 @@ export default function SidebarAdvanced({
             </div>
             <div className="text-xs text-slate-500">
               Role:{" "}
-              <span className={`${roleColor(role).text} font-medium`}>
+              <span className={`${roleColor(role).text} font-medium px-1.5 py-0.5 rounded bg-white/50`}>
                 {role}
               </span>
             </div>
@@ -524,41 +600,66 @@ export default function SidebarAdvanced({
 
         <button
           onClick={() => navTo("/logout")}
-          className="p-2 rounded-full hover:bg-slate-100"
+          className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+          title="Logout"
         >
           <LogOut className="w-4 h-4 text-slate-600" />
         </button>
       </div>
 
       {/* compact tooltip floating preview */}
-      {!open && compactTooltip.show && (
+      {!open && compactTooltip.show && compactTooltip.item && (
         <div
-          className="fixed z-50 p-3 w-64 bg-white border border-slate-200 shadow-lg rounded-lg text-sm"
+          className="fixed z-50 p-3 w-64 bg-white border border-slate-200 shadow-xl rounded-lg text-sm backdrop-blur-sm"
           style={{
             left: compactTooltip.x,
             top: compactTooltip.y - 8,
             transform: "translateY(-4px)",
           }}
+          onMouseEnter={() => setCompactTooltip(prev => ({...prev, show: true}))}
+          onMouseLeave={hideCompactTooltip}
         >
-          <div className="font-semibold text-slate-900 mb-1">
-            {compactTooltip.content.title}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-sky-50 rounded">
+              {React.createElement(compactTooltip.item.icon, { 
+                className: "w-4 h-4 text-sky-600" 
+              })}
+            </div>
+            <div className="font-semibold text-slate-900">
+              {compactTooltip.item.label}
+            </div>
           </div>
-          {compactTooltip.content.children ? (
-            <div className="text-xs text-slate-500">
-              {compactTooltip.content.children.map((ch) => (
-                <div
-                  key={ch.key}
-                  className="py-1 border-b last:border-b-0 border-slate-100"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>{ch.label}</div>
+          
+          {compactTooltip.item.description && (
+            <div className="text-xs text-slate-600 mb-2">
+              {compactTooltip.item.description}
+            </div>
+          )}
+          
+          {compactTooltip.item.children ? (
+            <div className="text-xs text-slate-500 border-t border-slate-100 pt-2">
+              <div className="font-medium text-slate-700 mb-1">Submodules:</div>
+              {compactTooltip.item.children.map((ch) => {
+                const ChildIcon = ch.icon || compactTooltip.item.icon;
+                return (
+                  <div
+                    key={ch.key}
+                    className="py-1.5 border-b last:border-b-0 border-slate-100 hover:bg-slate-50 px-1 rounded"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ChildIcon className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{ch.label}</span>
+                      </div>
+                      <ChevronRight className="w-3 h-3 text-slate-300" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="text-xs text-slate-500">
-              {compactTooltip.content.desc}
+            <div className="text-xs text-slate-500 italic">
+              Click to open
             </div>
           )}
         </div>
@@ -571,6 +672,6 @@ export default function SidebarAdvanced({
     if (item.children) {
       return { title: item.label, children: item.children };
     }
-    return { title: item.label, desc: "Click to open " + item.label };
+    return { title: item.label, desc: item.description || `Open ${item.label}` };
   }
 }

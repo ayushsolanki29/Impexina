@@ -22,6 +22,9 @@ import {
   Package,
   Scale,
   Box,
+  User,
+  Truck,
+  Receipt,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -39,6 +42,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "John Smith",
+    to: "David Wilson",
+    lr: "LR123456",
     status: "draft",
   },
   {
@@ -53,6 +59,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Sarah Johnson",
+    to: "Michael Brown",
+    lr: "LR123457",
     status: "draft",
   },
   {
@@ -67,6 +76,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Robert Chen",
+    to: "Emma Davis",
+    lr: "LR123458",
     status: "draft",
   },
   {
@@ -81,6 +93,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Lisa Wang",
+    to: "James Miller",
+    lr: "LR123459",
     status: "draft",
   },
   {
@@ -95,6 +110,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Alex Turner",
+    to: "Maria Garcia",
+    lr: "LR123460",
     status: "draft",
   },
   {
@@ -109,6 +127,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Tom Harris",
+    to: "Sophia Lee",
+    lr: "LR123461",
     status: "draft",
   },
   {
@@ -123,6 +144,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Kevin Martin",
+    to: "Olivia Taylor",
+    lr: "LR123462",
     status: "draft",
   },
   {
@@ -137,6 +161,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "01-11-25",
     invNo: "968",
     gst: "16663",
+    from: "William Clark",
+    to: "Ava White",
+    lr: "LR123463",
     status: "completed",
   },
   {
@@ -151,6 +178,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Daniel Moore",
+    to: "Charlotte Hall",
+    lr: "LR123464",
     status: "draft",
   },
   {
@@ -165,6 +195,9 @@ const BIFURCATION_DATA = [
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "Ryan Lewis",
+    to: "Grace Scott",
+    lr: "LR123465",
     status: "draft",
   },
 ];
@@ -193,6 +226,9 @@ export default function BifurcationPage() {
     deliveryDate: "",
     invNo: "",
     gst: "",
+    from: "",
+    to: "",
+    lr: "",
   });
 
   // Load data
@@ -219,7 +255,10 @@ export default function BifurcationPage() {
       (item) =>
         item.mark?.toLowerCase().includes(query) ||
         item.product?.toLowerCase().includes(query) ||
-        item.invNo?.toString().toLowerCase().includes(query)
+        item.invNo?.toString().toLowerCase().includes(query) ||
+        item.from?.toLowerCase().includes(query) ||
+        item.to?.toLowerCase().includes(query) ||
+        item.lr?.toLowerCase().includes(query)
     );
   }, [items, searchQuery]);
 
@@ -278,6 +317,9 @@ export default function BifurcationPage() {
       deliveryDate: newItem.deliveryDate,
       invNo: newItem.invNo,
       gst: newItem.gst,
+      from: newItem.from,
+      to: newItem.to,
+      lr: newItem.lr,
       status: "draft",
     };
     
@@ -292,6 +334,9 @@ export default function BifurcationPage() {
       deliveryDate: "",
       invNo: "",
       gst: "",
+      from: "",
+      to: "",
+      lr: "",
     });
     setShowAddForm(false);
     toast.success("Item added successfully");
@@ -333,6 +378,9 @@ export default function BifurcationPage() {
         "DELIVERY DATE": item.deliveryDate,
         "INV NO.": item.invNo,
         GST: item.gst,
+        FROM: item.from,
+        TO: item.to,
+        LR: item.lr,
         STATUS: item.status === "completed" ? "COMPLETED" : "DRAFT",
       }))
     );
@@ -367,7 +415,7 @@ export default function BifurcationPage() {
 
   const copyToClipboard = () => {
     const text = filteredItems.map(item => 
-      `${item.code}\t${item.mark}\t${item.ctn}\t${item.product}\t${item.totalCBM}\t${item.totalWeight}\t${item.loadingDate}\t${item.deliveryDate}\t${item.invNo}\t${item.gst}`
+      `${item.code}\t${item.mark}\t${item.ctn}\t${item.product}\t${item.totalCBM}\t${item.totalWeight}\t${item.loadingDate}\t${item.deliveryDate}\t${item.invNo}\t${item.gst}\t${item.from}\t${item.to}\t${item.lr}`
     ).join('\n');
     
     navigator.clipboard.writeText(text);
@@ -439,6 +487,9 @@ export default function BifurcationPage() {
                 <th>DELIVERY DATE</th>
                 <th>INV NO.</th>
                 <th>GST</th>
+                <th>FROM</th>
+                <th>TO</th>
+                <th>LR</th>
                 <th>STATUS</th>
               </tr>
             </thead>
@@ -453,6 +504,9 @@ export default function BifurcationPage() {
                   <td>${item.deliveryDate || 'Pending'}</td>
                   <td>${item.invNo || '-'}</td>
                   <td>${item.gst || '-'}</td>
+                  <td>${item.from || '-'}</td>
+                  <td>${item.to || '-'}</td>
+                  <td>${item.lr || '-'}</td>
                   <td><span class="status-badge">${item.status.toUpperCase()}</span></td>
                 </tr>
               `).join('')}
@@ -613,7 +667,7 @@ export default function BifurcationPage() {
           <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by mark, product, or invoice..."
+            placeholder="Search by mark, product, invoice, from, to, or LR..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -754,6 +808,45 @@ export default function BifurcationPage() {
                 placeholder="e.g., 16663"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                From
+              </label>
+              <input
+                type="text"
+                value={newItem.from}
+                onChange={(e) => setNewItem({...newItem, from: e.target.value})}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., John Smith"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                To
+              </label>
+              <input
+                type="text"
+                value={newItem.to}
+                onChange={(e) => setNewItem({...newItem, to: e.target.value})}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., David Wilson"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                LR
+              </label>
+              <input
+                type="text"
+                value={newItem.lr}
+                onChange={(e) => setNewItem({...newItem, lr: e.target.value})}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., LR123456"
+              />
+            </div>
           </div>
           
           <div className="flex justify-end gap-2">
@@ -809,6 +902,15 @@ export default function BifurcationPage() {
                   GST
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  FROM
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  TO
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  LR
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                   STATUS
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -821,7 +923,7 @@ export default function BifurcationPage() {
                 // Skeleton Loaders
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 11 }).map((_, j) => (
+                    {Array.from({ length: 14 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
                       </td>
@@ -830,7 +932,7 @@ export default function BifurcationPage() {
                 ))
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={14} className="px-4 py-8 text-center text-gray-500">
                     No bifurcation data found
                   </td>
                 </tr>
@@ -914,6 +1016,30 @@ export default function BifurcationPage() {
                           />
                         </td>
                         <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={editForm.from}
+                            onChange={(e) => setEditForm({...editForm, from: e.target.value})}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={editForm.to}
+                            onChange={(e) => setEditForm({...editForm, to: e.target.value})}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={editForm.lr}
+                            onChange={(e) => setEditForm({...editForm, lr: e.target.value})}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
                           <select
                             value={editForm.status}
                             onChange={(e) => setEditForm({...editForm, status: e.target.value})}
@@ -976,6 +1102,17 @@ export default function BifurcationPage() {
                         <td className="px-4 py-3 text-sm text-gray-700">
                           {item.gst || "-"}
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {item.from || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {item.to || "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className={`text-sm ${item.lr ? 'bg-purple-50 text-purple-700' : 'bg-gray-50 text-gray-500'} px-2 py-1 rounded text-center`}>
+                            {item.lr || "-"}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             item.status === "completed" 
@@ -1032,6 +1169,9 @@ export default function BifurcationPage() {
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {totals.itemsWithInvoice} / {filteredItems.length}
                   </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">-</td>
                   <td className="px-4 py-3 text-sm text-gray-900">-</td>
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {totals.completedItems} / {filteredItems.length}
@@ -1131,6 +1271,9 @@ export default function BifurcationPage() {
                         <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">DELIVERY DATE</th>
                         <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">INV NO.</th>
                         <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">GST</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">FROM</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">TO</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium">LR</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1144,6 +1287,9 @@ export default function BifurcationPage() {
                           <td className="border border-gray-300 px-4 py-2 text-sm">{item.deliveryDate || "Pending"}</td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">{item.invNo || "-"}</td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">{item.gst || "-"}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-sm">{item.from || "-"}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-sm">{item.to || "-"}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-sm">{item.lr || "-"}</td>
                         </tr>
                       ))}
                       {/* Totals Row */}
@@ -1155,6 +1301,9 @@ export default function BifurcationPage() {
                         <td className="border border-gray-300 px-4 py-2 text-right">{totals.totalWeight} kg</td>
                         <td className="border border-gray-300 px-4 py-2">{totals.itemsWithDelivery} delivered</td>
                         <td className="border border-gray-300 px-4 py-2">{totals.itemsWithInvoice} invoiced</td>
+                        <td className="border border-gray-300 px-4 py-2">-</td>
+                        <td className="border border-gray-300 px-4 py-2">-</td>
+                        <td className="border border-gray-300 px-4 py-2">-</td>
                         <td className="border border-gray-300 px-4 py-2">-</td>
                       </tr>
                     </tbody>
