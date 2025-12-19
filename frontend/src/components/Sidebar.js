@@ -23,6 +23,7 @@ import {
   Package, // Added missing import
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 const MENU = [
   {
@@ -329,41 +330,52 @@ export default function SidebarAdvanced({
       aria-label="Main sidebar"
     >
       {/* Top brand */}
-      {/* REMOVED: shadow-sm from icon and container */}
 
-      <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-sky-50/60">
-        <div className="flex items-center gap-3">
-          <div
-            className={`rounded-xl flex items-center justify-center ${
-              open ? "w-11 h-11" : "w-10 h-10"
-            } bg-gradient-to-br from-sky-600 to-blue-600 text-white font-semibold shadow-sm`}
-          >
-            <Truck className="w-5 h-5" />
-          </div>
-          {open && (
-            <div>
-              <div className="text-sm font-semibold text-slate-900">
-                IGPL — Impexina
-              </div>
-              <div className="text-xs text-slate-500">
-                Import &amp; Logistics Suite
-              </div>
-            </div>
-          )}
-        </div>
 
-        <button
-          aria-label="Toggle sidebar"
-          onClick={() => setOpen((s) => !s)}
-          className="p-1.5 rounded-full hover:bg-slate-100 border border-slate-200 transition-colors"
-        >
-          <ChevronLeft
-            className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
-              open ? "" : "rotate-180"
-            }`}
-          />
-        </button>
-      </div>
+
+<div className="flex items-center justify-between px-4 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-sky-50/60">
+  {/* Logo Wrapper */}
+  <div
+    className={`flex items-center transition-all duration-300 ${
+      open ? "justify-start" : "justify-center w-full"
+    }`}
+  >
+    <div
+      className={`flex items-center justify-center rounded-xl bg-white shadow-md overflow-hidden transition-all duration-300 ${
+        open ? "w-44 h-14" : "w-14 h-14"
+      }`}
+    >
+      <Image
+        src={
+          open
+            ? "/LOGO.jpeg"
+            : "/LOGO.jpeg" // replace later with icon logo
+        }
+        alt="Impexina Logo"
+        width={open ? 170 : 48}
+        height={48}
+        className="object-contain"
+        priority
+      />
+    </div>
+  </div>
+
+  {/* Toggle Button */}
+  <button
+    aria-label="Toggle sidebar"
+    onClick={() => setOpen((s) => !s)}
+    className={`p-1.5 rounded-full hover:bg-slate-100 border border-slate-200 transition-all ${
+      open ? "ml-2" : "absolute right-3"
+    }`}
+  >
+    <ChevronLeft
+      className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
+        open ? "" : "rotate-180"
+      }`}
+    />
+  </button>
+</div>
+
 
       {/* Active indicator bar - Kept minimal */}
       <div
