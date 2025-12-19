@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Users, TrendingUp, Globe, ChevronRight, Plus } from "lucide-react";
+import { Users, TrendingUp, Globe, ChevronRight, Plus, CreditCard } from "lucide-react";
 
 export default function AccountsHub() {
   const router = useRouter();
@@ -30,7 +30,15 @@ export default function AccountsHub() {
       icon: Globe, // Represents Forex/International
       color: "bg-amber-50 text-amber-600",
       border: "border-amber-200"
-    }
+    },
+      {
+          title: "Payment Collection",
+          desc: "Client payment tracking, expected dates, and yearly dues (24-25/25-26).",
+          path: "/dashboard/accounts/collection",
+          icon: CreditCard,
+          color: "bg-purple-50 text-purple-600", // Distinct purple theme
+          border: "border-purple-200"
+        }
   ];
 
   return (

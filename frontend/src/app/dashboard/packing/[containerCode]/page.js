@@ -54,6 +54,7 @@ const DEMO = {
       kg: 7,
       tKg: 35.0,
       mix: "",
+      hsn: "",
     },
     {
       id: "i2",
@@ -66,6 +67,7 @@ const DEMO = {
       kg: 18,
       tKg: 378.0,
       mix: "",
+      hsn: "",
     },
     {
       id: "i3",
@@ -78,6 +80,7 @@ const DEMO = {
       kg: 1,
       tKg: 1.0,
       mix: "",
+      hsn: "",
     },
   ],
 };
@@ -187,6 +190,7 @@ export default function PackingListPage() {
       kg: 0,
       tKg: 0,
       mix: "",
+      hsn: "",
     };
   }
 
@@ -282,13 +286,13 @@ export default function PackingListPage() {
   }
 
   // printable HTML – matching your exact table structure
- function buildPrintableHTML() {
-  const rowsHtml = items
-    .map((it, i) => {
-      const photoCell = it.photo
-        ? `<img src="${it.photo}" style="max-width:55px;max-height:40px;" />`
-        : "";
-      return `
+  function buildPrintableHTML() {
+    const rowsHtml = items
+      .map((it, i) => {
+        const photoCell = it.photo
+          ? `<img src="${it.photo}" style="max-width:55px;max-height:40px;" />`
+          : "";
+        return `
 <tr>
   <td class="center">${i + 1}</td>
   <td class="center">${escapeHtml(it.itemNumber)}</td>
@@ -301,10 +305,10 @@ export default function PackingListPage() {
   <td class="right">${it.kg}</td>
   <td class="right">${Number(it.tKg).toFixed(2)}</td>
 </tr>`;
-    })
-    .join("");
+      })
+      .join("");
 
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
@@ -352,7 +356,6 @@ th {
 
 <body>
 
-<!-- COMPANY HEADER -->
 <table>
 <tr>
   <td class="center bold company-name" style="font-size:20px;">
@@ -371,7 +374,6 @@ th {
 </tr>
 </table>
 
-<!-- SELLER + INVOICE -->
 <table>
 <tr>
   <td style="width:65%;vertical-align:top;">
@@ -390,7 +392,6 @@ th {
 </tr>
 </table>
 
-<!-- ITEMS TABLE -->
 <table>
 <thead>
 <tr>
@@ -422,7 +423,6 @@ ${rowsHtml}
 </tbody>
 </table>
 
-<!-- BANK DETAIL -->
 <table style="margin-top:8px;">
 <tr><td class="bold">Bank Detail:</td></tr>
 <tr><td><b>BENEFICIARY’S BANK NAME:</b> ${escapeHtml(meta.bankName)}</td></tr>
@@ -432,7 +432,6 @@ ${rowsHtml}
 <tr><td><b>BENEFICIARY A/C NO.:</b> ${escapeHtml(meta.accountNumber)}</td></tr>
 </table>
 
-<!-- SIGNATURE -->
 <table style="margin-top:12px;">
 <tr>
   <td></td>
@@ -449,9 +448,7 @@ ${rowsHtml}
 
 </body>
 </html>`;
-}
-
-
+  }
 
   function openPreview() {
     const html = buildPrintableHTML();
@@ -875,6 +872,13 @@ ${rowsHtml}
                     <input
                       value={it.mix}
                       onChange={(e) => updateRow(it.id, "mix", e.target.value)}
+                      className="border px-2 py-1 rounded text-xs w-24"
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      value={it.hsn || ""}
+                      onChange={(e) => updateRow(it.id, "hsn", e.target.value)}
                       className="border px-2 py-1 rounded text-xs w-24"
                     />
                   </td>

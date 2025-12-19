@@ -12,9 +12,9 @@ import {
   X,
 } from "lucide-react";
 
-const STORAGE_KEY = "igpl_commercial_invoice_v1";
+const STORAGE_KEY = "igpl_commercial_invoice_v2"; // Changed key version to avoid conflicts
 
-// Demo data closely matching your PDF
+// Demo data with FROM/TO fields added
 const DEMO = {
   meta: {
     companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
@@ -45,6 +45,8 @@ const DEMO = {
     {
       id: "i1",
       itemNumber: "BB-AMD",
+      from: "John Smith",
+      to: "David Wilson",
       description: "FOOTREST",
       ctn: 5,
       qtyPerCtn: 100,
@@ -57,6 +59,8 @@ const DEMO = {
     {
       id: "i2",
       itemNumber: "SMWGC18",
+      from: "Sarah Johnson",
+      to: "Michael Brown",
       description: "TABLE RUNNER",
       ctn: 21,
       qtyPerCtn: 96,
@@ -145,7 +149,12 @@ export default function CommercialInvoicePage() {
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      writeStorage({ meta, items, signature, signatureName: signaturePreviewName });
+      writeStorage({
+        meta,
+        items,
+        signature,
+        signatureName: signaturePreviewName,
+      });
       setLastSaved(new Date().toLocaleTimeString());
     }, 700);
 
@@ -174,6 +183,8 @@ export default function CommercialInvoicePage() {
     return {
       id: uid("item"),
       itemNumber: "",
+      from: "",
+      to: "",
       description: "",
       ctn: 0,
       qtyPerCtn: 0,
@@ -190,7 +201,10 @@ export default function CommercialInvoicePage() {
   }
 
   function addMultipleRows(count) {
-    setItems((s) => [...s, ...Array.from({ length: count }, () => baseEmptyRow())]);
+    setItems((s) => [
+      ...s,
+      ...Array.from({ length: count }, () => baseEmptyRow()),
+    ]);
   }
 
   function insertRowAfter(id) {
@@ -272,170 +286,169 @@ export default function CommercialInvoicePage() {
   }
 
   // Printable HTML – matching your invoice style
-function buildPrintableHTML() {
-  const rowsHtml = items
-    .map((it, i) => {
-      const photo = it.photo
-        ? `<img src="${it.photo}" style="max-width:45px;max-height:35px;" />`
-        : "";
-      return `
-<tr>
-  <td class="c">${i + 1}</td>
-  <td class="c">${escapeHtml(it.itemNumber)}</td>
-  <td class="c">${photo}</td>
-  <td>${escapeHtml(it.description)}</td>
-  <td class="r">${it.ctn}</td>
-  <td class="r">${it.qtyPerCtn}</td>
-  <td class="c">${escapeHtml(it.unit)}</td>
-  <td class="r">${it.tQty}</td>
-  <td class="r">${Number(it.unitPrice).toFixed(2)}</td>
-  <td class="r">${Number(it.amountUsd).toFixed(2)}</td>
-</tr>`;
-    })
-    .join("");
+  function buildPrintableHTML() {
+    const rowsHtml = items
+      .map((it, i) => {
+        const photo = it.photo
+          ? `<img src="${it.photo}" style="max-width:45px;max-height:35px;" />`
+          : "";
+        return `
+  <tr>
+    <td class="c">${i + 1}</td>
+    <td class="c">${escapeHtml(it.itemNumber)}</td>
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>Commercial Invoice</title>
+    <td class="c">${photo}</td>
+    <td>${escapeHtml(it.description)}</td>
+    <td class="r">${it.ctn}</td>
+    <td class="r">${it.qtyPerCtn}</td>
+    <td class="c">${escapeHtml(it.unit)}</td>
+    <td class="r">${it.tQty}</td>
+    <td class="r">${Number(it.unitPrice).toFixed(2)}</td>
+        <td class="c">${escapeHtml(it.from)}</td>
+    <td class="c">${escapeHtml(it.to)}</td>
+    <td class="r">${Number(it.amountUsd).toFixed(2)}</td>
+  </tr>`;
+      })
+      .join("");
 
-<style>
-@page { size:A4; margin:10mm; }
-
-body {
-  font-family: Cambria, "Cambria Math", "Times New Roman", serif;
-  font-size: 10.5px;
-  color:#000;
-  margin:0;
-}
-
-table {
-  width:100%;
-  border-collapse:collapse;
-}
-
-td, th {
-  border:1px solid #888;
-  padding:3px 4px;
-  vertical-align:top;
-}
-
-.c { text-align:center; }
-.r { text-align:right; }
-.b { font-weight:bold; }
-</style>
-</head>
-
-<body>
-
-<!-- HEADER -->
-<table>
-<tr>
-  <td class="c b" style="font-size:16px;">
-    ${escapeHtml(meta.companyName)}
+    return `<!DOCTYPE html>
+  <html>
+  <head>
+  <meta charset="utf-8"/>
+  <title>Commercial Invoice</title>
+  
+  <style>
+  @page { size:A4; margin:10mm; }
+  
+  body {
+    font-family: Cambria, "Cambria Math", "Times New Roman", serif;
+    font-size: 10.5px;
+    color:#000;
+    margin:0;
+  }
+  
+  table {
+    width:100%;
+    border-collapse:collapse;
+  }
+  
+  td, th {
+    border:1px solid #888;
+    padding:3px 4px;
+    vertical-align:top;
+  }
+  
+  .c { text-align:center; }
+  .r { text-align:right; }
+  .b { font-weight:bold; }
+  </style>
+  </head>
+  
+  <body>
+  
+  <table>
+  <tr>
+    <td class="c b" style="font-size:16px;">
+      ${escapeHtml(meta.companyName)}
+    </td>
+  </tr>
+  <tr>
+    <td class="c">
+      ${escapeHtml(meta.companyAddress)}
+    </td>
+  </tr>
+  <tr>
+    <td class="c b" style="font-size:14px;">
+      ${escapeHtml(meta.title)}
+    </td>
+  </tr>
+  </table>
+  
+  <table>
+  <tr>
+  <td style="width:65%;">
+    <b>${escapeHtml(meta.buyerName)}</b><br/>
+    ${escapeHtml(meta.buyerAddress).replace(/\n/g, "<br/>")}<br/>
+    ${escapeHtml(meta.buyerIEC)}<br/>
+    ${escapeHtml(meta.buyerGST)}<br/>
+    ${escapeHtml(meta.buyerEmail)}
   </td>
-</tr>
-<tr>
-  <td class="c">
-    ${escapeHtml(meta.companyAddress)}
+  <td style="width:35%;">
+    <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
+    <b>DATE:</b> ${escapeHtml(meta.date)}<br/>
+    <b>${escapeHtml(meta.to)}</b><br/>
+    <b>FROM:</b> ${escapeHtml(meta.from)}
   </td>
-</tr>
-<tr>
-  <td class="c b" style="font-size:14px;">
-    ${escapeHtml(meta.title)}
-  </td>
-</tr>
-</table>
-
-<!-- BUYER + INVOICE -->
-<table>
-<tr>
-<td style="width:65%;">
-  <b>${escapeHtml(meta.buyerName)}</b><br/>
-  ${escapeHtml(meta.buyerAddress).replace(/\n/g, "<br/>")}<br/>
-  ${escapeHtml(meta.buyerIEC)}<br/>
-  ${escapeHtml(meta.buyerGST)}<br/>
-  ${escapeHtml(meta.buyerEmail)}
-</td>
-<td style="width:35%;">
-  <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
-  <b>DATE:</b> ${escapeHtml(meta.date)}<br/>
-  <b>${escapeHtml(meta.to)}</b><br/>
-  <b>FROM:</b> ${escapeHtml(meta.from)}
-</td>
-</tr>
-</table>
-
-<!-- ITEMS -->
-<table>
-<thead>
-<tr class="b">
-  <th>S.N.</th>
-  <th>ITEM NO.</th>
-  <th>Photo</th>
-  <th>Descriptions</th>
-  <th>Ctn.</th>
-  <th>Qty./Ctn</th>
-  <th>Unit</th>
-  <th>T-Qty</th>
-  <th>U.price</th>
-  <th>Amount/USD</th>
-</tr>
-</thead>
-
-<tbody>
-${rowsHtml}
-
-<tr class="b">
-  <td colspan="4">TOTAL</td>
-  <td class="r">${totals.ctn}</td>
-  <td></td>
-  <td></td>
-  <td class="r">${totals.tQty}</td>
-  <td></td>
-  <td class="r">${totals.amount.toFixed(2)}</td>
-</tr>
-</tbody>
-</table>
-
-<!-- CIF -->
-<table>
-<tr>
-  <td class="b">
-    ${escapeHtml(meta.cifText)}
-  </td>
-</tr>
-</table>
-
-<!-- BANK -->
-<table>
-<tr><td class="b">Bank Detail:</td></tr>
-${escapeHtml(meta.bankDetail)
-  .split("\n")
-  .map((l) => `<tr><td>${l}</td></tr>`)
-  .join("")}
-</table>
-
-<!-- SIGN -->
-<table>
-<tr>
-  <td></td>
-  <td class="c">
-    ${
-      signature
-        ? `<img src="${signature}" style="max-height:55px"/><br/>`
-        : ""
-    }
-    ${escapeHtml(meta.signatureText).replace(/\n/g, "<br/>")}
-  </td>
-</tr>
-</table>
-
-</body>
-</html>`;
-}
-
+  </tr>
+  </table>
+  
+  <table>
+  <thead>
+  <tr class="b">
+    <th>S.N.</th>
+    <th>ITEM NO.</th>
+   
+    <th>Photo</th>
+    <th>Descriptions</th>
+    <th>Ctn.</th>
+    <th>Qty./Ctn</th>
+    <th>Unit</th>
+    <th>T-Qty</th>
+    <th>U.price</th>
+     <th>FROM</th>
+    <th>TO</th>
+    <th>Amount/USD</th>
+  </tr>
+  </thead>
+  
+  <tbody>
+  ${rowsHtml}
+  
+  <tr class="b">
+    <td colspan="6">TOTAL</td>
+    <td class="r">${totals.ctn}</td>
+    <td></td>
+    <td></td>
+    <td class="r">${totals.tQty}</td>
+    <td></td>
+    <td class="r">${totals.amount.toFixed(2)}</td>
+  </tr>
+  </tbody>
+  </table>
+  
+  <table>
+  <tr>
+    <td class="b">
+      ${escapeHtml(meta.cifText)}
+    </td>
+  </tr>
+  </table>
+  
+  <table>
+  <tr><td class="b">Bank Detail:</td></tr>
+  ${escapeHtml(meta.bankDetail)
+    .split("\n")
+    .map((l) => `<tr><td>${l}</td></tr>`)
+    .join("")}
+  </table>
+  
+  <table>
+  <tr>
+    <td></td>
+    <td class="c">
+      ${
+        signature
+          ? `<img src="${signature}" style="max-height:55px"/><br/>`
+          : ""
+      }
+      ${escapeHtml(meta.signatureText).replace(/\n/g, "<br/>")}
+    </td>
+  </tr>
+  </table>
+  
+  </body>
+  </html>`;
+  }
 
   function openPreview() {
     const html = buildPrintableHTML();
@@ -449,13 +462,18 @@ ${escapeHtml(meta.bankDetail)
     if (!w) return toast.error("Popup blocked");
     w.document.open();
     w.document.write(
-      html + '<script>setTimeout(()=>window.print(),200);</script>'
+      html + "<script>setTimeout(()=>window.print(),200);</script>"
     );
     w.document.close();
   }
 
   function handleSaveNow() {
-    writeStorage({ meta, items, signature, signatureName: signaturePreviewName });
+    writeStorage({
+      meta,
+      items,
+      signature,
+      signatureName: signaturePreviewName,
+    });
     setLastSaved(new Date().toLocaleTimeString());
     toast.success("Saved to browser storage");
   }
@@ -463,7 +481,7 @@ ${escapeHtml(meta.bankDetail)
   return (
     <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
       <Toaster position="top-right" />
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Top bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
@@ -566,9 +584,7 @@ ${escapeHtml(meta.bankDetail)
               <label className="text-xs text-slate-600 mt-2 block">To</label>
               <input
                 value={meta.to}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, to: e.target.value }))
-                }
+                onChange={(e) => setMeta((m) => ({ ...m, to: e.target.value }))}
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
             </div>
@@ -637,13 +653,12 @@ ${escapeHtml(meta.bankDetail)
               <span className="font-semibold">{totals.ctn}</span> cartons
             </span>
             <span>
-              <span className="font-semibold">{totals.tQty}</span> total quantity
+              <span className="font-semibold">{totals.tQty}</span> total
+              quantity
             </span>
             <span>
               USD{" "}
-              <span className="font-semibold">
-                {totals.amount.toFixed(2)}
-              </span>{" "}
+              <span className="font-semibold">{totals.amount.toFixed(2)}</span>{" "}
               total amount
             </span>
           </div>
@@ -688,6 +703,7 @@ ${escapeHtml(meta.bankDetail)
               <tr>
                 <th className="px-2 py-2">S.N.</th>
                 <th className="px-2 py-2">ITEM NO.</th>
+
                 <th className="px-2 py-2">Photo</th>
                 <th className="px-2 py-2">Descriptions</th>
                 <th className="px-2 py-2">Ctn.</th>
@@ -695,6 +711,8 @@ ${escapeHtml(meta.bankDetail)
                 <th className="px-2 py-2">Unit</th>
                 <th className="px-2 py-2">T-QTY</th>
                 <th className="px-2 py-2">U.price</th>
+                <th className="px-2 py-2">FROM</th>
+                <th className="px-2 py-2">TO</th>
                 <th className="px-2 py-2">Amount/USD</th>
                 <th className="px-2 py-2">Actions</th>
               </tr>
@@ -703,15 +721,18 @@ ${escapeHtml(meta.bankDetail)
               {items.map((it, idx) => (
                 <tr key={it.id} className="border-t">
                   <td className="px-2 py-2 text-xs text-center">{idx + 1}</td>
+                  {/* Item No */}
                   <td className="px-2 py-2">
                     <input
                       value={it.itemNumber}
                       onChange={(e) =>
                         updateRow(it.id, "itemNumber", e.target.value)
                       }
-                      className="border px-2 py-1 rounded text-xs w-28"
+                      className="border px-2 py-1 rounded text-xs w-24"
                     />
                   </td>
+
+                  {/* Photo */}
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-2">
                       {it.photo ? (
@@ -729,19 +750,21 @@ ${escapeHtml(meta.bankDetail)
                         type="file"
                         accept="image/*"
                         onChange={(e) => uploadRowPhoto(e, it.id)}
-                        className="text-[10px]"
+                        className="text-[10px] w-20"
                       />
                     </div>
                   </td>
+                  {/* Description */}
                   <td className="px-2 py-2">
                     <input
                       value={it.description}
                       onChange={(e) =>
                         updateRow(it.id, "description", e.target.value)
                       }
-                      className="border px-2 py-1 rounded text-xs w-64"
+                      className="border px-2 py-1 rounded text-xs w-48"
                     />
                   </td>
+                  {/* Ctn */}
                   <td className="px-2 py-2">
                     <input
                       type="number"
@@ -749,9 +772,10 @@ ${escapeHtml(meta.bankDetail)
                       onChange={(e) =>
                         handleNumberChange(it.id, "ctn", e.target.value)
                       }
-                      className="border px-2 py-1 rounded text-xs w-16 text-right"
+                      className="border px-2 py-1 rounded text-xs w-14 text-right"
                     />
                   </td>
+                  {/* Qty/Ctn */}
                   <td className="px-2 py-2">
                     <input
                       type="number"
@@ -759,21 +783,22 @@ ${escapeHtml(meta.bankDetail)
                       onChange={(e) =>
                         handleNumberChange(it.id, "qtyPerCtn", e.target.value)
                       }
-                      className="border px-2 py-1 rounded text-xs w-20 text-right"
+                      className="border px-2 py-1 rounded text-xs w-16 text-right"
                     />
                   </td>
+                  {/* Unit */}
                   <td className="px-2 py-2">
                     <input
                       value={it.unit}
-                      onChange={(e) =>
-                        updateRow(it.id, "unit", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-16 text-center"
+                      onChange={(e) => updateRow(it.id, "unit", e.target.value)}
+                      className="border px-2 py-1 rounded text-xs w-14 text-center"
                     />
                   </td>
+                  {/* Total Qty */}
                   <td className="px-2 py-2 text-right text-xs">
                     {Number(it.tQty) || 0}
                   </td>
+                  {/* Unit Price */}
                   <td className="px-2 py-2">
                     <input
                       type="number"
@@ -785,9 +810,29 @@ ${escapeHtml(meta.bankDetail)
                       className="border px-2 py-1 rounded text-xs w-20 text-right"
                     />
                   </td>
+                  {/* FROM */}
+                  <td className="px-2 py-2">
+                    <input
+                      value={it.from}
+                      onChange={(e) => updateRow(it.id, "from", e.target.value)}
+                      placeholder="From..."
+                      className="border px-2 py-1 rounded text-xs w-24"
+                    />
+                  </td>
+                  {/* TO */}
+                  <td className="px-2 py-2">
+                    <input
+                      value={it.to}
+                      onChange={(e) => updateRow(it.id, "to", e.target.value)}
+                      placeholder="To..."
+                      className="border px-2 py-1 rounded text-xs w-24"
+                    />
+                  </td>
+                  {/* Amount */}
                   <td className="px-2 py-2 text-right text-xs">
                     {Number(it.amountUsd || 0).toFixed(2)}
                   </td>
+                  {/* Actions */}
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1">
                       <button
@@ -816,7 +861,7 @@ ${escapeHtml(meta.bankDetail)
             </tbody>
             <tfoot className="bg-slate-50 text-xs">
               <tr>
-                <td colSpan={4} className="px-2 py-2 font-semibold">
+                <td colSpan={6} className="px-2 py-2 font-semibold">
                   TOTAL
                 </td>
                 <td className="px-2 py-2 text-right font-semibold">

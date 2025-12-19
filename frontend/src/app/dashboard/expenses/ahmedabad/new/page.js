@@ -120,19 +120,8 @@ export default function NewPettyCashEntry() {
             </div>
 
             {/* Container Code & Date */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">
-                        Container Code (Opt)
-                    </label>
-                    <input 
-                        type="text"
-                        placeholder="PSCT-72"
-                        className="w-full px-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 uppercase"
-                        value={formData.contCode}
-                        onChange={e => setFormData({...formData, contCode: e.target.value})}
-                    />
-                </div>
+            <div className="grid grid-cols-1 gap-4">
+              
                 <div>
                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">
                         Date

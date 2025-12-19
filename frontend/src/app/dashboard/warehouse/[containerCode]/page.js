@@ -567,7 +567,7 @@ export default function WarehousePlanPage() {
                       : "bg-gray-100 hover:bg-gray-200"
                   }`}
                 >
-                  Completed
+                 Dispatch
                 </button>
                 <button
                   onClick={() => setStatusFilter("pending")}
@@ -577,7 +577,7 @@ export default function WarehousePlanPage() {
                       : "bg-gray-100 hover:bg-gray-200"
                   }`}
                 >
-                  Pending
+                  Hold
                 </button>
                 <button
                   onClick={() => setStatusFilter("draft")}
