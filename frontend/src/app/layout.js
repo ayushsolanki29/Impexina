@@ -1,6 +1,6 @@
 // app/layout.js (server component)
 import './globals.css';
-
+import { Toaster } from "sonner";
 export const metadata = {
   title: 'IGPL — Impexina ERP',
   description: 'Import Logistics & Sales Management System',
@@ -20,7 +20,12 @@ export default function RootLayout({ children }) {
       <body className="bg-gray-50">
         {/* All client things wrapped inside client LayoutShell */}
     
-         
+          <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          duration={3000}
+        />
             {children}
         
   

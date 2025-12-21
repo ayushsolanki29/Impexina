@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,3 +7,147 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  EMPLOYEE
+  NEW_JOINNER
+}
+
+enum LoadingStatus {
+  DRAFT
+  CONFIRMED
+  IN_TRANSIT
+  IN_PORT
+  IN_SEA
+  ARRIVED
+  DELIVERED
+  CANCELLED
+}
+
+enum ActivityType {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid())
+
+  username String  @unique
+  password String
+  name     String
+  role     Role    @default(NEW_JOINNER)
+  isActive Boolean @default(true)
+
+  permissions UserPermission[]
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  loadingActivities LoadingActivity[]
+}
+
+model Module {
+  id   Int    @id @default(autoincrement())
+  key  String @unique
+  name String
+
+  users UserPermission[]
+}
+
+model UserPermission {
+  id       Int @id @default(autoincrement())
+  userId   Int
+  moduleId Int
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+}
+
+model ShippingMark {
+  id     String  @id @default(cuid())
+  name   String  @unique // BB-AMD, SMW-INK, RMSZ-M
+  source String? // RAJ, YIWU, etc
+
+  loadingSheets LoadingSheet[]
+
+  createdAt DateTime @default(now())
+}
+
+model CtnMark {
+  id   String @id @default(cuid())
+  name String @unique // EXPRESS, JB-210-211-212-213, etc
+
+  items LoadingItem[]
+
+  createdAt DateTime @default(now())
+}
+
+model Container {
+  id            String   @id @default(cuid())
+  containerCode String   @unique // PSDH-86
+  origin        String // YIWU, RAJ
+  createdAt     DateTime @default(now())
+
+  loadingSheets LoadingSheet[]
+}
+
+model LoadingSheet {
+  id             String @id @default(cuid())
+  containerId    String
+  shippingMarkId String
+
+  loadingDate DateTime
+  status      LoadingStatus @default(DRAFT)
+
+  container    Container    @relation(fields: [containerId], references: [id])
+  shippingMark ShippingMark @relation(fields: [shippingMarkId], references: [id])
+
+  items             LoadingItem[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  loadingActivities LoadingActivity[]
+
+  // REMOVE this unique constraint to allow multiple sheets with same shipping mark in same container
+  // @@unique([containerId, shippingMarkId])
+}
+
+model LoadingItem {
+  id             String @id @default(cuid())
+  loadingSheetId String
+  ctnMarkId      String
+
+  particular String
+  itemNo     String
+  ctn        Int
+  pcs        Int
+  tpcs       Int
+  cbm        Float
+  tcbm       Float
+  wt         Float
+  twt        Float
+  unit       String  @default("PCS")
+  photo      String?
+
+  loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
+  ctnMark      CtnMark      @relation(fields: [ctnMarkId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model LoadingActivity {
+  id             String @id @default(cuid())
+  loadingSheetId String
+  userId         Int
+
+  type     ActivityType
+  oldValue Json?
+  newValue Json?
+
+  loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Impexina Software Backend</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      padding: 40px 50px;
+      border-radius: 14px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      max-width: 520px;
+      width: 90%;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    p {
+      font-size: 16px;
+      opacity: 0.9;
+      margin-bottom: 25px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 10px 22px;
+      border-radius: 50px;
+      background: #00e676;
+      color: #0b3d1b;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 30px;
+    }
+
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .links a {
+      text-decoration: none;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .links a:hover {
+      background: #00bcd4;
+      color: #002b36;
+      transform: translateY(-2px);
+    }
+
+    footer {
+      margin-top: 25px;
+      font-size: 13px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Impexina Software</h1>
+    <p>Backend Server is running successfully</p>
+
+    <div class="status">Server Status: ONLINE</div>
+
+    <div class="links">
+      <a href="/api/health" target="_blank">Health Check API</a>
+      <a href="https://impexinasoftware.com" target="_blank">Official Website</a>
+    </div>
+
+    <footer>
+      © <span id="year"></span> Impexina Software. All rights reserved.
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

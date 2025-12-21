@@ -6,13 +6,24 @@ const path = require("path");
 
 const app = express();
 
+/* ===============================
+   ENV & CONSTANTS
+================================ */
 const CLIENT_URL = process.env.CLIENT_URL || "*";
 
-// Trust proxy (for load balancers / HTTPS behind proxy)
+/* ===============================
+   APP CONFIG
+================================ */
 app.set("trust proxy", 1);
 
-// Security Middleware
+/* ===============================
+   GLOBAL MIDDLEWARES
+================================ */
+
+// Security
 app.use(helmet());
+
+// CORS
 app.use(
   cors({
     origin: CLIENT_URL,
@@ -23,39 +34,40 @@ app.use(
 // Logging
 app.use(morgan("dev"));
 
-// Body Parser
+// Body Parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static Uploads
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+// Static Files
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"), {
+    setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 
-// Routes
-
-// Import all module routes
-const authRoutes = require("./modules/auth/auth.route");
-const userRoutes = require("./modules/user/user.route");
-const loadingSheetRoutes = require("./modules/loading/loading.route");
-
-//i want before all routes api endpoint
-
-// Use module routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/loading-sheets", loadingSheetRoutes);
-
-module.exports = app;
-// Health Check
+/* ===============================
+   ROUTES
+================================ */
+// Health Check (ALWAYS FIRST)
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "OK",
-    message: "Impexina Backend Server is running!",
+    service: "Impexina Software Backend",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
 });
 
-// 404 for all not-matched routes (Express v5 safe)
+// Module Routes
+const moduleRoutes = require("./modules");
+app.use("/api", moduleRoutes);
+
+/* ===============================
+   404 HANDLER
+================================ */
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -63,9 +75,12 @@ app.use((req, res) => {
   });
 });
 
-// Central Error Handler
+/* ===============================
+   CENTRAL ERROR HANDLER
+================================ */
 app.use((error, req, res, next) => {
   console.error("Error:", error);
+
   res.status(error.status || 500).json({
     success: false,
     message: error.message || "Internal server error",

@@ -1,36 +1,30 @@
-import axios from 'axios';
+import axios from "axios";
+import { getAuthToken, clearAuthCookies } from "@/utils/auth-storage";
 
 const API = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api',
-  timeout: 10000,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api",
+  withCredentials: false,
 });
 
-// Request interceptor to add auth token
-API.interceptors.request.use(
-  (config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+/* ===============================
+   REQUEST INTERCEPTOR
+================================ */
+API.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// Response interceptor to handle errors
+/* ===============================
+   RESPONSE INTERCEPTOR
+================================ */
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
+      clearAuthCookies();
     }
     return Promise.reject(error);
   }

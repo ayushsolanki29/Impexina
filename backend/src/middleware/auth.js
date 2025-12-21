@@ -1,41 +1,45 @@
-const jwt = require('jsonwebtoken');
-const { prisma } = require('../database/prisma');
+
+const { prisma } = require("../database/prisma");
+const { verifyToken } = require("../utils/jwt");
 
 const authenticate = async (req, res, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication token missing",
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const token = authHeader.split(" ")[1];
+    const decoded = verifyToken(token);
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, email: true, role: true, name: true }
+      include: {
+        permissions: {
+          include: { module: true },
+        },
+      },
     });
 
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token.' });
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "User inactive or not found",
+      });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    res.status(400).json({ error: 'Invalid token.' });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
   }
 };
 
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
-    }
-    next();
-  };
-};
-
-module.exports = {
-  authenticate,
-  authorize
-};
+module.exports = { authenticate };
