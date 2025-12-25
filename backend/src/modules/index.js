@@ -16,9 +16,15 @@ router.use("/auth", require("./auth/auth.routes"));
 ================================ */
 const loadingRoutes = require("./loading/loading.routes");
 const bifurcationRoutes = require('./bifurcation/bifurcation.routes');
-
+const packingListRoutes = require('./packing-list/packing-list.routes');
+const commercialInvoiceRoutes = require('./commercial-invoice/commercial-invoice.routes');
 
 
 router.use("/loading", loadingRoutes);
 router.use("/bifurcation", bifurcationRoutes);
+router.use('/packing-list', packingListRoutes);
+router.use('/commercial-invoice', commercialInvoiceRoutes);
 module.exports = router;
+// Add this with your other route imports
+
+// Add this with your other app.use() statements

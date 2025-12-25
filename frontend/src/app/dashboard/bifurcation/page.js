@@ -47,8 +47,8 @@ export default function ContainersOverviewPage() {
     });
     const queryString = params.toString();
     const newUrl = queryString
-      ? `/dashboard/loading?${queryString}`
-      : "/dashboard/loading";
+      ? `/dashboard/bifurcation?${queryString}`
+      : "/dashboard/bifurcation";
     window.history.replaceState(null, "", newUrl);
   }, [filters]);
 
@@ -171,7 +171,6 @@ export default function ContainersOverviewPage() {
     router.push(`/dashboard/bifurcation/${encodeURIComponent(containerCode)}`);
   };
 
-
   // Get unique origins from current containers
   const uniqueOrigins = useMemo(() => {
     const origins = new Set();
@@ -188,14 +187,16 @@ export default function ContainersOverviewPage() {
       <div className="p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
+          {/* Header */}
           <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                Containers Overview
+                Bifurcation
               </h1>
               <p className="text-sm text-gray-600">
-                Track and manage all container shipments. {pagination.total}{" "}
-                containers found.
+                Select a container to manage client bifurcation.{" "}
+                {pagination.total}{" "}
+                {pagination.total === 1 ? "container" : "containers"} available.
               </p>
             </div>
 
@@ -216,7 +217,6 @@ export default function ContainersOverviewPage() {
               </button>
             </div>
           </header>
-
           {/* Main Container */}
           <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
             {/* Filters */}
@@ -225,6 +225,7 @@ export default function ContainersOverviewPage() {
               uniqueOrigins={uniqueOrigins}
               onFilterChange={handleFilterChange}
               onClearFilters={clearFilters}
+              hideStatusFilter={true} // ADD THIS FLAG
             />
 
             {/* Results Header */}
@@ -239,7 +240,7 @@ export default function ContainersOverviewPage() {
               {loading && containers.length === 0 ? (
                 <LoadingSkeleton count={6} />
               ) : containers.length === 0 ? (
-                <EmptyState hasFilters={hasFilters} onAction={goToNewLoading} />
+                <EmptyState hasFilters={hasFilters} />
               ) : (
                 <div>
                   {containers.map((container) => (

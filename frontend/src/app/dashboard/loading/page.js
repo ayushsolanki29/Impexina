@@ -259,6 +259,7 @@ export default function ContainersOverviewPage() {
                       onViewDetails={goToContainer}
                       onStatusUpdate={handleStatusUpdate}
                       updatingStatus={updatingStatus}
+                      hideStatusFilter ={true}
                     />
                   ))}
                 </div>

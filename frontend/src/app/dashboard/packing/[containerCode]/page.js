@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Toaster, toast } from "sonner";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import API from "@/lib/api";
 import {
   Plus,
   Trash2,
@@ -13,174 +15,379 @@ import {
   Banknote,
   Weight,
   Package,
+  Eye,
+  Edit2,
+  CheckCircle,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Building,
+  FileText,
+  Truck,
+  CreditCard,
+  User,
+  Calendar,
+  Hash,
+  MapPin,
+  ArrowLeft,
+  Copy,
+  Settings,
+  Activity,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Stamp,
 } from "lucide-react";
 
-const STORAGE_KEY = "igpl_packing_v1";
-
-// demo seed matching your table structure
-const DEMO = {
-  meta: {
-    companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
-    companyAddress:
-      "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
-    sellerName: "IMPEXINA GLOBAL PVT LTD",
-    sellerAddress:
-      "Ground Floor, C-5, Gami Industrial Park Pawane\nMIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705",
-    invNo: "IGPLEV86",
-    date: "2025-10-09",
-    from: "CHINA",
-    to: "NHAVA SHEVA INDIA",
-    gst: "27AAHCI1462J1ZG",
-
-    // Bank details fields
-    bankName: "ZHEJIANG TAILONG COMMERCIAL BANK",
-    beneficiaryName: "YIWU ZHOULAI TRADING CO.,LIMITED",
-    swiftBic: "ZJTLCNBHXXX",
-    bankAddress:
-      "ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE",
-    accountNumber: "33080020201000155179",
-
-    signatureText: "Authorized Signatory",
-  },
-  items: [
-    {
-      id: "i1",
-      itemNumber: "BB-AMD",
-      particular: "FOOTREST",
-      ctn: 5,
-      qtyPerCtn: 100,
-      unit: "PCS",
-      tQty: 500,
-      kg: 7,
-      tKg: 35.0,
-      mix: "",
-      hsn: "",
-    },
-    {
-      id: "i2",
-      itemNumber: "SMWGC18",
-      particular: "TABLE RUNNER",
-      ctn: 21,
-      qtyPerCtn: 96,
-      unit: "PCS",
-      tQty: 2016,
-      kg: 18,
-      tKg: 378.0,
-      mix: "",
-      hsn: "",
-    },
-    {
-      id: "i3",
-      itemNumber: "EXPRESS",
-      particular: "WALL HOOK",
-      ctn: 1,
-      qtyPerCtn: 100,
-      unit: "PCS",
-      tQty: 100,
-      kg: 1,
-      tKg: 1.0,
-      mix: "",
-      hsn: "",
-    },
-  ],
-};
-
-function readStorage() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    return raw;
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(data) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-}
-
-function uid(prefix = "id") {
-  return (
-    prefix +
-    "_" +
-    Date.now().toString(36) +
-    "_" +
-    Math.random().toString(36).slice(2, 8)
-  );
-}
-
 export default function PackingListPage() {
-  // IMPORTANT: initial state is ALWAYS DEMO for SSR + first client render
-  const [meta, setMeta] = useState(DEMO.meta);
-  const [items, setItems] = useState(DEMO.items);
-  const [signature, setSignature] = useState(null);
-  const [signaturePreviewName, setSignaturePreviewName] = useState("");
-  const [previewHtml, setPreviewHtml] = useState(null);
+  const router = useRouter();
+  const params = useParams();
+  const containerCode = params.containerCode;
+
+  const [packingList, setPackingList] = useState(null);
+  const [companyMaster, setCompanyMaster] = useState(null);
+  const [items, setItems] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [lastSaved, setLastSaved] = useState(null);
-  const autosaveTimer = useRef(null);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [availableCompanies, setAvailableCompanies] = useState([]);
+  const [initializing, setInitializing] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
-  // After mount, hydrate from localStorage (client-only – no SSR mismatch)
+  // Form states - ALL fields are now editable
+  const [formData, setFormData] = useState({
+    // Header Information
+    headerCompanyName: "",
+    headerCompanyAddress: "",
+    headerPhone: "",
+    
+    // Seller Information
+    sellerCompanyName: "",
+    sellerAddress: "",
+    sellerIecNo: "AAHCI1462J",
+    sellerGst: "",
+    sellerEmail: "impexina91@gmail.com",
+    
+    // Invoice Information
+    invoiceNo: "",
+    date: new Date().toISOString().split("T")[0],
+    from: "CHINA",
+    to: "INDIA",
+    lrNo: "",
+    
+    // Bank Details
+    bankName: "",
+    beneficiaryName: "",
+    swiftBic: "",
+    bankAddress: "",
+    accountNumber: "",
+    
+    // Stamp Settings
+    stampImage: null,
+    stampPosition: "BOTTOM_RIGHT",
+    stampText: "Authorized Signatory",
+    
+    // Column Settings
+    showMixColumn: true,
+    showHsnColumn: true,
+    
+    // Status
+    status: "DRAFT",
+  });
+
+  // Load packing list data
   useEffect(() => {
-    const stored = readStorage();
-    if (stored) {
-      setMeta(stored.meta || DEMO.meta);
-      setItems(stored.items || DEMO.items);
-      setSignature(stored.signature || null);
-      setSignaturePreviewName(stored.signatureName || "");
-    } else {
-      // seed demo once if no storage
-      writeStorage({
-        meta: DEMO.meta,
-        items: DEMO.items,
-        signature: null,
-        signatureName: "",
-      });
+    if (containerCode) {
+      loadPackingList();
+      loadAvailableCompanies();
+      loadActivities();
     }
-  }, []);
+  }, [containerCode]);
 
-  // debounced autosave (no toast spam)
-  useEffect(() => {
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      writeStorage({
-        meta,
-        items,
-        signature,
-        signatureName: signaturePreviewName,
-      });
-      setLastSaved(new Date().toLocaleTimeString());
-    }, 700);
+  // Load activities
+  async function loadActivities() {
+    try {
+      const response = await API.get(`/packing-list/${containerCode}/activities`);
+      if (response.data.success && response.data.data) {
+        setActivities(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error loading activities:", error);
+    }
+  }
 
-    return () => {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+  // Load available companies for initialization
+  async function loadAvailableCompanies() {
+    try {
+      const response = await API.get("/packing-list/company-masters/all");
+      if (response.data.success && response.data.data) {
+        setAvailableCompanies(response.data.data);
+      } else {
+        setAvailableCompanies([]);
+      }
+    } catch (error) {
+      console.error("Error loading companies:", error);
+      setAvailableCompanies([]);
+    }
+  }
+
+  async function loadPackingList() {
+    try {
+      setIsLoading(true);
+
+      const response = await API.get(`/packing-list/${containerCode}`);
+
+      if (response.data.success && response.data.data) {
+        const packingListData = response.data.data;
+        setPackingList(packingListData);
+
+        // Check if companyMaster exists in response
+        if (packingListData.companyMaster) {
+          setCompanyMaster(packingListData.companyMaster);
+          // Pre-fill form with company master data if not already set
+          if (!packingListData.headerCompanyName) {
+            setFormData(prev => ({
+              ...prev,
+              headerCompanyName: packingListData.companyMaster.companyName,
+              headerCompanyAddress: packingListData.companyMaster.companyAddress,
+              headerPhone: packingListData.companyMaster.companyPhone,
+              bankName: packingListData.companyMaster.bankName,
+              beneficiaryName: packingListData.companyMaster.beneficiaryName,
+              swiftBic: packingListData.companyMaster.swiftBic,
+              bankAddress: packingListData.companyMaster.bankAddress,
+              accountNumber: packingListData.companyMaster.accountNumber,
+              stampText: packingListData.companyMaster.signatureText || "Authorized Signatory",
+            }));
+          }
+        }
+
+        setItems(packingListData.items || []);
+
+        // Set ALL form data from database
+        setFormData(prev => ({
+          ...prev,
+          // Header Information
+          headerCompanyName: packingListData.headerCompanyName || packingListData.companyMaster?.companyName || "",
+          headerCompanyAddress: packingListData.headerCompanyAddress || packingListData.companyMaster?.companyAddress || "",
+          headerPhone: packingListData.headerPhone || packingListData.companyMaster?.companyPhone || "",
+          
+          // Seller Information
+          sellerCompanyName: packingListData.sellerCompanyName || packingListData.sellerName || "",
+          sellerAddress: packingListData.sellerAddress || "",
+          sellerIecNo: packingListData.sellerIecNo || "AAHCI1462J",
+          sellerGst: packingListData.sellerGst || packingListData.gst || "",
+          sellerEmail: packingListData.sellerEmail || "impexina91@gmail.com",
+          
+          // Invoice Information
+          invoiceNo: packingListData.invoiceNo || packingListData.invNo || "",
+          date: packingListData.invoiceDate 
+            ? new Date(packingListData.invoiceDate).toISOString().split("T")[0]
+            : (packingListData.date 
+                ? new Date(packingListData.date).toISOString().split("T")[0]
+                : new Date().toISOString().split("T")[0]),
+          from: packingListData.from || "CHINA",
+          to: packingListData.to || "INDIA",
+          lrNo: packingListData.lrNo || "",
+          
+          // Bank Details
+          bankName: packingListData.bankName || packingListData.companyMaster?.bankName || "",
+          beneficiaryName: packingListData.beneficiaryName || packingListData.companyMaster?.beneficiaryName || "",
+          swiftBic: packingListData.swiftBic || packingListData.companyMaster?.swiftBic || "",
+          bankAddress: packingListData.bankAddress || packingListData.companyMaster?.bankAddress || "",
+          accountNumber: packingListData.accountNumber || packingListData.companyMaster?.accountNumber || "",
+          
+          // Stamp Settings
+          stampImage: packingListData.stampImage || null,
+          stampPosition: packingListData.stampPosition || "BOTTOM_RIGHT",
+          stampText: packingListData.stampText || packingListData.companyMaster?.signatureText || "Authorized Signatory",
+          
+          // Column Settings
+          showMixColumn: packingListData.showMixColumn !== false,
+          showHsnColumn: packingListData.showHsnColumn !== false,
+          
+          // Status
+          status: packingListData.status || "DRAFT",
+        }));
+      } else {
+        toast.info(
+          "Packing list not found. You can initialize one from bifurcation data."
+        );
+      }
+    } catch (error) {
+      console.error("Error loading packing list:", error);
+      if (error.response?.status === 404) {
+        toast.info("No packing list found. Click 'Initialize' to create one.");
+      } else {
+        toast.error(error.message || "Failed to load packing list");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Initialize packing list with selected company
+  async function initializePackingList(companyMasterId) {
+    try {
+      setInitializing(true);
+
+      const response = await API.post(
+        `/packing-list/initialize/${containerCode}`,
+        { companyMasterId }
+      );
+
+      if (response.data.success) {
+        toast.success("Packing list initialized successfully!");
+        setShowCompanyModal(false);
+        loadPackingList();
+      } else {
+        throw new Error(response.data.message || "Failed to initialize");
+      }
+    } catch (error) {
+      console.error("Initialize error:", error);
+      toast.error(`Failed to initialize: ${error.message}`);
+    } finally {
+      setInitializing(false);
+    }
+  }
+
+  // Handle stamp upload
+  function handleStampUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData(prev => ({ ...prev, stampImage: event.target.result }));
     };
-  }, [meta, items, signature, signaturePreviewName]);
+    reader.readAsDataURL(file);
+  }
 
-  // totals (pure calc – safe)
-  const totals = useMemo(
-    () =>
-      items.reduce(
-        (acc, it) => {
-          acc.ctn += Number(it.ctn || 0);
-          acc.tQty += Number(it.tQty || 0);
-          acc.tKg += Number(it.tKg || 0);
-          return acc;
-        },
-        { ctn: 0, tQty: 0, tKg: 0 }
-      ),
-    [items]
-  );
+  // Save packing list
+  async function savePackingList() {
+    try {
+      // Validation
+      if (!formData.headerCompanyName.trim()) {
+        toast.error("Header Company Name is required");
+        return;
+      }
+      if (!formData.sellerCompanyName.trim()) {
+        toast.error("Seller Company Name is required");
+        return;
+      }
+      if (!formData.sellerGst.trim()) {
+        toast.error("GST Number is required");
+        return;
+      }
 
-  // item helpers
+      setIsSaving(true);
+
+      // Prepare data for saving
+      const saveData = {
+        // Header Information
+        headerCompanyName: formData.headerCompanyName,
+        headerCompanyAddress: formData.headerCompanyAddress,
+        headerPhone: formData.headerPhone,
+        
+        // Seller Information
+        sellerCompanyName: formData.sellerCompanyName,
+        sellerAddress: formData.sellerAddress,
+        sellerIecNo: formData.sellerIecNo,
+        sellerGst: formData.sellerGst,
+        sellerEmail: formData.sellerEmail,
+        
+        // Invoice Information
+        invoiceNo: formData.invoiceNo,
+        invoiceDate: formData.date,
+        from: formData.from,
+        to: formData.to,
+        lrNo: formData.lrNo,
+        
+        // Bank Details
+        bankName: formData.bankName,
+        beneficiaryName: formData.beneficiaryName,
+        swiftBic: formData.swiftBic,
+        bankAddress: formData.bankAddress,
+        accountNumber: formData.accountNumber,
+        
+        // Stamp Settings
+        stampImage: formData.stampImage,
+        stampPosition: formData.stampPosition,
+        stampText: formData.stampText,
+        
+        // Column Settings
+        showMixColumn: formData.showMixColumn,
+        showHsnColumn: formData.showHsnColumn,
+        
+        // Status
+        status: formData.status,
+      };
+
+      // Update packing list details
+      const updateResponse = await API.patch(
+        `/packing-list/${containerCode}`,
+        saveData
+      );
+
+      if (!updateResponse.data.success) {
+        throw new Error(
+          updateResponse.data.message || "Failed to update packing list"
+        );
+      }
+
+      // Prepare items for saving (remove temporary IDs)
+      const itemsToSave = items.map(({ id, ...rest }) => {
+        // Remove temp IDs that start with 'item_'
+        const finalId = id && id.startsWith("item_") ? undefined : id;
+        return {
+          ...rest,
+          id: finalId,
+          ctn: Number(rest.ctn) || 0,
+          qtyPerCtn: Number(rest.qtyPerCtn) || 0,
+          tQty: Number(rest.tQty) || 0,
+          kg: Number(rest.kg) || 0,
+          tKg: Number(rest.tKg) || 0,
+          mix: rest.mix || "",
+          hsn: rest.hsn || "",
+        };
+      });
+
+      // Update items
+      const itemsResponse = await API.patch(
+        `/packing-list/${containerCode}/items`,
+        {
+          items: itemsToSave,
+        }
+      );
+
+      if (!itemsResponse.data.success) {
+        throw new Error(itemsResponse.data.message || "Failed to update items");
+      }
+
+      // Log activity
+      await API.post(`/packing-list/${containerCode}/activity`, {
+        type: "FIELDS_UPDATED",
+        note: "Updated packing list fields and items",
+      });
+
+      toast.success("Packing list saved successfully!");
+      loadPackingList();
+      loadActivities();
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error(error.message || "Failed to save packing list");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Item management functions
   function baseEmptyRow() {
     return {
-      id: uid("item"),
+      id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       itemNumber: "",
       particular: "",
       ctn: 0,
@@ -191,102 +398,119 @@ export default function PackingListPage() {
       tKg: 0,
       mix: "",
       hsn: "",
+      photo: null,
     };
   }
 
   function addRow() {
-    setItems((s) => [...s, baseEmptyRow()]);
-  }
-
-  function addMultipleRows(count) {
-    setItems((s) => [
-      ...s,
-      ...Array.from({ length: count }, () => baseEmptyRow()),
-    ]);
-  }
-
-  function insertRowAfter(id) {
-    setItems((s) => {
-      const idx = s.findIndex((r) => r.id === id);
-      if (idx === -1) return s;
-      const clone = [...s];
-      clone.splice(idx + 1, 0, baseEmptyRow());
-      return clone;
-    });
+    setItems([...items, baseEmptyRow()]);
   }
 
   function duplicateRow(id) {
-    setItems((s) => {
-      const idx = s.findIndex((r) => r.id === id);
-      if (idx === -1) return s;
-      const row = s[idx];
-      const dup = { ...row, id: uid("item") };
-      const clone = [...s];
-      clone.splice(idx + 1, 0, dup);
-      return clone;
-    });
+    const rowToDuplicate = items.find(item => item.id === id);
+    if (rowToDuplicate) {
+      const duplicatedRow = {
+        ...rowToDuplicate,
+        id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      setItems([...items, duplicatedRow]);
+    }
   }
 
-  function removeRow(id) {
-    setItems((s) => s.filter((r) => r.id !== id));
+  function insertRowAfter(id) {
+    const index = items.findIndex(item => item.id === id);
+    if (index !== -1) {
+      const newItems = [...items];
+      newItems.splice(index + 1, 0, baseEmptyRow());
+      setItems(newItems);
+    }
   }
 
   function updateRow(id, field, value) {
-    setItems((s) => s.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
-  }
-
-  function uploadRowPhoto(e, id) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      updateRow(id, "photo", ev.target && ev.target.result);
-    };
-    reader.readAsDataURL(f);
-  }
-
-  // signature upload
-  function uploadSignature(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setSignature(ev.target && ev.target.result);
-      setSignaturePreviewName(f.name);
-      toast.success("Signature uploaded");
-    };
-    reader.readAsDataURL(f);
-  }
-
-  // numeric inputs that recalc tQty / tKg
-  function handleChangeNumber(id, field, raw) {
-    const v = raw === "" ? "" : Number(raw);
-    setItems((s) =>
-      s.map((r) => {
-        if (r.id !== id) return r;
-        const updated = { ...r, [field]: v };
-        if (field === "ctn" || field === "qtyPerCtn") {
-          updated.tQty =
-            Number(updated.ctn || 0) * Number(updated.qtyPerCtn || 0);
+    setItems(
+      items.map((item) => {
+        if (item.id === id) {
+          const updated = { ...item, [field]: value };
+          
+          // Auto-calculate totals
+          if (field === "ctn" || field === "qtyPerCtn") {
+            updated.tQty = (Number(updated.ctn) || 0) * (Number(updated.qtyPerCtn) || 0);
+          }
+          if (field === "ctn" || field === "kg") {
+            updated.tKg = (Number(updated.ctn) || 0) * (Number(updated.kg) || 0);
+          }
+          
+          return updated;
         }
-        if (field === "ctn" || field === "kg") {
-          updated.tKg = Number(updated.ctn || 0) * Number(updated.kg || 0);
-        }
-        return updated;
+        return item;
       })
     );
   }
 
-  function escapeHtml(s) {
-    if (s === null || s === undefined) return "";
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+  function removeRow(id) {
+    setItems(items.filter((item) => item.id !== id));
   }
 
-  // printable HTML – matching your exact table structure
+  // Handle photo upload
+  function handlePhotoUpload(e, itemId) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      updateRow(itemId, "photo", event.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    return items.reduce(
+      (acc, item) => {
+        acc.ctn += Number(item.ctn) || 0;
+        acc.tQty += Number(item.tQty) || 0;
+        acc.tKg += Number(item.tKg) || 0;
+        return acc;
+      },
+      { ctn: 0, tQty: 0, tKg: 0 }
+    );
+  }, [items]);
+
+  // Build printable HTML with all editable fields
   function buildPrintableHTML() {
+    const stampPositionStyle = {
+      "BOTTOM_LEFT": "text-align: left;",
+      "BOTTOM_CENTER": "text-align: center;",
+      "BOTTOM_RIGHT": "text-align: right;",
+    }[formData.stampPosition] || "text-align: right;";
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return "";
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Generate table headers including MIX and HSN if enabled
+    const tableHeaders = `
+<tr>
+  <th>S.N.</th>
+  <th>Item Number</th>
+  <th>Photo</th>
+  <th>Descriptions</th>
+  <th>Ctn.</th>
+  <th>Qty./ Ctn</th>
+  <th>Unit</th>
+  <th>T-QTY</th>
+  <th>KG</th>
+  <th>T.KG</th>
+  ${formData.showMixColumn ? '<th>MIX</th>' : ''}
+  ${formData.showHsnColumn ? '<th>HSN</th>' : ''}
+</tr>`;
+
     const rowsHtml = items
       .map((it, i) => {
         const photoCell = it.photo
@@ -304,22 +528,26 @@ export default function PackingListPage() {
   <td class="right">${it.tQty}</td>
   <td class="right">${it.kg}</td>
   <td class="right">${Number(it.tKg).toFixed(2)}</td>
+  ${formData.showMixColumn ? `<td class="center">${escapeHtml(it.mix)}</td>` : ''}
+  ${formData.showHsnColumn ? `<td class="center">${escapeHtml(it.hsn)}</td>` : ''}
 </tr>`;
       })
       .join("");
+
+    // Calculate colspan for totals row
+    const totalColspan = 4 + (formData.showMixColumn ? 1 : 0) + (formData.showHsnColumn ? 1 : 0);
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>Packing List</title>
+<title>Packing List - ${escapeHtml(formData.invoiceNo)}</title>
 
 <style>
 @page { size:A4; margin:10mm; }
 
 body {
 font-family: Cambria, "Cambria Math", "Times New Roman", serif;
-
   font-size: 11px;
   color: #000;
 }
@@ -356,15 +584,17 @@ th {
 
 <body>
 
+<!-- Header Company -->
 <table>
 <tr>
   <td class="center bold company-name" style="font-size:20px;">
-    ${escapeHtml(meta.companyName)}
+    ${escapeHtml(formData.headerCompanyName)}
   </td>
 </tr>
 <tr>
   <td class="center">
-    ${escapeHtml(meta.companyAddress)}
+    ${escapeHtml(formData.headerCompanyAddress)}
+    ${formData.headerPhone ? `<br/>Tel: ${escapeHtml(formData.headerPhone)}` : ''}
   </td>
 </tr>
 <tr>
@@ -374,74 +604,66 @@ th {
 </tr>
 </table>
 
+<!-- Seller and Invoice Info -->
 <table>
 <tr>
   <td style="width:65%;vertical-align:top;">
-    <b>${escapeHtml(meta.sellerName)}</b><br/>
-    ${escapeHtml(meta.sellerAddress)}<br/>
-    IEC NO.: AAHCI1462J<br/>
-    GST NO.: ${escapeHtml(meta.gst)}<br/>
-    EMAIL: impexina91@gmail.com
+    <b>${escapeHtml(formData.sellerCompanyName)}</b><br/>
+    ${escapeHtml(formData.sellerAddress)}<br/>
+    ${formData.sellerIecNo ? `IEC NO.: ${escapeHtml(formData.sellerIecNo)}<br/>` : ''}
+    ${formData.sellerGst ? `GST NO.: ${escapeHtml(formData.sellerGst)}<br/>` : ''}
+    ${formData.sellerEmail ? `EMAIL: ${escapeHtml(formData.sellerEmail)}` : ''}
   </td>
   <td style="width:35%;vertical-align:top;">
-    <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
-    <b>DATE :</b> ${escapeHtml(meta.date)}<br/>
-    <b>NHAVA SHEVA INDIA</b><br/>
-    <b>FROM:</b> ${escapeHtml(meta.from)}
+    ${formData.invoiceNo ? `<b>INV NO.:</b> ${escapeHtml(formData.invoiceNo)}<br/>` : ''}
+    <b>DATE :</b> ${new Date(formData.date).toLocaleDateString('en-GB')}<br/>
+    ${formData.to ? `<b>${escapeHtml(formData.to)}</b><br/>` : ''}
+    ${formData.from ? `<b>FROM:</b> ${escapeHtml(formData.from)}` : ''}
+    ${formData.lrNo ? `<br/><b>LR NO:</b> ${escapeHtml(formData.lrNo)}` : ''}
   </td>
 </tr>
 </table>
 
+<!-- Items Table -->
 <table>
 <thead>
-<tr>
-  <th>S.N.</th>
-  <th>Item Number</th>
-  <th>Photo</th>
-  <th>Descriptions</th>
-  <th>Ctn.</th>
-  <th>Qty./ Ctn</th>
-  <th>Unit</th>
-  <th>T-QTY</th>
-  <th>KG</th>
-  <th>T.KG</th>
-</tr>
+${tableHeaders}
 </thead>
 
 <tbody>
 ${rowsHtml}
 
 <tr class="bold">
-  <td colspan="4" class="center">TOTAL</td>
+  <td colspan="${totalColspan}" class="center">TOTAL</td>
   <td class="right">${totals.ctn}</td>
   <td></td>
   <td></td>
   <td class="right">${totals.tQty}</td>
   <td></td>
   <td class="right">${totals.tKg.toFixed(2)}</td>
+  ${formData.showMixColumn ? '<td></td>' : ''}
+  ${formData.showHsnColumn ? '<td></td>' : ''}
 </tr>
 </tbody>
 </table>
 
+<!-- Bank Details -->
 <table style="margin-top:8px;">
 <tr><td class="bold">Bank Detail:</td></tr>
-<tr><td><b>BENEFICIARY’S BANK NAME:</b> ${escapeHtml(meta.bankName)}</td></tr>
-<tr><td><b>BENEFICIARY NAME :</b> ${escapeHtml(meta.beneficiaryName)}</td></tr>
-<tr><td><b>SWIFT BIC:</b> ${escapeHtml(meta.swiftBic)}</td></tr>
-<tr><td><b>BENEFICIARY’S BANK ADD:</b> ${escapeHtml(meta.bankAddress)}</td></tr>
-<tr><td><b>BENEFICIARY A/C NO.:</b> ${escapeHtml(meta.accountNumber)}</td></tr>
+<tr><td><b>BENEFICIARY'S BANK NAME:</b> ${escapeHtml(formData.bankName)}</td></tr>
+<tr><td><b>BENEFICIARY NAME :</b> ${escapeHtml(formData.beneficiaryName)}</td></tr>
+<tr><td><b>SWIFT BIC:</b> ${escapeHtml(formData.swiftBic)}</td></tr>
+<tr><td><b>BENEFICIARY'S BANK ADD:</b> ${escapeHtml(formData.bankAddress)}</td></tr>
+<tr><td><b>BENEFICIARY A/C NO.:</b> ${escapeHtml(formData.accountNumber)}</td></tr>
 </table>
 
+<!-- Stamp/Signature with position -->
 <table style="margin-top:12px;">
 <tr>
   <td></td>
-  <td class="center">
-    ${
-      signature
-        ? `<img src="${signature}" style="max-height:70px"/><br/>`
-        : ""
-    }
-    ${escapeHtml(meta.signatureText)}
+  <td class="center" style="${stampPositionStyle}">
+    ${formData.stampImage ? `<img src="${formData.stampImage}" style="max-height:70px"/><br/>` : ""}
+    ${escapeHtml(formData.stampText)}
   </td>
 </tr>
 </table>
@@ -467,224 +689,622 @@ ${rowsHtml}
     w.document.close();
   }
 
-  function handleSaveNow() {
-    writeStorage({
-      meta,
-      items,
-      signature,
-      signatureName: signaturePreviewName,
-    });
-    setLastSaved(new Date().toLocaleTimeString());
-    toast.success("Saved to browser storage");
-  }
+  // Company Selection Modal Component
+  function CompanySelectionModal() {
+    const [selectedCompany, setSelectedCompany] = useState(null);
 
-  return (
-    <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <Toaster position="top-right" />
-      <div className="max-w-6xl mx-auto">
-        {/* Top bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">
-              Packing List — Editor
-            </h2>
-            <div className="text-sm text-slate-500">
-              Edit all fields, upload item photos & signature, then preview /
-              print.
-            </div>
-            {lastSaved && (
-              <div className="mt-1 text-xs text-emerald-600">
-                Auto-saved at {lastSaved}
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Select Company Template</h3>
+            <button
+              onClick={() => setShowCompanyModal(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-4">
+            Select a company template to pre-fill the packing list fields. You can edit all fields afterwards.
+          </p>
+
+          <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
+            {availableCompanies.map((company) => (
+              <div
+                key={company.id}
+                className={`p-3 border rounded cursor-pointer transition-colors ${
+                  selectedCompany?.id === company.id
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+                onClick={() => setSelectedCompany(company)}
+              >
+                <div className="font-medium text-sm">{company.companyName}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {company.bankName}
+                </div>
+              </div>
+            ))}
+
+            {availableCompanies.length === 0 && (
+              <div className="text-center py-4 text-gray-500">
+                No company masters found. Please create one first.
               </div>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex justify-end gap-2">
             <button
-              onClick={handleSaveNow}
-              className="px-3 py-2 rounded bg-emerald-600 text-white inline-flex items-center gap-2 text-sm"
+              onClick={() => setShowCompanyModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50"
+              disabled={initializing}
             >
-              <Save className="w-4 h-4" /> Save
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (selectedCompany) {
+                  // Pre-fill form with selected company data
+                  setFormData(prev => ({
+                    ...prev,
+                    headerCompanyName: selectedCompany.companyName,
+                    headerCompanyAddress: selectedCompany.companyAddress,
+                    headerPhone: selectedCompany.companyPhone || "",
+                    bankName: selectedCompany.bankName,
+                    beneficiaryName: selectedCompany.beneficiaryName,
+                    swiftBic: selectedCompany.swiftBic,
+                    bankAddress: selectedCompany.bankAddress,
+                    accountNumber: selectedCompany.accountNumber,
+                    stampText: selectedCompany.signatureText || "Authorized Signatory",
+                  }));
+                  toast.success("Company data loaded. You can now edit all fields.");
+                  setShowCompanyModal(false);
+                }
+              }}
+              disabled={!selectedCompany}
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Load Template
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Loading packing list...</div>
+      </div>
+    );
+  }
+
+  // If no packing list exists, show initialization screen
+  if (!packingList) {
+    return (
+      <div className="p-6">
+
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
+          <h2 className="text-2xl font-bold mb-2">Initialize Packing List</h2>
+          <p className="text-gray-600 mb-6">
+            No packing list found for container <strong>{containerCode}</strong>
+            . Start with a company template or create from scratch.
+          </p>
+
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Available Company Templates</h3>
+            {availableCompanies.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {availableCompanies.map((company) => (
+                  <div key={company.id} className="p-3 border rounded">
+                    <div className="font-medium">{company.companyName}</div>
+                    <div className="text-sm text-gray-600">
+                      {company.bankName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-yellow-600 bg-yellow-50 p-3 rounded border border-yellow-200">
+                No company templates found. You can create one in Company Master.
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={showCompanySelection}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Use Template
+            </button>
+            <button
+              onClick={() => {
+                // Create empty packing list
+                setPackingList({
+                  containerCode,
+                  invNo: `PL-${new Date().getFullYear()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                  status: "DRAFT",
+                });
+                toast.success("Created new packing list. You can now edit all fields.");
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Create from Scratch
+            </button>
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+
+        {showCompanyModal && <CompanySelectionModal />}
+      </div>
+    );
+  }
+
+  // Main packing list editor UI
+  return (
+    <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
+
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Packing List Editor
+              </h1>
+              <div className="flex items-center gap-4 mt-1">
+                <span className="text-gray-600">
+                  Container: <strong>{containerCode}</strong>
+                </span>
+                <span className="text-gray-600">
+                  Invoice No: <strong>{formData.invoiceNo || "Not Set"}</strong>
+                </span>
+                <span className="text-gray-600">
+                  Status:{" "}
+                  <span
+                    className={`font-semibold ${
+                      formData.status === "CONFIRMED"
+                        ? "text-green-600"
+                        : formData.status === "PRINTED"
+                        ? "text-blue-600"
+                        : "text-yellow-600"
+                    }`}
+                  >
+                    {formData.status}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              className="px-3 py-2 border border-gray-300 rounded inline-flex items-center gap-2 hover:bg-gray-50"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button
+              onClick={savePackingList}
+              disabled={isSaving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded inline-flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? "Saving..." : "Save"}
             </button>
             <button
               onClick={openPreview}
-              className="px-3 py-2 rounded bg-slate-800 text-white inline-flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-slate-800 text-white rounded inline-flex items-center gap-2 hover:bg-slate-900"
             >
-              <Printer className="w-4 h-4" /> Preview
+              <Eye className="w-4 h-4" /> Preview
             </button>
             <button
               onClick={printPreview}
-              className="px-3 py-2 rounded bg-sky-600 text-white inline-flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-blue-600 text-white rounded inline-flex items-center gap-2 hover:bg-blue-700"
             >
-              <Download className="w-4 h-4" /> Print / Download
+              <Printer className="w-4 h-4" /> Print
             </button>
           </div>
         </div>
 
-        {/* Header meta editor */}
-        <div className="bg-white border rounded p-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-slate-600">Company Name</label>
-            <input
-              value={meta.companyName}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, companyName: e.target.value }))
-              }
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <label className="text-xs text-slate-600 mt-2 block">
-              Company Address
-            </label>
-            <textarea
-              value={meta.companyAddress}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, companyAddress: e.target.value }))
-              }
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-              rows={3}
-            />
-            <div className="mt-2 text-xs text-slate-500">Seller Name</div>
-            <input
-              value={meta.sellerName}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, sellerName: e.target.value }))
-              }
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <div className="mt-2 text-xs text-slate-500">
-              Seller Address (multi-line)
+        {/* Advanced Settings Panel */}
+        {showAdvancedSettings && (
+          <div className="bg-white rounded-lg border p-4 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Settings className="w-5 h-5 text-blue-600" />
+              <h3 className="font-semibold text-gray-800">Advanced Settings</h3>
             </div>
-            <textarea
-              value={meta.sellerAddress}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, sellerAddress: e.target.value }))
-              }
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-              rows={2}
-            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stamp Position
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFormData({...formData, stampPosition: "BOTTOM_LEFT"})}
+                    className={`flex-1 p-2 border rounded flex items-center justify-center gap-2 ${
+                      formData.stampPosition === "BOTTOM_LEFT" 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <AlignLeft className="w-4 h-4" />
+                    Left
+                  </button>
+                  <button
+                    onClick={() => setFormData({...formData, stampPosition: "BOTTOM_CENTER"})}
+                    className={`flex-1 p-2 border rounded flex items-center justify-center gap-2 ${
+                      formData.stampPosition === "BOTTOM_CENTER" 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <AlignCenter className="w-4 h-4" />
+                    Center
+                  </button>
+                  <button
+                    onClick={() => setFormData({...formData, stampPosition: "BOTTOM_RIGHT"})}
+                    className={`flex-1 p-2 border rounded flex items-center justify-center gap-2 ${
+                      formData.stampPosition === "BOTTOM_RIGHT" 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <AlignRight className="w-4 h-4" />
+                    Right
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Table Columns
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.showMixColumn}
+                      onChange={(e) => setFormData({...formData, showMixColumn: e.target.checked})}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Show MIX Column</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.showHsnColumn}
+                      onChange={(e) => setFormData({...formData, showHsnColumn: e.target.checked})}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Show HSN Column</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stamp/Signature
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={formData.stampText}
+                    onChange={(e) => setFormData({...formData, stampText: e.target.value})}
+                    className="w-full p-2 border rounded text-sm"
+                    placeholder="Authorized Signatory"
+                  />
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleStampUpload}
+                        className="w-full text-sm"
+                      />
+                    </div>
+                    {formData.stampImage && (
+                      <img
+                        src={formData.stampImage}
+                        alt="Stamp"
+                        className="w-10 h-10 object-contain border rounded"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header Company Information */}
+        <div className="bg-white rounded-lg border p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Building className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-gray-800">Header Company Information</h3>
           </div>
 
-          <div>
-            <label className="text-xs text-slate-600">Invoice No.</label>
-            <input
-              value={meta.invNo}
-              onChange={(e) =>
-                setMeta((m) => ({ ...m, invNo: e.target.value }))
-              }
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <label className="text-xs text-slate-600 mt-2 block">Date</label>
-            <input
-              type="date"
-              value={meta.date}
-              onChange={(e) => setMeta((m) => ({ ...m, date: e.target.value }))}
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <label className="text-xs text-slate-600 mt-2 block">From</label>
-            <input
-              value={meta.from}
-              onChange={(e) => setMeta((m) => ({ ...m, from: e.target.value }))}
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <label className="text-xs text-slate-600 mt-2 block">
-              To / Destination
-            </label>
-            <input
-              value={meta.to}
-              onChange={(e) => setMeta((m) => ({ ...m, to: e.target.value }))}
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
-            <label className="text-xs text-slate-600 mt-2 block">
-              GST / Tax
-            </label>
-            <input
-              value={meta.gst}
-              onChange={(e) => setMeta((m) => ({ ...m, gst: e.target.value }))}
-              className="w-full border px-3 py-2 rounded mt-1 text-sm"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name *
+              </label>
+              <input
+                type="text"
+                value={formData.headerCompanyName}
+                onChange={(e) => setFormData({...formData, headerCompanyName: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="YIWU ZHOULAI TRADING CO., LIMITED"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone
+              </label>
+              <input
+                type="text"
+                value={formData.headerPhone}
+                onChange={(e) => setFormData({...formData, headerPhone: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="13735751445"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Address *
+              </label>
+              <textarea
+                value={formData.headerCompanyAddress}
+                onChange={(e) => setFormData({...formData, headerCompanyAddress: e.target.value})}
+                rows={2}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Bank Details Section */}
-        <div className="bg-white border rounded p-4 mb-4 border-l-4 border-l-blue-500">
+        {/* Seller Information */}
+        <div className="bg-white rounded-lg border p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <Banknote className="w-5 h-5 text-blue-600" />
-            <h3 className="text-sm font-semibold text-slate-800">
-              Bank Detail
-            </h3>
+            <User className="w-5 h-5 text-green-600" />
+            <h3 className="font-semibold text-gray-800">Seller Information</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-slate-600 block">
-                BENEFICIARY'S BANK NAME
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name *
               </label>
               <input
-                value={meta.bankName || ""}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, bankName: e.target.value }))
-                }
-                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                type="text"
+                value={formData.sellerCompanyName}
+                onChange={(e) => setFormData({...formData, sellerCompanyName: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="IMPEXINA GLOBAL PVT LTD"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                IEC No.
+              </label>
+              <input
+                type="text"
+                value={formData.sellerIecNo}
+                onChange={(e) => setFormData({...formData, sellerIecNo: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                GST No. *
+              </label>
+              <input
+                type="text"
+                value={formData.sellerGst}
+                onChange={(e) => setFormData({...formData, sellerGst: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="27AAHCI1462J1ZG"
+              />
+            </div>
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Seller Address *
+              </label>
+              <textarea
+                value={formData.sellerAddress}
+                onChange={(e) => setFormData({...formData, sellerAddress: e.target.value})}
+                rows={2}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="Ground Floor, C-5, Gami Industrial Park Pawane, MIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                value={formData.sellerEmail}
+                onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Information */}
+        <div className="bg-white rounded-lg border p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-5 h-5 text-purple-600" />
+            <h3 className="font-semibold text-gray-800">Invoice Information</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Invoice No.
+              </label>
+              <input
+                type="text"
+                value={formData.invoiceNo}
+                onChange={(e) => setFormData({...formData, invoiceNo: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="IGPLEV86"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({...formData, date: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                From
+              </label>
+              <input
+                type="text"
+                value={formData.from}
+                onChange={(e) => setFormData({...formData, from: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                To
+              </label>
+              <input
+                type="text"
+                value={formData.to}
+                onChange={(e) => setFormData({...formData, to: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                LR No.
+              </label>
+              <input
+                type="text"
+                value={formData.lrNo}
+                onChange={(e) => setFormData({...formData, lrNo: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="PRINTED">Printed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Bank Details */}
+        <div className="bg-white rounded-lg border p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Banknote className="w-5 h-5 text-green-600" />
+            <h3 className="font-semibold text-gray-800">Bank Details</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Beneficiary's Bank Name
+              </label>
+              <input
+                type="text"
+                value={formData.bankName}
+                onChange={(e) => setFormData({...formData, bankName: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
                 placeholder="ZHEJIANG TAILONG COMMERCIAL BANK"
               />
             </div>
             <div>
-              <label className="text-xs text-slate-600 block">SWIFT BIC</label>
-              <input
-                value={meta.swiftBic || ""}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, swiftBic: e.target.value }))
-                }
-                className="w-full border px-3 py-2 rounded mt-1 text-sm"
-                placeholder="ZJTLCNBHXXX"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-600 block">
-                BENEFICIARY NAME
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Beneficiary Name
               </label>
               <input
-                value={meta.beneficiaryName || ""}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, beneficiaryName: e.target.value }))
-                }
-                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                type="text"
+                value={formData.beneficiaryName}
+                onChange={(e) => setFormData({...formData, beneficiaryName: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
                 placeholder="YIWU ZHOULAI TRADING CO.,LIMITED"
               />
             </div>
             <div>
-              <label className="text-xs text-slate-600 block">
-                BENEFICIARY A/C NO.
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                SWIFT BIC
               </label>
               <input
-                value={meta.accountNumber || ""}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, accountNumber: e.target.value }))
-                }
-                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                type="text"
+                value={formData.swiftBic}
+                onChange={(e) => setFormData({...formData, swiftBic: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+                placeholder="ZJTLCNBHXXX"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Account Number
+              </label>
+              <input
+                type="text"
+                value={formData.accountNumber}
+                onChange={(e) => setFormData({...formData, accountNumber: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
                 placeholder="33080020201000155179"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-xs text-slate-600 block">
-                BENEFICIARY'S BANK ADD
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Bank Address
               </label>
               <textarea
-                value={meta.bankAddress || ""}
-                onChange={(e) =>
-                  setMeta((m) => ({ ...m, bankAddress: e.target.value }))
-                }
-                className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                value={formData.bankAddress}
+                onChange={(e) => setFormData({...formData, bankAddress: e.target.value})}
                 rows={2}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
                 placeholder="ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE"
               />
             </div>
           </div>
         </div>
 
-        {/* Highlighted Totals Section */}
-        <div className="bg-white border rounded p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-center">
+        {/* Totals Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <Package className="w-4 h-4 text-yellow-700" />
               <span className="text-xs font-semibold text-yellow-800">
@@ -697,7 +1317,7 @@ ${rowsHtml}
             <div className="text-xs text-yellow-600 mt-1">Cartons</div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-center">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <Weight className="w-4 h-4 text-blue-700" />
               <span className="text-xs font-semibold text-blue-800">
@@ -710,7 +1330,7 @@ ${rowsHtml}
             <div className="text-xs text-blue-600 mt-1">Kilograms</div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded p-3 text-center">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <Package className="w-4 h-4 text-slate-700" />
               <span className="text-xs font-semibold text-slate-800">
@@ -724,258 +1344,298 @@ ${rowsHtml}
           </div>
         </div>
 
-        {/* Quick add controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2 text-sm">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={addRow}
-              className="px-3 py-1.5 rounded bg-amber-50 text-amber-900 text-xs inline-flex items-center gap-2"
-            >
-              <Plus className="w-3 h-3" /> Add row
-            </button>
-            <button
-              onClick={() => addMultipleRows(5)}
-              className="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-xs"
-            >
-              + 5 empty rows
-            </button>
-            <button
-              onClick={() => {
-                setItems(DEMO.items);
-                setMeta(DEMO.meta);
-                setSignature(null);
-                setSignaturePreviewName("");
-                writeStorage({
-                  meta: DEMO.meta,
-                  items: DEMO.items,
-                  signature: null,
-                  signatureName: "",
-                });
-                toast.success("Reset to demo data");
-              }}
-              className="px-3 py-1.5 rounded bg-red-50 text-red-700 text-xs"
-            >
-              Reset to demo
-            </button>
+        {/* Items Table */}
+        <div className="bg-white rounded-lg border overflow-hidden mb-6">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="font-semibold text-gray-800">Items List</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={addRow}
+                className="px-3 py-1.5 bg-amber-600 text-white rounded inline-flex items-center gap-2 text-sm hover:bg-amber-700"
+              >
+                <Plus className="w-4 h-4" /> Add Row
+              </button>
+              <button
+                onClick={() => setShowCompanyModal(true)}
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50"
+              >
+                Load Template
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 text-xs text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 font-medium">S.N.</th>
+                  <th className="px-3 py-2 font-medium">Item Number</th>
+                  <th className="px-3 py-2 font-medium">Photo</th>
+                  <th className="px-3 py-2 font-medium">Descriptions</th>
+                  <th className="px-3 py-2 font-medium">Ctn.</th>
+                  <th className="px-3 py-2 font-medium">Qty./Ctn</th>
+                  <th className="px-3 py-2 font-medium">Unit</th>
+                  <th className="px-3 py-2 font-medium">T-QTY</th>
+                  <th className="px-3 py-2 font-medium">KG</th>
+                  <th className="px-3 py-2 font-medium">T.KG</th>
+                  {formData.showMixColumn && (
+                    <th className="px-3 py-2 font-medium">MIX</th>
+                  )}
+                  {formData.showHsnColumn && (
+                    <th className="px-3 py-2 font-medium">HSN</th>
+                  )}
+                  <th className="px-3 py-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={item.id} className="border-t hover:bg-gray-50">
+                    <td className="px-3 py-2 text-sm text-center">{idx + 1}</td>
+                    <td className="px-3 py-2">
+                      <input
+                        value={item.itemNumber}
+                        onChange={(e) =>
+                          updateRow(item.id, "itemNumber", e.target.value)
+                        }
+                        className="w-32 p-1 border rounded text-sm"
+                        placeholder="Item No."
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {item.photo ? (
+                          <img
+                            src={item.photo}
+                            alt="thumb"
+                            className="w-12 h-8 object-cover rounded border"
+                          />
+                        ) : (
+                          <div className="w-12 h-8 border rounded flex items-center justify-center text-slate-400">
+                            <ImageIcon className="w-4 h-4" />
+                          </div>
+                        )}
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handlePhotoUpload(e, item.id)}
+                            className="hidden"
+                          />
+                          <div className="text-xs text-blue-600 hover:text-blue-800">
+                            Upload
+                          </div>
+                        </label>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        value={item.particular}
+                        onChange={(e) =>
+                          updateRow(item.id, "particular", e.target.value)
+                        }
+                        className="w-60 p-1 border rounded text-sm"
+                        placeholder="Description"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        value={item.ctn}
+                        onChange={(e) =>
+                          updateRow(item.id, "ctn", e.target.value)
+                        }
+                        className="w-20 p-1 border rounded text-sm text-right bg-yellow-50"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.qtyPerCtn}
+                        onChange={(e) =>
+                          updateRow(item.id, "qtyPerCtn", e.target.value)
+                        }
+                        className="w-20 p-1 border rounded text-sm text-right"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        value={item.unit}
+                        onChange={(e) =>
+                          updateRow(item.id, "unit", e.target.value)
+                        }
+                        className="w-20 p-1 border rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right text-sm font-medium">
+                      {item.tQty}
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.kg}
+                        onChange={(e) =>
+                          updateRow(item.id, "kg", e.target.value)
+                        }
+                        className="w-20 p-1 border rounded text-sm text-right"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right text-sm font-medium bg-blue-50">
+                      {item.tKg.toFixed(2)}
+                    </td>
+                    {formData.showMixColumn && (
+                      <td className="px-3 py-2">
+                        <input
+                          value={item.mix}
+                          onChange={(e) =>
+                            updateRow(item.id, "mix", e.target.value)
+                          }
+                          className="w-24 p-1 border rounded text-sm"
+                          placeholder="Mix"
+                        />
+                      </td>
+                    )}
+                    {formData.showHsnColumn && (
+                      <td className="px-3 py-2">
+                        <input
+                          value={item.hsn}
+                          onChange={(e) =>
+                            updateRow(item.id, "hsn", e.target.value)
+                          }
+                          className="w-24 p-1 border rounded text-sm"
+                          placeholder="HSN Code"
+                        />
+                      </td>
+                    )}
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          onClick={() => duplicateRow(item.id)}
+                          className="p-1 text-slate-600 hover:text-slate-800"
+                          title="Duplicate"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => insertRowAfter(item.id)}
+                          className="p-1 text-slate-600 hover:text-slate-800"
+                          title="Insert Below"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeRow(item.id)}
+                          className="p-1 text-rose-600 hover:text-rose-800"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-slate-50">
+                <tr>
+                  <td
+                    colSpan="4"
+                    className="px-3 py-2 font-semibold text-center"
+                  >
+                    TOTAL
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold bg-yellow-100">
+                    {totals.ctn}
+                  </td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2 text-right font-semibold">
+                    {totals.tQty}
+                  </td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2 text-right font-semibold bg-blue-100">
+                    {totals.tKg.toFixed(2)}
+                  </td>
+                  {formData.showMixColumn && <td className="px-3 py-2"></td>}
+                  {formData.showHsnColumn && <td className="px-3 py-2"></td>}
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
 
-        {/* Items table editor - EXACTLY matching your table structure */}
-        <div className="bg-white border rounded overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-slate-50 text-xs text-slate-600">
-              <tr>
-                <th className="px-2 py-2">S.N.</th>
-                <th className="px-2 py-2">Item Number</th>
-                <th className="px-2 py-2">Photo</th>
-                <th className="px-2 py-2">Descriptions</th>
-                <th className="px-2 py-2">Ctn.</th>
-                <th className="px-2 py-2">Qty./ Ctn</th>
-                <th className="px-2 py-2">Unit</th>
-                <th className="px-2 py-2">T-QTY</th>
-                <th className="px-2 py-2">KG</th>
-                <th className="px-2 py-2">T.KG</th>
-                <th className="px-2 py-2">MIX</th>
-                <th className="px-2 py-2">HSN</th>
-                <th className="px-2 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, idx) => (
-                <tr key={it.id} className="border-t">
-                  <td className="px-2 py-2 text-sm text-center">{idx + 1}</td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.itemNumber}
-                      onChange={(e) =>
-                        updateRow(it.id, "itemNumber", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-32"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      {it.photo ? (
-                        <img
-                          src={it.photo}
-                          alt="thumb"
-                          className="w-12 h-8 object-cover rounded border"
-                        />
-                      ) : (
-                        <div className="w-12 h-8 border rounded flex items-center justify-center text-slate-400">
-                          <ImageIcon className="w-4 h-4" />
+        {/* Activity Log */}
+        <div className="bg-white rounded-lg border p-4 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="w-5 h-5 text-gray-600" />
+            <h3 className="font-semibold text-gray-800">Activity Log</h3>
+          </div>
+          
+          <div className="space-y-3 max-h-60 overflow-y-auto">
+            {activities.length > 0 ? (
+              activities.map((activity) => (
+                <div key={activity.id} className="p-3 border rounded">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-sm">{activity.type}</div>
+                      <div className="text-xs text-gray-600">{activity.note}</div>
+                      {activity.field && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Field: {activity.field} | 
+                          Old: {activity.oldValue || 'N/A'} → 
+                          New: {activity.newValue || 'N/A'}
                         </div>
                       )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => uploadRowPhoto(e, it.id)}
-                        className="text-[10px]"
-                      />
                     </div>
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.particular}
-                      onChange={(e) =>
-                        updateRow(it.id, "particular", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-60"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      value={it.ctn}
-                      onChange={(e) =>
-                        handleChangeNumber(it.id, "ctn", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-20 text-right bg-yellow-50"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={it.qtyPerCtn}
-                      onChange={(e) =>
-                        handleChangeNumber(it.id, "qtyPerCtn", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-20 text-right"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.unit}
-                      onChange={(e) => updateRow(it.id, "unit", e.target.value)}
-                      className="border px-2 py-1 rounded text-xs w-20"
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right text-xs">
-                    {Number(it.tQty) || 0}
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={it.kg}
-                      onChange={(e) =>
-                        handleChangeNumber(it.id, "kg", e.target.value)
-                      }
-                      className="border px-2 py-1 rounded text-xs w-20 text-right"
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right text-xs bg-blue-50">
-                    {Number(it.tKg || 0).toFixed(2)}
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.mix}
-                      onChange={(e) => updateRow(it.id, "mix", e.target.value)}
-                      className="border px-2 py-1 rounded text-xs w-24"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.hsn || ""}
-                      onChange={(e) => updateRow(it.id, "hsn", e.target.value)}
-                      className="border px-2 py-1 rounded text-xs w-24"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <button
-                        onClick={() => duplicateRow(it.id)}
-                        className="px-2 py-1 rounded bg-slate-100 text-xs"
-                      >
-                        Dup
-                      </button>
-                      <button
-                        onClick={() => insertRowAfter(it.id)}
-                        className="px-2 py-1 rounded bg-slate-100 text-xs"
-                      >
-                        +Below
-                      </button>
-                      <button
-                        onClick={() => removeRow(it.id)}
-                        className="px-2 py-1 rounded bg-rose-50 text-rose-700 text-xs inline-flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Del
-                      </button>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">
+                        {new Date(activity.createdAt).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        By: {activity.user?.name || 'System'}
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-slate-50 text-xs">
-              <tr>
-                <td colSpan={4} className="px-2 py-2 font-semibold">
-                  TOTAL
-                </td>
-                <td className="px-2 py-2 text-right font-semibold bg-yellow-100">
-                  {totals.ctn}
-                </td>
-                <td className="px-2 py-2" />
-                <td className="px-2 py-2" />
-                <td className="px-2 py-2 text-right font-semibold">
-                  {totals.tQty}
-                </td>
-                <td className="px-2 py-2" />
-                <td className="px-2 py-2 text-right font-semibold bg-blue-100">
-                  {totals.tKg.toFixed(2)}
-                </td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                No activities recorded yet
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Signature */}
-        <div className="flex flex-wrap items-start gap-4 mt-4">
-          <div className="flex-1">
-            <label className="text-xs text-slate-600">Signature / Stamp</label>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <div className="w-40 h-20 border rounded flex items-center justify-center bg-slate-50">
-                {signature ? (
-                  <img
-                    src={signature}
-                    alt="sig"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                ) : (
-                  <div className="text-xs text-slate-400">No signature</div>
-                )}
-              </div>
-              <div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={uploadSignature}
-                />
-                <div className="text-xs text-slate-500 mt-2">
-                  File: {signaturePreviewName || "none"}
-                </div>
-                <div className="text-xs text-slate-500 mt-2">
-                  Signature label
-                </div>
-                <input
-                  value={meta.signatureText || ""}
-                  onChange={(e) =>
-                    setMeta((m) => ({
-                      ...m,
-                      signatureText: e.target.value,
-                    }))
-                  }
-                  className="border px-2 py-1 rounded text-xs w-60 mt-1"
-                />
-              </div>
-            </div>
+        {/* Bottom Action Buttons */}
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-gray-500">
+            Last updated:{" "}
+            {packingList.updatedAt
+              ? new Date(packingList.updatedAt).toLocaleString()
+              : "Never"}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Back
+            </button>
+            <button
+              onClick={savePackingList}
+              disabled={isSaving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* preview modal */}
+      {showCompanyModal && <CompanySelectionModal />}
+
+      {/* Preview Modal */}
       {previewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-md shadow-xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">

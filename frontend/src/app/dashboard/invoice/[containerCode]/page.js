@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Toaster, toast } from "sonner";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast, Toaster } from "sonner";
+import API from "@/lib/api";
 import {
   Plus,
   Trash2,
@@ -10,181 +12,253 @@ import {
   Download,
   Save,
   X,
+  Eye,
+  ArrowLeft,
+  Copy,
+  Settings,
+  Activity,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Building,
+  User,
+  FileText,
+  Truck,
+  CreditCard,
+  Calendar,
 } from "lucide-react";
 
-const STORAGE_KEY = "igpl_commercial_invoice_v2"; // Changed key version to avoid conflicts
-
-// Demo data with FROM/TO fields added
-const DEMO = {
-  meta: {
-    companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
-    companyAddress:
-      "Add.: Room 801,Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
-    title: "COMMERCIAL INVOICE",
-
-    buyerName: "IMPEXINA GLOBAL PVT LTD",
-    buyerAddress:
-      "Ground Floor, C-5, Gami Industrial Park Pawane\nMIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705",
-    buyerIEC: "IEC NO.: AAHCI1462J",
-    buyerGST: "GST NO.: 27AAHCI1462J1ZG",
-    buyerEmail: "EMAIL: impexina91@gmail.com",
-
-    invNo: "ICPLEY86",
-    date: "2025-10-09",
-    from: "CHINA",
-    to: "NHAVA SHEVA INDIA",
-
-    cifText: "TOTAL CIF USD 9010 AND 90 WITHIN DAYS AFTER DELIVERY",
-
-    bankDetail:
-      "BENEFICIARY'S BANK NAME: ZHEJIANG TAILONG COMMERCIAL BANK\nBENEFICIARY NAME: YIWU ZHOULAI TRADING CO.,LIMITED\nSWIFT BIC: ZJTLNBHXKXX\nBENEFICIARY'S BANK ADD: ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE\nBENEFICIARY A/C NO.: 330800202001000155179",
-
-    signatureText: "YIWU ZHOULAI TRADING CO., LIMITED\nAUTHORIZED SIGNATORY",
-  },
-  items: [
-    {
-      id: "i1",
-      itemNumber: "BB-AMD",
-      from: "John Smith",
-      to: "David Wilson",
-      description: "FOOTREST",
-      ctn: 5,
-      qtyPerCtn: 100,
-      unit: "PCS",
-      tQty: 500,
-      unitPrice: 0.046,
-      amountUsd: 23,
-      photo: null,
-    },
-    {
-      id: "i2",
-      itemNumber: "SMWGC18",
-      from: "Sarah Johnson",
-      to: "Michael Brown",
-      description: "TABLE RUNNER",
-      ctn: 21,
-      qtyPerCtn: 96,
-      unit: "PCS",
-      tQty: 2016,
-      unitPrice: 0.11,
-      amountUsd: 221.76,
-      photo: null,
-    },
-  ],
-};
-
-function readStorage() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    return raw;
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(data) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-}
-
-function uid(prefix = "id") {
-  return (
-    prefix +
-    "_" +
-    Date.now().toString(36) +
-    "_" +
-    Math.random().toString(36).slice(2, 8)
-  );
-}
-
 export default function CommercialInvoicePage() {
-  // SSR-safe initial state: always DEMO, then hydrate from localStorage
-  const [meta, setMeta] = useState(DEMO.meta);
-  const [items, setItems] = useState(DEMO.items);
-  const [signature, setSignature] = useState(null);
-  const [signaturePreviewName, setSignaturePreviewName] = useState("");
-  const [previewHtml, setPreviewHtml] = useState(null);
+  const router = useRouter();
+  const params = useParams();
+  const containerCode = params.containerCode;
+
+  const [invoice, setInvoice] = useState(null);
+  const [items, setItems] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const autosaveTimer = useRef(null);
 
-  // Hydrate from localStorage on mount
+  // Form states
+  const [formData, setFormData] = useState({
+    // Header Information
+    companyName: "",
+    companyAddress: "",
+    title: "COMMERCIAL INVOICE",
+    
+    // Buyer Information
+    buyerName: "",
+    buyerAddress: "",
+    buyerIEC: "",
+    buyerGST: "",
+    buyerEmail: "",
+    
+    // Invoice Information
+    invoiceNo: "",
+    date: new Date().toISOString().split("T")[0],
+    from: "CHINA",
+    to: "",
+    cifText: "",
+    
+    // Bank Details
+    bankDetail: "",
+    
+    // Stamp Settings
+    stampImage: null,
+    stampPosition: "BOTTOM_RIGHT",
+    stampText: "",
+    
+    // Status
+    status: "DRAFT",
+  });
+
+  // Load invoice data
   useEffect(() => {
-    const stored = readStorage();
-    if (stored) {
-      setMeta(stored.meta || DEMO.meta);
-      setItems(stored.items || DEMO.items);
-      setSignature(stored.signature || null);
-      setSignaturePreviewName(stored.signatureName || "");
-    } else {
-      writeStorage({
-        meta: DEMO.meta,
-        items: DEMO.items,
-        signature: null,
-        signatureName: "",
-      });
+    if (containerCode) {
+      loadInvoice();
+      loadActivities();
     }
-  }, []);
+  }, [containerCode]);
 
-  // Make sure derived fields are correct once on mount
-  useEffect(() => {
-    setItems((cur) =>
-      cur.map((it) => {
-        const ctn = Number(it.ctn || 0);
-        const qtyPerCtn = Number(it.qtyPerCtn || 0);
-        const unitPrice = Number(it.unitPrice || 0);
-        const tQty = ctn * qtyPerCtn;
-        const amountUsd = tQty * unitPrice;
-        return { ...it, tQty, amountUsd };
-      })
-    );
-  }, []);
+  // Load activities
+  async function loadActivities() {
+    try {
+      const response = await API.get(`/commercial-invoice/${containerCode}/activities`);
+      if (response.data.success) {
+        setActivities(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error loading activities:", error);
+    }
+  }
 
-  // Debounced autosave
-  useEffect(() => {
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      writeStorage({
-        meta,
-        items,
-        signature,
-        signatureName: signaturePreviewName,
+  async function loadInvoice() {
+    try {
+      setIsLoading(true);
+      const response = await API.get(`/commercial-invoice/${containerCode}`);
+
+      if (response.data.success && response.data.data) {
+        const invoiceData = response.data.data;
+        setInvoice(invoiceData);
+        setItems(invoiceData.items || []);
+
+        // Set form data
+        setFormData({
+          companyName: invoiceData.companyName || "",
+          companyAddress: invoiceData.companyAddress || "",
+          title: invoiceData.title || "COMMERCIAL INVOICE",
+          buyerName: invoiceData.buyerName || "",
+          buyerAddress: invoiceData.buyerAddress || "",
+          buyerIEC: invoiceData.buyerIEC || "",
+          buyerGST: invoiceData.buyerGST || "",
+          buyerEmail: invoiceData.buyerEmail || "",
+          invoiceNo: invoiceData.invoiceNo || "",
+          date: invoiceData.invoiceDate 
+            ? new Date(invoiceData.invoiceDate).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+          from: invoiceData.from || "CHINA",
+          to: invoiceData.to || "",
+          cifText: invoiceData.cifText || "",
+          bankDetail: invoiceData.bankDetail || "",
+          stampImage: invoiceData.stampImage || null,
+          stampPosition: invoiceData.stampPosition || "BOTTOM_RIGHT",
+          stampText: invoiceData.stampText || "",
+          status: invoiceData.status || "DRAFT",
+        });
+      } else {
+        toast.info(
+          "Commercial invoice not found. You can initialize one from bifurcation data."
+        );
+      }
+    } catch (error) {
+      console.error("Error loading commercial invoice:", error);
+      if (error.response?.status === 404) {
+        toast.info("No commercial invoice found. Click 'Initialize' to create one.");
+      } else {
+        toast.error(error.message || "Failed to load commercial invoice");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+ 
+  // Save commercial invoice
+  async function saveInvoice(isAutoSave = false) {
+    try {
+      // Validation for manual save
+      if (!isAutoSave) {
+        if (!formData.companyName.trim()) {
+          toast.error("Company Name is required");
+          return;
+        }
+        if (!formData.buyerName.trim()) {
+          toast.error("Buyer Name is required");
+          return;
+        }
+        if (!formData.invoiceNo.trim()) {
+          toast.error("Invoice Number is required");
+          return;
+        }
+      }
+
+      setIsSaving(true);
+
+      // Prepare save data
+      const saveData = {
+        companyName: formData.companyName,
+        companyAddress: formData.companyAddress,
+        title: formData.title,
+        buyerName: formData.buyerName,
+        buyerAddress: formData.buyerAddress,
+        buyerIEC: formData.buyerIEC,
+        buyerGST: formData.buyerGST,
+        buyerEmail: formData.buyerEmail,
+        invoiceNo: formData.invoiceNo,
+        invoiceDate: formData.date,
+        from: formData.from,
+        to: formData.to,
+        cifText: formData.cifText,
+        bankDetail: formData.bankDetail,
+        stampImage: formData.stampImage,
+        stampPosition: formData.stampPosition,
+        stampText: formData.stampText,
+        status: formData.status,
+      };
+
+      // Update invoice details
+      const updateResponse = await API.patch(
+        `/commercial-invoice/${containerCode}`,
+        saveData
+      );
+
+      if (!updateResponse.data.success) {
+        throw new Error(
+          updateResponse.data.message || "Failed to update commercial invoice"
+        );
+      }
+
+      // Prepare items for saving
+      const itemsToSave = items.map(({ id, ...rest }) => {
+        const finalId = id && id.startsWith("item_") ? undefined : id;
+        return {
+          ...rest,
+          id: finalId,
+          ctn: Number(rest.ctn) || 0,
+          qtyPerCtn: Number(rest.qtyPerCtn) || 0,
+          tQty: Number(rest.tQty) || 0,
+          unitPrice: Number(rest.unitPrice) || 0,
+          amountUsd: Number(rest.amountUsd) || 0,
+          from: rest.from || "",
+          to: rest.to || "",
+        };
       });
-      setLastSaved(new Date().toLocaleTimeString());
-    }, 700);
 
-    return () => {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    };
-  }, [meta, items, signature, signaturePreviewName]);
+      // Update items
+      const itemsResponse = await API.patch(
+        `/commercial-invoice/${containerCode}/items`,
+        {
+          items: itemsToSave,
+        }
+      );
 
-  // Totals: cartons, quantity, amount
-  const totals = useMemo(
-    () =>
-      items.reduce(
-        (acc, it) => {
-          acc.ctn += Number(it.ctn || 0);
-          acc.tQty += Number(it.tQty || 0);
-          acc.amount += Number(it.amountUsd || 0);
-          return acc;
-        },
-        { ctn: 0, tQty: 0, amount: 0 }
-      ),
-    [items]
-  );
+      if (!itemsResponse.data.success) {
+        throw new Error(itemsResponse.data.message || "Failed to update items");
+      }
 
-  // Helpers for items
+      // Log activity only for manual saves
+      if (!isAutoSave) {
+        await API.post(`/commercial-invoice/${containerCode}/activity`, {
+          type: "FIELDS_UPDATED",
+          note: "Updated commercial invoice fields and items",
+        });
+      }
+
+      if (!isAutoSave) {
+        toast.success("Commercial invoice saved successfully!");
+      }
+      loadInvoice();
+      loadActivities();
+    } catch (error) {
+      console.error("Save error:", error);
+      if (!isAutoSave) {
+        toast.error(error.message || "Failed to save commercial invoice");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Item management functions
   function baseEmptyRow() {
     return {
-      id: uid("item"),
+      id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       itemNumber: "",
-      from: "",
-      to: "",
       description: "",
       ctn: 0,
       qtyPerCtn: 0,
@@ -193,57 +267,68 @@ export default function CommercialInvoicePage() {
       unitPrice: 0,
       amountUsd: 0,
       photo: null,
+      from: "",
+      to: "",
     };
   }
 
   function addRow() {
-    setItems((s) => [...s, baseEmptyRow()]);
+    setItems([...items, baseEmptyRow()]);
   }
 
   function addMultipleRows(count) {
-    setItems((s) => [
-      ...s,
-      ...Array.from({ length: count }, () => baseEmptyRow()),
-    ]);
-  }
-
-  function insertRowAfter(id) {
-    setItems((s) => {
-      const idx = s.findIndex((r) => r.id === id);
-      if (idx === -1) return s;
-      const clone = [...s];
-      clone.splice(idx + 1, 0, baseEmptyRow());
-      return clone;
-    });
+    setItems([...items, ...Array.from({ length: count }, () => baseEmptyRow())]);
   }
 
   function duplicateRow(id) {
-    setItems((s) => {
-      const idx = s.findIndex((r) => r.id === id);
-      if (idx === -1) return s;
-      const row = s[idx];
-      const dup = { ...row, id: uid("item") };
-      const clone = [...s];
-      clone.splice(idx + 1, 0, dup);
-      return clone;
-    });
+    const rowToDuplicate = items.find(item => item.id === id);
+    if (rowToDuplicate) {
+      const duplicatedRow = {
+        ...rowToDuplicate,
+        id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      setItems([...items, duplicatedRow]);
+    }
   }
 
-  function removeRow(id) {
-    setItems((s) => s.filter((r) => r.id !== id));
+  function insertRowAfter(id) {
+    const index = items.findIndex(item => item.id === id);
+    if (index !== -1) {
+      const newItems = [...items];
+      newItems.splice(index + 1, 0, baseEmptyRow());
+      setItems(newItems);
+    }
   }
 
   function updateRow(id, field, value) {
-    setItems((s) => s.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    setItems(
+      items.map((item) => {
+        if (item.id === id) {
+          const updated = { ...item, [field]: value };
+          
+          // Auto-calculate totals
+          if (field === "ctn" || field === "qtyPerCtn" || field === "unitPrice") {
+            const ctn = Number(updated.ctn) || 0;
+            const qtyPerCtn = Number(updated.qtyPerCtn) || 0;
+            const unitPrice = Number(updated.unitPrice) || 0;
+            updated.tQty = ctn * qtyPerCtn;
+            updated.amountUsd = updated.tQty * unitPrice;
+          }
+          
+          return updated;
+        }
+        return item;
+      })
+    );
   }
 
-  // Numeric fields (ctn, qtyPerCtn, unitPrice)
+  // Numeric field handler
   function handleNumberChange(id, field, raw) {
-    const v = raw === "" ? "" : Number(raw);
-    setItems((s) =>
-      s.map((r) => {
-        if (r.id !== id) return r;
-        const updated = { ...r, [field]: v };
+    const value = raw === "" ? "" : Number(raw);
+    setItems(
+      items.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
         const ctn = Number(updated.ctn || 0);
         const qtyPerCtn = Number(updated.qtyPerCtn || 0);
         const unitPrice = Number(updated.unitPrice || 0);
@@ -254,39 +339,65 @@ export default function CommercialInvoicePage() {
     );
   }
 
-  function uploadRowPhoto(e, id) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  function removeRow(id) {
+    setItems(items.filter((item) => item.id !== id));
+  }
+
+  // Handle photo upload
+  function handlePhotoUpload(e, itemId) {
+    const file = e.target.files[0];
+    if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      updateRow(id, "photo", ev.target && ev.target.result);
+    reader.onload = (event) => {
+      updateRow(itemId, "photo", event.target.result);
     };
-    reader.readAsDataURL(f);
+    reader.readAsDataURL(file);
   }
 
-  // Signature upload
-  function uploadSignature(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  // Handle stamp upload
+  function handleStampUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setSignature(ev.target && ev.target.result);
-      setSignaturePreviewName(f.name);
-      toast.success("Signature uploaded");
+    reader.onload = (event) => {
+      setFormData(prev => ({ ...prev, stampImage: event.target.result }));
     };
-    reader.readAsDataURL(f);
+    reader.readAsDataURL(file);
   }
 
-  function escapeHtml(s) {
-    if (s === null || s === undefined) return "";
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
+  // Calculate totals
+  const totals = useMemo(() => {
+    return items.reduce(
+      (acc, item) => {
+        acc.ctn += Number(item.ctn) || 0;
+        acc.tQty += Number(item.tQty) || 0;
+        acc.amount += Number(item.amountUsd) || 0;
+        return acc;
+      },
+      { ctn: 0, tQty: 0, amount: 0 }
+    );
+  }, [items]);
 
-  // Printable HTML – matching your invoice style
+  // Build printable HTML
   function buildPrintableHTML() {
+    const stampPositionStyle = {
+      "BOTTOM_LEFT": "text-align: left;",
+      "BOTTOM_CENTER": "text-align: center;",
+      "BOTTOM_RIGHT": "text-align: right;",
+    }[formData.stampPosition] || "text-align: right;";
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return "";
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     const rowsHtml = items
       .map((it, i) => {
         const photo = it.photo
@@ -296,7 +407,6 @@ export default function CommercialInvoicePage() {
   <tr>
     <td class="c">${i + 1}</td>
     <td class="c">${escapeHtml(it.itemNumber)}</td>
-
     <td class="c">${photo}</td>
     <td>${escapeHtml(it.description)}</td>
     <td class="r">${it.ctn}</td>
@@ -304,8 +414,7 @@ export default function CommercialInvoicePage() {
     <td class="c">${escapeHtml(it.unit)}</td>
     <td class="r">${it.tQty}</td>
     <td class="r">${Number(it.unitPrice).toFixed(2)}</td>
-        <td class="c">${escapeHtml(it.from)}</td>
-    <td class="c">${escapeHtml(it.to)}</td>
+
     <td class="r">${Number(it.amountUsd).toFixed(2)}</td>
   </tr>`;
       })
@@ -315,7 +424,7 @@ export default function CommercialInvoicePage() {
   <html>
   <head>
   <meta charset="utf-8"/>
-  <title>Commercial Invoice</title>
+  <title>Commercial Invoice - ${escapeHtml(formData.invoiceNo)}</title>
   
   <style>
   @page { size:A4; margin:10mm; }
@@ -349,17 +458,17 @@ export default function CommercialInvoicePage() {
   <table>
   <tr>
     <td class="c b" style="font-size:16px;">
-      ${escapeHtml(meta.companyName)}
+      ${escapeHtml(formData.companyName)}
     </td>
   </tr>
   <tr>
     <td class="c">
-      ${escapeHtml(meta.companyAddress)}
+      ${escapeHtml(formData.companyAddress)}
     </td>
   </tr>
   <tr>
     <td class="c b" style="font-size:14px;">
-      ${escapeHtml(meta.title)}
+      ${escapeHtml(formData.title)}
     </td>
   </tr>
   </table>
@@ -367,17 +476,17 @@ export default function CommercialInvoicePage() {
   <table>
   <tr>
   <td style="width:65%;">
-    <b>${escapeHtml(meta.buyerName)}</b><br/>
-    ${escapeHtml(meta.buyerAddress).replace(/\n/g, "<br/>")}<br/>
-    ${escapeHtml(meta.buyerIEC)}<br/>
-    ${escapeHtml(meta.buyerGST)}<br/>
-    ${escapeHtml(meta.buyerEmail)}
+    <b>${escapeHtml(formData.buyerName)}</b><br/>
+    ${escapeHtml(formData.buyerAddress).replace(/\n/g, "<br/>")}<br/>
+    ${escapeHtml(formData.buyerIEC)}<br/>
+    ${escapeHtml(formData.buyerGST)}<br/>
+    ${escapeHtml(formData.buyerEmail)}
   </td>
   <td style="width:35%;">
-    <b>INV NO.:</b> ${escapeHtml(meta.invNo)}<br/>
-    <b>DATE:</b> ${escapeHtml(meta.date)}<br/>
-    <b>${escapeHtml(meta.to)}</b><br/>
-    <b>FROM:</b> ${escapeHtml(meta.from)}
+    <b>INV NO.:</b> ${escapeHtml(formData.invoiceNo)}<br/>
+    <b>DATE:</b> ${new Date(formData.date).toLocaleDateString('en-GB')}<br/>
+    <b>${escapeHtml(formData.to)}</b><br/>
+    <b>FROM:</b> ${escapeHtml(formData.from)}
   </td>
   </tr>
   </table>
@@ -387,7 +496,6 @@ export default function CommercialInvoicePage() {
   <tr class="b">
     <th>S.N.</th>
     <th>ITEM NO.</th>
-   
     <th>Photo</th>
     <th>Descriptions</th>
     <th>Ctn.</th>
@@ -395,8 +503,6 @@ export default function CommercialInvoicePage() {
     <th>Unit</th>
     <th>T-Qty</th>
     <th>U.price</th>
-     <th>FROM</th>
-    <th>TO</th>
     <th>Amount/USD</th>
   </tr>
   </thead>
@@ -407,8 +513,7 @@ export default function CommercialInvoicePage() {
   <tr class="b">
     <td colspan="6">TOTAL</td>
     <td class="r">${totals.ctn}</td>
-    <td></td>
-    <td></td>
+
     <td class="r">${totals.tQty}</td>
     <td></td>
     <td class="r">${totals.amount.toFixed(2)}</td>
@@ -419,14 +524,14 @@ export default function CommercialInvoicePage() {
   <table>
   <tr>
     <td class="b">
-      ${escapeHtml(meta.cifText)}
+      ${escapeHtml(formData.cifText)}
     </td>
   </tr>
   </table>
   
   <table>
   <tr><td class="b">Bank Detail:</td></tr>
-  ${escapeHtml(meta.bankDetail)
+  ${escapeHtml(formData.bankDetail)
     .split("\n")
     .map((l) => `<tr><td>${l}</td></tr>`)
     .join("")}
@@ -435,13 +540,13 @@ export default function CommercialInvoicePage() {
   <table>
   <tr>
     <td></td>
-    <td class="c">
+    <td class="c" style="${stampPositionStyle}">
       ${
-        signature
-          ? `<img src="${signature}" style="max-height:55px"/><br/>`
+        formData.stampImage
+          ? `<img src="${formData.stampImage}" style="max-height:55px"/><br/>`
           : ""
       }
-      ${escapeHtml(meta.signatureText).replace(/\n/g, "<br/>")}
+      ${escapeHtml(formData.stampText).replace(/\n/g, "<br/>")}
     </td>
   </tr>
   </table>
@@ -467,68 +572,192 @@ export default function CommercialInvoicePage() {
     w.document.close();
   }
 
-  function handleSaveNow() {
-    writeStorage({
-      meta,
-      items,
-      signature,
-      signatureName: signaturePreviewName,
-    });
-    setLastSaved(new Date().toLocaleTimeString());
-    toast.success("Saved to browser storage");
+  async function handleInitialize() {
+    try {
+      const response = await API.post(
+        `/commercial-invoice/initialize/${containerCode}`,
+        {
+          companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
+          companyAddress: "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
+        }
+      );
+      if (response.data.success) {
+        toast.success("Commercial invoice initialized successfully!");
+        loadInvoice();
+      }
+    } catch (error) {
+      toast.error(`Failed to initialize: ${error.message}`);
+    }
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Loading commercial invoice...</div>
+      </div>
+    );
+  }
+
+  // If no invoice exists, show initialization screen
+  if (!invoice) {
+    return (
+      <div className="p-6">
+        <Toaster position="top-right" />
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
+          <h2 className="text-2xl font-bold mb-2">Initialize Commercial Invoice</h2>
+          <p className="text-gray-600 mb-6">
+            No commercial invoice found for container <strong>{containerCode}</strong>
+            . Initialize from bifurcation data to create a new invoice.
+          </p>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={handleInitialize}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Initialize Commercial Invoice
+            </button>
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main commercial invoice editor UI
   return (
     <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
       <Toaster position="top-right" />
       <div className="max-w-7xl mx-auto">
-        {/* Top bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">
-              Commercial Invoice — Editor
-            </h2>
-            <div className="text-sm text-slate-500">
-              Fill invoice details, items, prices, upload photos & signature,
-              then preview / print exact invoice PDF layout.
-            </div>
-            {lastSaved && (
-              <div className="mt-1 text-xs text-emerald-600">
-                Auto-saved at {lastSaved}
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleSaveNow}
-              className="px-3 py-2 rounded bg-emerald-600 text-white inline-flex items-center gap-2 text-sm"
+              onClick={() => router.back()}
+              className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <Save className="w-4 h-4" /> Save
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Commercial Invoice - {formData.invoiceNo}
+              </h1>
+              <div className="flex items-center gap-4 mt-1">
+                <span className="text-gray-600">
+                  Container: <strong>{containerCode}</strong>
+                </span>
+                <span className="text-gray-600">
+                  Status:{" "}
+                  <span
+                    className={`font-semibold ${
+                      formData.status === "CONFIRMED"
+                        ? "text-green-600"
+                        : formData.status === "PRINTED"
+                        ? "text-blue-600"
+                        : "text-yellow-600"
+                    }`}
+                  >
+                    {formData.status}
+                  </span>
+                </span>
+             
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              className="px-3 py-2 border border-gray-300 rounded inline-flex items-center gap-2 hover:bg-gray-50"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button
+              onClick={() => saveInvoice(false)}
+              disabled={isSaving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded inline-flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? "Saving..." : "Save"}
             </button>
             <button
               onClick={openPreview}
-              className="px-3 py-2 rounded bg-slate-800 text-white inline-flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-slate-800 text-white rounded inline-flex items-center gap-2 hover:bg-slate-900"
             >
-              <Printer className="w-4 h-4" /> Preview
+              <Eye className="w-4 h-4" /> Preview
             </button>
             <button
               onClick={printPreview}
-              className="px-3 py-2 rounded bg-sky-600 text-white inline-flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-blue-600 text-white rounded inline-flex items-center gap-2 hover:bg-blue-700"
             >
-              <Download className="w-4 h-4" /> Print / Download
+              <Printer className="w-4 h-4" /> Print
             </button>
           </div>
+          
         </div>
-
+   {/* Advanced Settings */}
+        {showAdvancedSettings && (
+          <div className="bg-white border rounded p-4 mt-4">
+            <h3 className="font-semibold text-sm mb-3">Advanced Settings</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-600">Invoice Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData((m) => ({ ...m, status: e.target.value }))
+                  }
+                  className="w-full border px-3 py-2 rounded mt-1 text-sm"
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="PRINTED">Printed</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-600">Load Demo Data</label>
+                <button
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
+                      companyAddress: "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
+                      title: "COMMERCIAL INVOICE",
+                      buyerName: "IMPEXINA GLOBAL PVT LTD",
+                      buyerAddress: "Ground Floor, C-5, Gami Industrial Park Pawane\nMIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705",
+                      buyerIEC: "IEC NO.: AAHCI1462J",
+                      buyerGST: "GST NO.: 27AAHCI1462J1ZG",
+                      buyerEmail: "EMAIL: impexina91@gmail.com",
+                      cifText: "TOTAL CIF USD 9010 AND 90 WITHIN DAYS AFTER DELIVERY",
+                      bankDetail: "BENEFICIARY'S BANK NAME: ZHEJIANG TAILONG COMMERCIAL BANK\nBENEFICIARY NAME: YIWU ZHOULAI TRADING CO.,LIMITED\nSWIFT BIC: ZJTLNBHXKXX\nBENEFICIARY'S BANK ADD: ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE\nBENEFICIARY A/C NO.: 330800202001000155179",
+                      stampText: "YIWU ZHOULAI TRADING CO., LIMITED\nAUTHORIZED SIGNATORY",
+                    });
+                    toast.success("Demo data loaded");
+                  }}
+                  className="w-full px-3 py-2 bg-amber-100 text-amber-900 rounded mt-1 text-sm hover:bg-amber-200"
+                >
+                  Load Demo Data
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Company header editor */}
         <div className="bg-white border rounded p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-slate-600">Company Name</label>
               <input
-                value={meta.companyName}
+                value={formData.companyName}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, companyName: e.target.value }))
+                  setFormData((m) => ({ ...m, companyName: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
@@ -536,9 +765,9 @@ export default function CommercialInvoicePage() {
                 Company Address
               </label>
               <textarea
-                value={meta.companyAddress}
+                value={formData.companyAddress}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, companyAddress: e.target.value }))
+                  setFormData((m) => ({ ...m, companyAddress: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
                 rows={3}
@@ -547,9 +776,9 @@ export default function CommercialInvoicePage() {
                 Invoice Title
               </label>
               <input
-                value={meta.title}
+                value={formData.title}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, title: e.target.value }))
+                  setFormData((m) => ({ ...m, title: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
@@ -558,33 +787,33 @@ export default function CommercialInvoicePage() {
             <div>
               <label className="text-xs text-slate-600">Invoice No.</label>
               <input
-                value={meta.invNo}
+                value={formData.invoiceNo}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, invNo: e.target.value }))
+                  setFormData((m) => ({ ...m, invoiceNo: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
               <label className="text-xs text-slate-600 mt-2 block">Date</label>
               <input
                 type="date"
-                value={meta.date}
+                value={formData.date}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, date: e.target.value }))
+                  setFormData((m) => ({ ...m, date: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
               <label className="text-xs text-slate-600 mt-2 block">From</label>
               <input
-                value={meta.from}
+                value={formData.from}
                 onChange={(e) =>
-                  setMeta((m) => ({ ...m, from: e.target.value }))
+                  setFormData((m) => ({ ...m, from: e.target.value }))
                 }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
               <label className="text-xs text-slate-600 mt-2 block">To</label>
               <input
-                value={meta.to}
-                onChange={(e) => setMeta((m) => ({ ...m, to: e.target.value }))}
+                value={formData.to}
+                onChange={(e) => setFormData((m) => ({ ...m, to: e.target.value }))}
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
             </div>
@@ -596,9 +825,9 @@ export default function CommercialInvoicePage() {
           <div>
             <label className="text-xs text-slate-600">Buyer Name</label>
             <input
-              value={meta.buyerName}
+              value={formData.buyerName}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, buyerName: e.target.value }))
+                setFormData((m) => ({ ...m, buyerName: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
@@ -606,9 +835,9 @@ export default function CommercialInvoicePage() {
               Buyer Address
             </label>
             <textarea
-              value={meta.buyerAddress}
+              value={formData.buyerAddress}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, buyerAddress: e.target.value }))
+                setFormData((m) => ({ ...m, buyerAddress: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
               rows={3}
@@ -617,9 +846,9 @@ export default function CommercialInvoicePage() {
           <div>
             <label className="text-xs text-slate-600">Buyer IEC</label>
             <input
-              value={meta.buyerIEC}
+              value={formData.buyerIEC}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, buyerIEC: e.target.value }))
+                setFormData((m) => ({ ...m, buyerIEC: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
@@ -627,9 +856,9 @@ export default function CommercialInvoicePage() {
               Buyer GST
             </label>
             <input
-              value={meta.buyerGST}
+              value={formData.buyerGST}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, buyerGST: e.target.value }))
+                setFormData((m) => ({ ...m, buyerGST: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
@@ -637,9 +866,9 @@ export default function CommercialInvoicePage() {
               Buyer Email
             </label>
             <input
-              value={meta.buyerEmail}
+              value={formData.buyerEmail}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, buyerEmail: e.target.value }))
+                setFormData((m) => ({ ...m, buyerEmail: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
@@ -669,30 +898,7 @@ export default function CommercialInvoicePage() {
             >
               <Plus className="w-3 h-3" /> Add row
             </button>
-            <button
-              onClick={() => addMultipleRows(5)}
-              className="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-xs"
-            >
-              + 5 empty rows
-            </button>
-            <button
-              onClick={() => {
-                setMeta(DEMO.meta);
-                setItems(DEMO.items);
-                setSignature(null);
-                setSignaturePreviewName("");
-                writeStorage({
-                  meta: DEMO.meta,
-                  items: DEMO.items,
-                  signature: null,
-                  signatureName: "",
-                });
-                toast.success("Reset to demo sample");
-              }}
-              className="px-3 py-1.5 rounded bg-red-50 text-red-700 text-xs"
-            >
-              Reset to demo
-            </button>
+        
           </div>
         </div>
 
@@ -703,7 +909,6 @@ export default function CommercialInvoicePage() {
               <tr>
                 <th className="px-2 py-2">S.N.</th>
                 <th className="px-2 py-2">ITEM NO.</th>
-
                 <th className="px-2 py-2">Photo</th>
                 <th className="px-2 py-2">Descriptions</th>
                 <th className="px-2 py-2">Ctn.</th>
@@ -711,8 +916,7 @@ export default function CommercialInvoicePage() {
                 <th className="px-2 py-2">Unit</th>
                 <th className="px-2 py-2">T-QTY</th>
                 <th className="px-2 py-2">U.price</th>
-                <th className="px-2 py-2">FROM</th>
-                <th className="px-2 py-2">TO</th>
+      
                 <th className="px-2 py-2">Amount/USD</th>
                 <th className="px-2 py-2">Actions</th>
               </tr>
@@ -749,7 +953,7 @@ export default function CommercialInvoicePage() {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => uploadRowPhoto(e, it.id)}
+                        onChange={(e) => handlePhotoUpload(e, it.id)}
                         className="text-[10px] w-20"
                       />
                     </div>
@@ -810,24 +1014,8 @@ export default function CommercialInvoicePage() {
                       className="border px-2 py-1 rounded text-xs w-20 text-right"
                     />
                   </td>
-                  {/* FROM */}
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.from}
-                      onChange={(e) => updateRow(it.id, "from", e.target.value)}
-                      placeholder="From..."
-                      className="border px-2 py-1 rounded text-xs w-24"
-                    />
-                  </td>
-                  {/* TO */}
-                  <td className="px-2 py-2">
-                    <input
-                      value={it.to}
-                      onChange={(e) => updateRow(it.id, "to", e.target.value)}
-                      placeholder="To..."
-                      className="border px-2 py-1 rounded text-xs w-24"
-                    />
-                  </td>
+                 
+                  
                   {/* Amount */}
                   <td className="px-2 py-2 text-right text-xs">
                     {Number(it.amountUsd || 0).toFixed(2)}
@@ -835,12 +1023,7 @@ export default function CommercialInvoicePage() {
                   {/* Actions */}
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        onClick={() => duplicateRow(it.id)}
-                        className="px-2 py-1 rounded bg-slate-100 text-xs"
-                      >
-                        Dup
-                      </button>
+                   
                       <button
                         onClick={() => insertRowAfter(it.id)}
                         className="px-2 py-1 rounded bg-slate-100 text-xs"
@@ -889,9 +1072,9 @@ export default function CommercialInvoicePage() {
               TOTAL CIF text (bottom line)
             </label>
             <input
-              value={meta.cifText}
+              value={formData.cifText}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, cifText: e.target.value }))
+                setFormData((m) => ({ ...m, cifText: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
             />
@@ -900,9 +1083,9 @@ export default function CommercialInvoicePage() {
           <div>
             <label className="text-xs text-slate-600">Bank Details</label>
             <textarea
-              value={meta.bankDetail || ""}
+              value={formData.bankDetail || ""}
               onChange={(e) =>
-                setMeta((m) => ({ ...m, bankDetail: e.target.value }))
+                setFormData((m) => ({ ...m, bankDetail: e.target.value }))
               }
               className="w-full border px-3 py-2 rounded mt-1 text-sm"
               rows={4}
@@ -916,9 +1099,9 @@ export default function CommercialInvoicePage() {
               </label>
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <div className="w-40 h-20 border rounded flex items-center justify-center bg-slate-50">
-                  {signature ? (
+                  {formData.stampImage ? (
                     <img
-                      src={signature}
+                      src={formData.stampImage}
                       alt="sig"
                       className="max-w-full max-h-full object-contain"
                     />
@@ -930,30 +1113,64 @@ export default function CommercialInvoicePage() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={uploadSignature}
+                    onChange={handleStampUpload}
                   />
-                  <div className="text-xs text-slate-500 mt-2">
-                    File: {signaturePreviewName || "none"}
-                  </div>
                   <div className="text-xs text-slate-500 mt-2">
                     Signature label (printed under stamp)
                   </div>
                   <textarea
-                    value={meta.signatureText || ""}
+                    value={formData.stampText || ""}
                     onChange={(e) =>
-                      setMeta((m) => ({
+                      setFormData((m) => ({
                         ...m,
-                        signatureText: e.target.value,
+                        stampText: e.target.value,
                       }))
                     }
                     className="border px-2 py-1 rounded text-xs w-60 mt-1"
                     rows={2}
                   />
+                  <div className="mt-2">
+                    <label className="text-xs text-slate-600">Stamp Position</label>
+                    <select
+                      value={formData.stampPosition}
+                      onChange={(e) =>
+                        setFormData((m) => ({ ...m, stampPosition: e.target.value }))
+                      }
+                      className="border px-2 py-1 rounded text-xs w-full mt-1"
+                    >
+                      <option value="BOTTOM_LEFT">Bottom Left</option>
+                      <option value="BOTTOM_CENTER">Bottom Center</option>
+                      <option value="BOTTOM_RIGHT">Bottom Right</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+     
+
+        {/* Activities Section */}
+        {activities.length > 0 && (
+          <div className="bg-white border rounded p-4 mt-4">
+            <h3 className="font-semibold text-sm mb-3">Recent Activities</h3>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {activities.map((activity, idx) => (
+                <div key={idx} className="flex items-start gap-3 text-xs border-b pb-2">
+                  <Activity className="w-4 h-4 text-blue-500 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="font-medium">{activity.type}</div>
+                    <div className="text-gray-600">{activity.note}</div>
+                    <div className="text-gray-500 text-[10px]">
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Preview modal */}

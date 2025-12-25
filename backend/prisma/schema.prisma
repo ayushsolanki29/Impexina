@@ -54,10 +54,12 @@ model User {
 
   permissions UserPermission[]
 
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  loadingActivities     LoadingActivity[]
-  bifurcationActivities BifurcationActivity[]
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  loadingActivities           LoadingActivity[]
+  bifurcationActivities       BifurcationActivity[]
+  packingListActivities       PackingListActivity[]
+  commercialInvoiceActivities CommercialInvoiceActivity[]
 }
 
 model Module {
@@ -268,6 +270,231 @@ model BifurcationActivity {
 
   user      User                 @relation(fields: [userId], references: [id])
   container BifurcationContainer @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// Add to your existing schema
+
+enum PackingListStatus {
+  DRAFT
+  CONFIRMED
+  PRINTED
+  CANCELLED
+}
+
+// Company/Bank master table
+model CompanyMaster {
+  id             String  @id @default(cuid())
+  companyName    String  @unique
+  companyAddress String
+  companyPhone   String?
+  companyEmail   String?
+
+  // Bank Details
+  bankName        String
+  beneficiaryName String
+  swiftBic        String
+  bankAddress     String
+  accountNumber   String
+
+  // Signature/Stamp
+  signatureText String? @default("Authorized Signatory")
+  stampImage    String? // Base64 or URL
+
+  packingLists PackingList[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model PackingList {
+  id            String @id @default(cuid())
+  containerCode String @unique
+  invNo         String @unique
+
+  // Header Information (now editable)
+  headerCompanyName    String?
+  headerCompanyAddress String?
+  headerPhone          String?
+
+  // Seller Information (now editable)
+  sellerCompanyName String?
+  sellerAddress     String?
+  sellerIecNo       String?
+  sellerGst         String?
+  sellerEmail       String?
+
+  // Invoice Information
+  invoiceNo   String?
+  invoiceDate DateTime?
+  from        String?
+  to          String?
+  lrNo        String?
+
+  // Company/Bank Details (editable)
+  bankName        String?
+  beneficiaryName String?
+  swiftBic        String?
+  bankAddress     String?
+  accountNumber   String?
+
+  // Stamp/Position Settings
+  stampImage    String? // Base64 or URL
+  stampPosition String? @default("BOTTOM_RIGHT") // BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT
+  stampText     String? @default("Authorized Signatory")
+
+  // Status
+  status PackingListStatus @default(DRAFT)
+
+  // Totals
+  totalCtn    Int   @default(0)
+  totalQty    Int   @default(0)
+  totalWeight Float @default(0)
+
+  // MIX/HSN Settings
+  showMixColumn Boolean @default(true)
+  showHsnColumn Boolean @default(true)
+
+  // Relations
+  items      PackingListItem[]
+  activities PackingListActivity[]
+
+  // Metadata
+  createdBy       String
+  updatedBy       String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  companyMaster   CompanyMaster? @relation(fields: [companyMasterId], references: [id])
+  companyMasterId String?
+}
+
+model PackingListItem {
+  id            String  @id @default(cuid())
+  packingListId String
+  itemNumber    String
+  particular    String
+  ctn           Int
+  qtyPerCtn     Int
+  unit          String  @default("PCS")
+  tQty          Int
+  kg            Float
+  tKg           Float
+  mix           String? // MIX value
+  hsn           String? // HSN value
+  photo         String? // Base64 or URL
+
+  packingList PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+}
+
+model PackingListActivity {
+  id            String  @id @default(cuid())
+  packingListId String
+  userId        Int
+  type          String // CREATED, UPDATED, STATUS_CHANGE, PRINTED, FIELDS_CHANGED, etc.
+  field         String? // Which field was changed
+  oldValue      String?
+  newValue      String?
+  note          String?
+  ipAddress     String?
+  userAgent     String?
+
+  user        User        @relation(fields: [userId], references: [id])
+  packingList PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// Add to your existing schema
+
+enum CommercialInvoiceStatus {
+  DRAFT
+  CONFIRMED
+  PRINTED
+  CANCELLED
+}
+
+model CommercialInvoice {
+  id            String @id @default(cuid())
+  containerCode String @unique
+  invoiceNo     String @unique
+
+  // Header Information
+  companyName    String?
+  companyAddress String?
+  title          String? @default("COMMERCIAL INVOICE")
+
+  // Buyer Information
+  buyerName    String?
+  buyerAddress String?
+  buyerIEC     String?
+  buyerGST     String?
+  buyerEmail   String?
+
+  // Invoice Information
+  invoiceDate DateTime?
+  from        String?
+  to          String?
+  cifText     String?
+
+  // Bank Details
+  bankDetail String?
+
+  // Stamp/Signature
+  stampImage    String?
+  stampPosition String? @default("BOTTOM_RIGHT")
+  stampText     String? @default("Authorized Signatory")
+
+  // Status
+  status CommercialInvoiceStatus @default(DRAFT)
+
+  // Totals
+  totalCtn    Int   @default(0)
+  totalQty    Int   @default(0)
+  totalAmount Float @default(0)
+
+  // Relations
+  items      CommercialInvoiceItem[]
+  activities CommercialInvoiceActivity[]
+
+  // Metadata
+  createdBy String
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CommercialInvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  itemNumber  String
+  description String
+  ctn         Int
+  qtyPerCtn   Int
+  unit        String  @default("PCS")
+  tQty        Int
+  unitPrice   Float
+  amountUsd   Float
+  photo       String?
+  fromPerson  String? // FROM field
+  toPerson    String? // TO field
+
+  invoice   CommercialInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+}
+
+model CommercialInvoiceActivity {
+  id        String  @id @default(cuid())
+  invoiceId String
+  userId    Int
+  type      String
+  field     String?
+  oldValue  String?
+  newValue  String?
+  note      String?
+
+  user    User              @relation(fields: [userId], references: [id])
+  invoice CommercialInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }

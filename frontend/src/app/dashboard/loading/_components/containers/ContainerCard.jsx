@@ -8,6 +8,7 @@ export default function ContainerCard({
   onViewDetails,
   onStatusUpdate,
   updatingStatus,
+  hideStatusFilter = false,
 }) {
   return (
     <div className="p-5 border-b hover:bg-gray-50 transition-colors duration-150">
@@ -42,14 +43,14 @@ export default function ContainerCard({
               />
             </div>
           </div>
-
-          {/* Status Toggle */}
-          <StatusToggle
-            currentStatus={container.status}
-            containerCode={container.containerCode}
-            onStatusUpdate={onStatusUpdate}
-            updating={updatingStatus[container.containerCode]}
-          />
+          {hideStatusFilter && (
+            <StatusToggle
+              currentStatus={container.status}
+              containerCode={container.containerCode}
+              onStatusUpdate={onStatusUpdate}
+              updating={updatingStatus[container.containerCode]}
+            />
+          )}
         </div>
 
         {/* Right Section: Totals */}
