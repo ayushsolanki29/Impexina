@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+  NEW_JOINNER
+}
+
+enum LoadingStatus {
+  DRAFT
+  CONFIRMED
+}
+
+enum ActivityType {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+}
+
+// Enums
+enum BifurcationStatus {
+  DRAFT // Waiting for confirmation
+  CONFIRMED // Ready for Invoice
+}
+
+
+
+model User {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid())
+
+  username String  @unique
+  password String
+  name     String
+  role     Role    @default(NEW_JOINNER)
+  isActive Boolean @default(true)
+
+  permissions UserPermission[]
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  loadingActivities     LoadingActivity[]
+  bifurcationActivities BifurcationActivity[]
+}
+
+model Module {
+  id   Int    @id @default(autoincrement())
+  key  String @unique
+  name String
+
+  users UserPermission[]
+}
+
+model UserPermission {
+  id       Int @id @default(autoincrement())
+  userId   Int
+  moduleId Int
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+}
+
+model ShippingMark {
+  id     String  @id @default(cuid())
+  name   String  @unique // BB-AMD, SMW-INK, RMSZ-M
+  source String? // RAJ, YIWU, etc
+
+  loadingSheets LoadingSheet[]
+
+  createdAt DateTime @default(now())
+}
+
+model CtnMark {
+  id   String @id @default(cuid())
+  name String @unique // EXPRESS, JB-210-211-212-213, etc
+
+  items LoadingItem[]
+
+  createdAt DateTime @default(now())
+}
+
+
+
+model LoadingActivity {
+  id             String @id @default(cuid())
+  loadingSheetId String
+  userId         Int
+
+  type         ActivityType
+  oldValue     Json?
+  newValue     Json?
+  note         String? // Add this line
+  loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+
+

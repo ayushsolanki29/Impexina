@@ -5,7 +5,6 @@ const { authenticate } = require("../../middleware/auth");
 const { validateRequest } = require("../../middleware/validateRequest");
 const multer = require("multer");
 const path = require("path");
-const { v4: uuidv4 } = require("uuid");
 const loadingService = require("./loading.service");
 
 const router = express.Router();

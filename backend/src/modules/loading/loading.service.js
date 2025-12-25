@@ -845,7 +845,7 @@ const loadingService = {
       },
     });
   },
-   // Get container details with items grouped by client
+  // Get container details with items grouped by client
   getContainerDetailsWithItems: async (containerCode, filters = {}) => {
     const container = await prisma.container.findUnique({
       where: { containerCode },
@@ -853,14 +853,18 @@ const loadingService = {
         loadingSheets: {
           where: {
             ...(filters.status && { status: filters.status }),
-            ...(filters.dateFrom || filters.dateTo ? {
-              loadingDate: {
-                ...(filters.dateFrom && { gte: new Date(filters.dateFrom) }),
-                ...(filters.dateTo && { 
-                  lte: new Date(filters.dateTo)
-                })
-              }
-            } : {}),
+            ...(filters.dateFrom || filters.dateTo
+              ? {
+                  loadingDate: {
+                    ...(filters.dateFrom && {
+                      gte: new Date(filters.dateFrom),
+                    }),
+                    ...(filters.dateTo && {
+                      lte: new Date(filters.dateTo),
+                    }),
+                  },
+                }
+              : {}),
           },
           include: {
             shippingMark: true,
@@ -868,45 +872,54 @@ const loadingService = {
               where: {
                 ...(filters.search && {
                   OR: [
-                    { particular: { contains: filters.search, mode: 'insensitive' } },
-                    { itemNo: { contains: filters.search, mode: 'insensitive' } },
-                    { ctnMark: { 
-                      name: { contains: filters.search, mode: 'insensitive' } 
-                    }},
-                  ]
+                    {
+                      particular: {
+                        contains: filters.search,
+                        mode: "insensitive",
+                      },
+                    },
+                    {
+                      itemNo: { contains: filters.search, mode: "insensitive" },
+                    },
+                    {
+                      ctnMark: {
+                        name: { contains: filters.search, mode: "insensitive" },
+                      },
+                    },
+                  ],
                 }),
                 ...(filters.ctnRange && {
                   ctn: {
                     gte: filters.ctnRange.min,
-                    lte: filters.ctnRange.max
-                  }
+                    lte: filters.ctnRange.max,
+                  },
                 }),
                 ...(filters.weightRange && {
                   wt: {
                     gte: filters.weightRange.min,
-                    lte: filters.weightRange.max
-                  }
+                    lte: filters.weightRange.max,
+                  },
                 }),
                 ...(filters.cbmRange && {
                   cbm: {
                     gte: filters.cbmRange.min,
-                    lte: filters.cbmRange.max
-                  }
+                    lte: filters.cbmRange.max,
+                  },
                 }),
               },
               include: {
                 ctnMark: true,
               },
               orderBy: {
-                createdAt: 'desc'
-              }
+                createdAt: "desc",
+              },
             },
           },
           orderBy: {
-            loadingDate: 'desc'
-          }
-        }
-      }
+            loadingDate: "desc",
+          },
+        },
+      },
     });
 
     if (!container) {
@@ -921,12 +934,12 @@ const loadingService = {
       totalCBM: 0,
       totalWeight: 0,
       totalItems: 0,
-      totalClients: 0
+      totalClients: 0,
     };
 
-    container.loadingSheets.forEach(sheet => {
+    container.loadingSheets.forEach((sheet) => {
       const clientName = sheet.shippingMark.name;
-      
+
       if (!clientGroups[clientName]) {
         clientGroups[clientName] = {
           client: clientName,
@@ -941,12 +954,12 @@ const loadingService = {
             tcbm: 0,
             wt: 0,
             twt: 0,
-            itemCount: 0
-          }
+            itemCount: 0,
+          },
         };
       }
 
-      sheet.items.forEach(item => {
+      sheet.items.forEach((item) => {
         const itemData = {
           id: item.id,
           photo: item.photo,
@@ -962,11 +975,11 @@ const loadingService = {
           tcbm: item.tcbm,
           wt: item.wt,
           twt: item.twt,
-          createdAt: item.createdAt
+          createdAt: item.createdAt,
         };
 
         clientGroups[clientName].items.push(itemData);
-        
+
         // Update client totals
         clientGroups[clientName].totals.ctn += item.ctn;
         clientGroups[clientName].totals.pcs += item.pcs;
@@ -987,18 +1000,18 @@ const loadingService = {
     });
 
     // Convert to array and sort
-    const clientGroupsArray = Object.values(clientGroups).map(group => ({
+    const clientGroupsArray = Object.values(clientGroups).map((group) => ({
       ...group,
       totals: {
         ...group.totals,
         tcbm: parseFloat(group.totals.tcbm.toFixed(3)),
-        twt: parseFloat(group.totals.twt.toFixed(2))
-      }
+        twt: parseFloat(group.totals.twt.toFixed(2)),
+      },
     }));
 
     // Sort by client name or total CTN
     clientGroupsArray.sort((a, b) => {
-      if (filters.sortBy === 'ctn') {
+      if (filters.sortBy === "ctn") {
         return b.totals.ctn - a.totals.ctn;
       }
       return a.client.localeCompare(b.client);
@@ -1006,215 +1019,384 @@ const loadingService = {
 
     overallTotals.totalClients = clientGroupsArray.length;
     overallTotals.totalCBM = parseFloat(overallTotals.totalCBM.toFixed(3));
-    overallTotals.totalWeight = parseFloat(overallTotals.totalWeight.toFixed(2));
+    overallTotals.totalWeight = parseFloat(
+      overallTotals.totalWeight.toFixed(2)
+    );
 
     return {
       container: {
         code: container.containerCode,
         origin: container.origin,
-        createdAt: container.createdAt
+        createdAt: container.createdAt,
       },
       clientGroups: clientGroupsArray,
       overallTotals,
-      filtersApplied: filters
+      filtersApplied: filters,
     };
   },
 
-// Fix the export functions - they should call this.getContainerDetailsWithItems
-exportContainerToExcel: async (containerCode, selectedClients = [], filters = {}) => {
-  const containerData = await this.getContainerDetailsWithItems(containerCode, filters);
-  
-  // Filter by selected clients if any
-  let filteredGroups = containerData.clientGroups;
-  if (selectedClients.length > 0) {
-    filteredGroups = containerData.clientGroups.filter(group => 
-      selectedClients.includes(group.client)
+  // Fix the export functions - they should call this.getContainerDetailsWithItems
+  exportContainerToExcel: async (
+    containerCode,
+    selectedClients = [],
+    filters = {}
+  ) => {
+    const containerData = await this.getContainerDetailsWithItems(
+      containerCode,
+      filters
     );
-  }
 
-  // Prepare Excel data
-  const excelData = {
-    // Summary Sheet
-    summary: filteredGroups.map(group => ({
-      'Client': group.client,
-      'Loading Date': new Date(group.loadingDate).toLocaleDateString(),
-      'Status': group.status,
-      'Total Items': group.totals.itemCount,
-      'Total CTN': group.totals.ctn,
-      'Total PCS': group.totals.pcs,
-      'Total T.PCS': group.totals.tpcs,
-      'Total CBM': group.totals.tcbm,
-      'Total Weight (KG)': group.totals.twt,
-      'Average CBM per CTN': group.totals.ctn > 0 ? (group.totals.tcbm / group.totals.ctn).toFixed(3) : 0,
-      'Average Weight per CTN': group.totals.ctn > 0 ? (group.totals.twt / group.totals.ctn).toFixed(2) : 0
-    })),
-
-    // Items Sheet (all items)
-    items: filteredGroups.flatMap(group => 
-      group.items.map(item => ({
-        'Container': containerCode,
-        'Client': group.client,
-        'Loading Date': new Date(group.loadingDate).toLocaleDateString(),
-        'Particular': item.particular,
-        'Shipping Mark': item.mark,
-        'CTN Mark': item.ctnMark,
-        'Item No': item.itemNo,
-        'CTN': item.ctn,
-        'PCS': item.pcs,
-        'T.PCS': item.tpcs,
-        'Unit': item.unit,
-        'CBM per CTN': item.cbm,
-        'Total CBM': item.tcbm,
-        'Weight per CTN (KG)': item.wt,
-        'Total Weight (KG)': item.twt,
-        'Photo': item.photo ? 'Yes' : 'No'
-      }))
-    ),
-
-    // Totals Sheet
-    totals: [{
-      'Container': containerCode,
-      'Total Clients': containerData.overallTotals.totalClients,
-      'Total Items': containerData.overallTotals.totalItems,
-      'Total CTN': containerData.overallTotals.totalCTN,
-      'Total PCS': containerData.overallTotals.totalPCS,
-      'Total CBM': containerData.overallTotals.totalCBM,
-      'Total Weight (KG)': containerData.overallTotals.totalWeight,
-      'Average Items per Client': (containerData.overallTotals.totalItems / containerData.overallTotals.totalClients).toFixed(1),
-      'Average CTN per Client': (containerData.overallTotals.totalCTN / containerData.overallTotals.totalClients).toFixed(1),
-      'Generated Date': new Date().toLocaleDateString()
-    }]
-  };
-
-  return excelData;
-},
-
- 
-// Generate image data for preview
-generateContainerImageData: async (containerCode, selectedClients = [], filters = {}) => {
-  const containerData = await this.getContainerDetailsWithItems(containerCode, filters);
-  
-  // Filter by selected clients if any
-  let filteredGroups = containerData.clientGroups;
-  if (selectedClients.length > 0) {
-    filteredGroups = containerData.clientGroups.filter(group => 
-      selectedClients.includes(group.client)
-    );
-  }
-
-  // Prepare image data format
-  return {
-    container: containerData.container,
-    clientGroups: filteredGroups,
-    overallTotals: containerData.overallTotals,
-    generatedAt: new Date(),
-    selectedClients,
-    filters
-  };
-},
-
-  // Update container status
-  updateContainerStatus: async (containerCode, status, userId) => {
-    const container = await prisma.container.findUnique({
-      where: { containerCode },
-      include: {
-        loadingSheets: true
-      }
-    });
-
-    if (!container) {
-      throw new Error("Container not found");
+    // Filter by selected clients if any
+    let filteredGroups = containerData.clientGroups;
+    if (selectedClients.length > 0) {
+      filteredGroups = containerData.clientGroups.filter((group) =>
+        selectedClients.includes(group.client)
+      );
     }
 
-    // Update all loading sheets for this container
-    const updatePromises = container.loadingSheets.map(sheet => 
-      prisma.loadingSheet.update({
-        where: { id: sheet.id },
-        data: { status }
-      })
-    );
+    // Prepare Excel data
+    const excelData = {
+      // Summary Sheet
+      summary: filteredGroups.map((group) => ({
+        Client: group.client,
+        "Loading Date": new Date(group.loadingDate).toLocaleDateString(),
+        Status: group.status,
+        "Total Items": group.totals.itemCount,
+        "Total CTN": group.totals.ctn,
+        "Total PCS": group.totals.pcs,
+        "Total T.PCS": group.totals.tpcs,
+        "Total CBM": group.totals.tcbm,
+        "Total Weight (KG)": group.totals.twt,
+        "Average CBM per CTN":
+          group.totals.ctn > 0
+            ? (group.totals.tcbm / group.totals.ctn).toFixed(3)
+            : 0,
+        "Average Weight per CTN":
+          group.totals.ctn > 0
+            ? (group.totals.twt / group.totals.ctn).toFixed(2)
+            : 0,
+      })),
 
-    await Promise.all(updatePromises);
+      // Items Sheet (all items)
+      items: filteredGroups.flatMap((group) =>
+        group.items.map((item) => ({
+          Container: containerCode,
+          Client: group.client,
+          "Loading Date": new Date(group.loadingDate).toLocaleDateString(),
+          Particular: item.particular,
+          "Shipping Mark": item.mark,
+          "CTN Mark": item.ctnMark,
+          "Item No": item.itemNo,
+          CTN: item.ctn,
+          PCS: item.pcs,
+          "T.PCS": item.tpcs,
+          Unit: item.unit,
+          "CBM per CTN": item.cbm,
+          "Total CBM": item.tcbm,
+          "Weight per CTN (KG)": item.wt,
+          "Total Weight (KG)": item.twt,
+          Photo: item.photo ? "Yes" : "No",
+        }))
+      ),
 
-    // Create activity logs
-    const activityPromises = container.loadingSheets.map(sheet =>
-      prisma.loadingActivity.create({
-        data: {
-          loadingSheetId: sheet.id,
-          userId: userId,
-          type: "STATUS_CHANGE",
-          oldValue: { status: sheet.status },
-          newValue: { status },
-          note: `Container ${containerCode} status changed to ${status}`
-        }
-      })
-    );
+      // Totals Sheet
+      totals: [
+        {
+          Container: containerCode,
+          "Total Clients": containerData.overallTotals.totalClients,
+          "Total Items": containerData.overallTotals.totalItems,
+          "Total CTN": containerData.overallTotals.totalCTN,
+          "Total PCS": containerData.overallTotals.totalPCS,
+          "Total CBM": containerData.overallTotals.totalCBM,
+          "Total Weight (KG)": containerData.overallTotals.totalWeight,
+          "Average Items per Client": (
+            containerData.overallTotals.totalItems /
+            containerData.overallTotals.totalClients
+          ).toFixed(1),
+          "Average CTN per Client": (
+            containerData.overallTotals.totalCTN /
+            containerData.overallTotals.totalClients
+          ).toFixed(1),
+          "Generated Date": new Date().toLocaleDateString(),
+        },
+      ],
+    };
 
-    await Promise.all(activityPromises);
+    return excelData;
+  },
 
-    return {
-      success: true,
-      message: `Container ${containerCode} status updated to ${status}`,
+  // Generate image data for preview
+  generateContainerImageData: async (
+    containerCode,
+    selectedClients = [],
+    filters = {}
+  ) => {
+    const containerData = await this.getContainerDetailsWithItems(
       containerCode,
-      status,
-      updatedSheets: container.loadingSheets.length
+      filters
+    );
+
+    // Filter by selected clients if any
+    let filteredGroups = containerData.clientGroups;
+    if (selectedClients.length > 0) {
+      filteredGroups = containerData.clientGroups.filter((group) =>
+        selectedClients.includes(group.client)
+      );
+    }
+
+    // Prepare image data format
+    return {
+      container: containerData.container,
+      clientGroups: filteredGroups,
+      overallTotals: containerData.overallTotals,
+      generatedAt: new Date(),
+      selectedClients,
+      filters,
     };
   },
 
+  updateContainerStatus: async (containerCode, status, userId) => {
+    try {
+      const container = await prisma.container.findUnique({
+        where: { containerCode },
+        include: {
+          loadingSheets: {
+            include: {
+              shippingMark: true,
+              items: true,
+            },
+          },
+        },
+      });
+
+      if (!container) {
+        throw new Error("Container not found");
+      }
+
+      // Get old status from first sheet for comparison
+      const oldStatus = container.loadingSheets[0]?.status || "DRAFT";
+
+      // Update all loading sheets for this container
+      const updatePromises = container.loadingSheets.map((sheet) =>
+        prisma.loadingSheet.update({
+          where: { id: sheet.id },
+          data: { status },
+        })
+      );
+
+      await Promise.all(updatePromises);
+
+      // Create activity logs
+      const activityPromises = container.loadingSheets.map((sheet) =>
+        prisma.loadingActivity.create({
+          data: {
+            loadingSheetId: sheet.id,
+            userId: userId,
+            type: "STATUS_CHANGE",
+            oldValue: { status: sheet.status },
+            newValue: { status },
+            note: `Container ${containerCode} status changed to ${status}`,
+          },
+        })
+      );
+
+      await Promise.all(activityPromises);
+
+      // IMPORTANT: When status changes to CONFIRMED, create bifurcation record
+      if (status === "CONFIRMED" && oldStatus !== "CONFIRMED") {
+        try {
+          // Check if bifurcation record already exists
+          const existingBifurcation =
+            await prisma.bifurcationContainer.findUnique({
+              where: { containerCode },
+            });
+
+          if (!existingBifurcation) {
+            // Calculate totals for the container
+            let totalCTN = 0;
+            let totalPCS = 0;
+            let totalCBM = 0;
+            let totalWeight = 0;
+            const clientNames = new Set();
+
+            container.loadingSheets.forEach((sheet) => {
+              if (sheet.shippingMark) {
+                clientNames.add(sheet.shippingMark.name);
+              }
+              sheet.items.forEach((item) => {
+                totalCTN += item.ctn || 0;
+                totalPCS += item.pcs || 0;
+                totalCBM += parseFloat(item.cbm || 0);
+                totalWeight += parseFloat(item.wt || 0);
+              });
+            });
+
+            // Create bifurcation container record
+            await prisma.bifurcationContainer.create({
+              data: {
+                containerCode,
+                origin: container.origin,
+                status: "PENDING", // Bifurcation starts as PENDING
+                totalCTN,
+                totalPCS,
+                totalCBM,
+                totalWeight,
+                clientCount: clientNames.size,
+                sheetCount: container.loadingSheets.length,
+                loadingDate: container.loadingSheets[0]?.loadingDate || null,
+                clients: {
+                  create: Array.from(clientNames).map((clientName) => ({
+                    clientName,
+                    ctn: 0, // Will be calculated by calculateClientTotals
+                    pcs: 0,
+                    cbm: 0,
+                    weight: 0,
+                  })),
+                },
+              },
+            });
+
+            // Also create bifurcation activity log
+            await prisma.bifurcationActivity.create({
+              data: {
+                containerCode,
+                userId,
+                type: "CREATED",
+                note: "Automatically created when container status changed to CONFIRMED",
+              },
+            });
+
+            console.log(
+              `Created bifurcation record for container ${containerCode}`
+            );
+
+            // Calculate client totals
+            try {
+              // Get bifurcation service
+              const bifurcationService = require("../bifurcation/bifurcation.service");
+              await bifurcationService.calculateClientTotals(containerCode);
+              console.log(`Calculated client totals for ${containerCode}`);
+            } catch (calcError) {
+              console.error(
+                `Error calculating client totals for ${containerCode}:`,
+                calcError
+              );
+            }
+          }
+        } catch (bifurcationError) {
+          console.error(
+            `Error creating bifurcation record for ${containerCode}:`,
+            bifurcationError
+          );
+          // Don't throw error here - we don't want to fail the status update
+          // Just log the error and continue
+        }
+      }
+
+      // If status changes from CONFIRMED to something else, update bifurcation status
+      if (oldStatus === "CONFIRMED" && status !== "CONFIRMED") {
+        try {
+          const existingBifurcation =
+            await prisma.bifurcationContainer.findUnique({
+              where: { containerCode },
+            });
+
+          if (existingBifurcation) {
+            await prisma.bifurcationContainer.update({
+              where: { containerCode },
+              data: { status: "CANCELLED" },
+            });
+
+            await prisma.bifurcationActivity.create({
+              data: {
+                containerCode,
+                userId,
+                type: "STATUS_CHANGE",
+                oldValue: { status: existingBifurcation.status },
+                newValue: { status: "CANCELLED" },
+                note: `Container status changed from CONFIRMED to ${status}`,
+              },
+            });
+          }
+        } catch (bifurcationError) {
+          console.error(
+            `Error updating bifurcation status for ${containerCode}:`,
+            bifurcationError
+          );
+        }
+      }
+
+      return {
+        success: true,
+        message: `Container ${containerCode} status updated to ${status}`,
+        containerCode,
+        status,
+        updatedSheets: container.loadingSheets.length,
+      };
+    } catch (error) {
+      console.error("Error in updateContainerStatus:", error);
+      throw error;
+    }
+  },
   // Search within container with pagination
-  searchContainerItems: async (containerCode, searchTerm, page = 1, limit = 50) => {
+  searchContainerItems: async (
+    containerCode,
+    searchTerm,
+    page = 1,
+    limit = 50
+  ) => {
     const skip = (page - 1) * limit;
 
     const items = await prisma.loadingItem.findMany({
       where: {
         loadingSheet: {
           container: {
-            containerCode: containerCode
-          }
+            containerCode: containerCode,
+          },
         },
         OR: [
-          { particular: { contains: searchTerm, mode: 'insensitive' } },
-          { itemNo: { contains: searchTerm, mode: 'insensitive' } },
-          { 
+          { particular: { contains: searchTerm, mode: "insensitive" } },
+          { itemNo: { contains: searchTerm, mode: "insensitive" } },
+          {
             ctnMark: {
-              name: { contains: searchTerm, mode: 'insensitive' }
-            }
-          }
-        ]
+              name: { contains: searchTerm, mode: "insensitive" },
+            },
+          },
+        ],
       },
       include: {
         loadingSheet: {
           include: {
             shippingMark: true,
-            container: true
-          }
+            container: true,
+          },
         },
-        ctnMark: true
+        ctnMark: true,
       },
       skip,
       take: limit,
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: "desc",
+      },
     });
 
     const total = await prisma.loadingItem.count({
       where: {
         loadingSheet: {
           container: {
-            containerCode: containerCode
-          }
+            containerCode: containerCode,
+          },
         },
         OR: [
-          { particular: { contains: searchTerm, mode: 'insensitive' } },
-          { itemNo: { contains: searchTerm, mode: 'insensitive' } },
-          { 
+          { particular: { contains: searchTerm, mode: "insensitive" } },
+          { itemNo: { contains: searchTerm, mode: "insensitive" } },
+          {
             ctnMark: {
-              name: { contains: searchTerm, mode: 'insensitive' }
-            }
-          }
-        ]
-      }
+              name: { contains: searchTerm, mode: "insensitive" },
+            },
+          },
+        ],
+      },
     });
 
     return {
@@ -1224,8 +1406,8 @@ generateContainerImageData: async (containerCode, selectedClients = [], filters 
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total
-      }
+        hasNextPage: page * limit < total,
+      },
     };
   },
 };

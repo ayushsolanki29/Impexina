@@ -30,6 +30,18 @@ enum ActivityType {
   STATUS_CHANGE
 }
 
+enum BifurcationActivityType {
+  CREATED
+  STATUS_CHANGE
+  DOCUMENT_READY
+  NOTE_ADDED
+  CLIENT_ADDED
+  CLIENT_REMOVED
+  INVOICE_GENERATED
+  GST_GENERATED
+  DELIVERY_GENERATED
+}
+
 model User {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(uuid())
@@ -42,9 +54,10 @@ model User {
 
   permissions UserPermission[]
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  loadingActivities LoadingActivity[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  loadingActivities     LoadingActivity[]
+  bifurcationActivities BifurcationActivity[]
 }
 
 model Module {
@@ -86,12 +99,12 @@ model CtnMark {
 }
 
 model Container {
-  id            String   @id @default(cuid())
-  containerCode String   @unique // PSDH-86
-  origin        String // YIWU, RAJ
-  createdAt     DateTime @default(now())
-
-  loadingSheets LoadingSheet[]
+  id                String             @id @default(cuid())
+  containerCode     String             @unique // PSDH-86
+  origin            String // YIWU, RAJ
+  createdAt         DateTime           @default(now())
+  bifurcationStatus BifurcationStatus? // Add this line
+  loadingSheets     LoadingSheet[]
 }
 
 model LoadingSheet {
@@ -109,9 +122,6 @@ model LoadingSheet {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   loadingActivities LoadingActivity[]
-
-  // REMOVE this unique constraint to allow multiple sheets with same shipping mark in same container
-  // @@unique([containerId, shippingMarkId])
 }
 
 model LoadingItem {
@@ -142,12 +152,122 @@ model LoadingActivity {
   loadingSheetId String
   userId         Int
 
-  type     ActivityType
-  oldValue Json?
-  newValue Json?
-
+  type         ActivityType
+  oldValue     Json?
+  newValue     Json?
+  note         String? // Add this line
   loadingSheet LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// Add these models to your existing schema
+
+enum BifurcationStatus {
+  PENDING
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+model BifurcationContainer {
+  id            String    @id @default(cuid())
+  containerCode String    @unique
+  origin        String?
+  loadingDate   DateTime?
+
+  // New bifurcation fields
+  status      BifurcationStatus @default(DRAFT)
+  totalCTN    Int               @default(0)
+  totalCBM    Float             @default(0)
+  totalWeight Float             @default(0)
+  clientCount Int               @default(0)
+  sheetCount  Int               @default(0)
+
+  // Custom fields added by user
+  deliveryDate DateTime?
+  invNo        String?
+  gst          String?
+  from         String?
+  to           String?
+  lr           String? // LR number
+  note         String?
+
+  // Relations
+  clients    BifurcationClient[]
+  items      BifurcationItem[]
+  activities BifurcationActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BifurcationClient {
+  id            String @id @default(cuid())
+  containerCode String
+  clientName    String
+
+  // From loading sheet
+  loadingDate DateTime?
+  ctn         Int       @default(0)
+  product     String?
+  totalCBM    Float     @default(0)
+  totalWeight Float     @default(0)
+
+  // New fields for bifurcation
+  deliveryDate DateTime?
+  invNo        String?
+  gst          String?
+  from         String?
+  to           String?
+  lr           String?
+  status       String    @default("draft")
+
+  // Relations
+  container BifurcationContainer @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
+  items     BifurcationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([containerCode, clientName])
+}
+
+model BifurcationItem {
+  id            String @id @default(cuid())
+  clientId      String
+  containerCode String
+
+  // Item details from loading sheet
+  particular String
+  ctnMark    String
+  ctn        Int
+  pcs        Int
+  cbm        Float
+  weight     Float
+  unit       String  @default("PCS")
+  photo      String?
+
+  // Relations
+  client    BifurcationClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  container BifurcationContainer @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model BifurcationActivity {
+  id            String @id @default(cuid())
+  containerCode String
+  userId        Int
+
+  type     String
+  oldValue Json?
+  newValue Json?
+  note     String?
+
+  user      User                 @relation(fields: [userId], references: [id])
+  container BifurcationContainer @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }

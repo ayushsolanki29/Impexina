@@ -1,8 +1,16 @@
 "use client";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {  toast } from "sonner";
-import { ChevronLeft, Plus, Save, Lock, Unlock, Eye, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+import {
+  ChevronLeft,
+  Plus,
+  Save,
+  Lock,
+  Unlock,
+  Eye,
+  ArrowRight,
+} from "lucide-react";
 import LoadingTable from "../_components/LoadingTable";
 import QuickActionsFooter from "../_components/QuickActionsFooter";
 import QuickFillPanel from "../_components/QuickFillPanel";
@@ -33,7 +41,9 @@ export default function NewLoadingPage() {
   // Header state
   const [containerCode, setContainerCode] = useState("");
   const [origin, setOrigin] = useState("");
-  const [loadingDate, setLoadingDate] = useState(new Date().toISOString().slice(0, 10));
+  const [loadingDate, setLoadingDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [shippingMark, setShippingMark] = useState("");
 
   // Reference totals state
@@ -52,26 +62,32 @@ export default function NewLoadingPage() {
   const [showMismatchWarning, setShowMismatchWarning] = useState(false);
 
   // Calculate totals from rows
-  const calculateTotals = useCallback((rowArray = rows) => {
-    return rowArray.reduce(
-      (totals, row) => ({
-        ctn: totals.ctn + Number(row.ctn || 0),
-        tpcs: totals.tpcs + Number(row.tpcs || 0),
-        tcbm: totals.tcbm + Number(row.tcbm || 0),
-        twt: totals.twt + Number(row.twt || 0),
-      }),
-      { ctn: 0, tpcs: 0, tcbm: 0, twt: 0 }
-    );
-  }, [rows]);
+  const calculateTotals = useCallback(
+    (rowArray = rows) => {
+      return rowArray.reduce(
+        (totals, row) => ({
+          ctn: totals.ctn + Number(row.ctn || 0),
+          tpcs: totals.tpcs + Number(row.tpcs || 0),
+          tcbm: totals.tcbm + Number(row.tcbm || 0),
+          twt: totals.twt + Number(row.twt || 0),
+        }),
+        { ctn: 0, tpcs: 0, tcbm: 0, twt: 0 }
+      );
+    },
+    [rows]
+  );
 
   const rowTotals = calculateTotals();
 
   // Check for mismatch warning
   useEffect(() => {
-    const mismatchCTN = Math.abs(rowTotals.ctn - referenceTotals.totalCTN) > 0.1;
-    const mismatchWeight = Math.abs(rowTotals.twt - referenceTotals.totalWeight) > 0.01;
-    const mismatchCBM = Math.abs(rowTotals.tcbm - referenceTotals.totalCBM) > 0.001;
-    
+    const mismatchCTN =
+      Math.abs(rowTotals.ctn - referenceTotals.totalCTN) > 0.1;
+    const mismatchWeight =
+      Math.abs(rowTotals.twt - referenceTotals.totalWeight) > 0.01;
+    const mismatchCBM =
+      Math.abs(rowTotals.tcbm - referenceTotals.totalCBM) > 0.001;
+
     const hasMismatch = mismatchCTN || mismatchWeight || mismatchCBM;
     setShowMismatchWarning(hasMismatch && rows.length > 0);
   }, [rowTotals, referenceTotals, rows.length]);
@@ -80,40 +96,44 @@ export default function NewLoadingPage() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ctrl+S to save
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         if (isHeaderComplete && rows.length > 0) {
           handleSave("save");
         }
       }
-      
+
       // Ctrl+N to add new item
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault();
         addRow();
       }
-      
+
       // Ctrl+D to duplicate last item
-      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
         duplicateLastRow();
       }
-      
+
       // Ctrl+Shift+N for save and next
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "N") {
         e.preventDefault();
         if (isHeaderComplete && rows.length > 0) {
           handleSave("next");
         }
       }
-      
+
       // Escape to go back
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         router.push("/dashboard/loading");
       }
-      
+
       // Enter in last row to add new row
-      if (e.key === 'Enter' && e.target.tagName === 'INPUT' && lastAddedRowRef.current) {
+      if (
+        e.key === "Enter" &&
+        e.target.tagName === "INPUT" &&
+        lastAddedRowRef.current
+      ) {
         const isLastInput = e.target === lastAddedRowRef.current;
         if (isLastInput && isHeaderComplete) {
           setTimeout(() => addRow(), 100);
@@ -121,8 +141,8 @@ export default function NewLoadingPage() {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isHeaderComplete, rows.length]);
 
   // Focus first field on mount
@@ -140,7 +160,7 @@ export default function NewLoadingPage() {
   const fetchContainerSuggestions = async (search = "") => {
     try {
       const response = await api.get("/loading/suggestions/containers", {
-        params: { search }
+        params: { search },
       });
       if (response.data.success) {
         setContainerSuggestions(response.data.data);
@@ -149,15 +169,14 @@ export default function NewLoadingPage() {
       console.error("Error fetching container suggestions:", error);
     }
   };
-const handleContainerCodeChange = (value) => {
+  const handleContainerCodeChange = (value) => {
     setContainerCode(value);
     fetchContainerSuggestions(value);
-
-}
+  };
   const fetchShippingMarkSuggestions = async (search = "") => {
     try {
       const response = await api.get("/loading/suggestions/shipping-marks", {
-        params: { search }
+        params: { search },
       });
       if (response.data.success) {
         setShippingMarkSuggestions(response.data.data);
@@ -224,10 +243,12 @@ const handleContainerCodeChange = (value) => {
     };
 
     setRows((prev) => [...prev, newRow]);
-    
+
     // Focus on the new row's first input after a delay
     setTimeout(() => {
-      const newRowInputs = document.querySelectorAll(`[data-row-id="${newRow.id}"] input`);
+      const newRowInputs = document.querySelectorAll(
+        `[data-row-id="${newRow.id}"] input`
+      );
       if (newRowInputs[0]) {
         newRowInputs[0].focus();
       }
@@ -258,7 +279,7 @@ const handleContainerCodeChange = (value) => {
       newRows.splice(index + 1, 0, duplicatedRow);
       return newRows;
     });
-    
+
     toast.success("Row duplicated");
   };
 
@@ -321,11 +342,15 @@ const handleContainerCodeChange = (value) => {
       const formData = new FormData();
       formData.append("photo", file);
 
-      const response = await api.post(`/loading/upload-photo?containerCode=${containerCode}`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await api.post(
+        `/loading/upload-photo?containerCode=${containerCode}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       if (response.data.success) {
         const photoUrl = response.data.data.photo;
@@ -335,7 +360,8 @@ const handleContainerCodeChange = (value) => {
       }
       throw new Error("Upload failed");
     } catch (error) {
-      const errorMessage = error.response?.data?.message || "Failed to upload photo";
+      const errorMessage =
+        error.response?.data?.message || "Failed to upload photo";
       toast.error(errorMessage);
       return null;
     }
@@ -395,7 +421,7 @@ const handleContainerCodeChange = (value) => {
         origin,
         loadingDate,
         shippingMark,
-        rows: rows.map(row => ({
+        rows: rows.map((row) => ({
           particular: row.particular,
           shippingMark: row.shippingMark || shippingMark,
           ctnMark: row.ctnMark,
@@ -405,29 +431,35 @@ const handleContainerCodeChange = (value) => {
           unit: row.unit || "PCS",
           cbm: Number(row.cbm),
           wt: Number(row.wt),
-          photo: row.photo || '',
+          photo: row.photo || "",
         })),
       };
 
       const response = await api.post("/loading", payload);
 
       if (response.data.success) {
-        const successMsg = action === "view" 
-          ? "Saved! Redirecting..."
-          : action === "next"
-          ? "Saved! Ready for next..."
-          : "Saved successfully";
+        const successMsg =
+          action === "view"
+            ? "Saved! Redirecting..."
+            : action === "next"
+            ? "Saved! Ready for next..."
+            : "Saved successfully";
 
         toast.success(successMsg);
 
         if (action === "view") {
-          setTimeout(() => router.push(`/dashboard/loading/${containerCode}`), 800);
+          setTimeout(
+            () => router.push(`/dashboard/loading/${containerCode}`),
+            800
+          );
         } else if (action === "next") {
           // Clear for next client, keep container
           setShippingMark("");
           setRows([]);
           setTimeout(() => {
-            const particularInput = document.querySelector('input[placeholder*="Item description"]');
+            const particularInput = document.querySelector(
+              'input[placeholder*="Item description"]'
+            );
             if (particularInput) particularInput.focus();
           }, 100);
         } else {
@@ -438,7 +470,7 @@ const handleContainerCodeChange = (value) => {
       }
     } catch (error) {
       console.error("Save error:", error);
-      
+
       if (error.response?.data?.message) {
         toast.error(error.response.data.message);
       } else {
@@ -462,10 +494,10 @@ const handleContainerCodeChange = (value) => {
 
   const loadContainerData = async () => {
     if (!containerCode || containerCode.length < 3) return;
-    
+
     try {
       const response = await api.get(`/loading/container/${containerCode}`);
-      
+
       if (response.data.success && response.data.data.origin) {
         setOrigin(response.data.data.origin);
         toast.success(`Auto-filled origin: ${response.data.data.origin}`);
@@ -478,26 +510,36 @@ const handleContainerCodeChange = (value) => {
   // Get mismatch warning message
   const getMismatchWarning = () => {
     const messages = [];
-    
+
     if (Math.abs(rowTotals.ctn - referenceTotals.totalCTN) > 0.1) {
-      messages.push(`CTN: Calculated ${rowTotals.ctn} vs Reference ${referenceTotals.totalCTN}`);
+      messages.push(
+        `CTN: Calculated ${rowTotals.ctn} vs Reference ${referenceTotals.totalCTN}`
+      );
     }
-    
+
     if (Math.abs(rowTotals.twt - referenceTotals.totalWeight) > 0.01) {
-      messages.push(`Weight: Calculated ${rowTotals.twt.toFixed(2)} vs Reference ${referenceTotals.totalWeight}`);
+      messages.push(
+        `Weight: Calculated ${rowTotals.twt.toFixed(2)} vs Reference ${
+          referenceTotals.totalWeight
+        }`
+      );
     }
-    
+
     if (Math.abs(rowTotals.tcbm - referenceTotals.totalCBM) > 0.001) {
-      messages.push(`CBM: Calculated ${rowTotals.tcbm.toFixed(3)} vs Reference ${referenceTotals.totalCBM}`);
+      messages.push(
+        `CBM: Calculated ${rowTotals.tcbm.toFixed(3)} vs Reference ${
+          referenceTotals.totalCBM
+        }`
+      );
     }
-    
+
     return messages.join(" • ");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6 pb-20"> {/* Extra padding for footer */}
-   
-      
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 pb-20">
+      {" "}
+      {/* Extra padding for footer */}
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 md:mb-8">
@@ -520,7 +562,7 @@ const handleContainerCodeChange = (value) => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <button
                 onClick={clearAllRows}
@@ -549,8 +591,14 @@ const handleContainerCodeChange = (value) => {
               <h2 className="text-lg font-semibold text-gray-800">
                 Container & Client Details
               </h2>
-              
-              <div className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isHeaderComplete ? "bg-green-50 text-green-700 border border-green-200" : "bg-yellow-50 text-yellow-700 border border-yellow-200"}`}>
+
+              <div
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                  isHeaderComplete
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                }`}
+              >
                 {isHeaderComplete ? (
                   <span className="flex items-center gap-1.5">
                     <Unlock className="w-4 h-4" />
@@ -604,7 +652,7 @@ const handleContainerCodeChange = (value) => {
                   className="w-full border border-gray-300 px-3 py-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   placeholder="YIWU, Shanghai, etc."
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && containerCode && shippingMark) {
+                    if (e.key === "Enter" && containerCode && shippingMark) {
                       addRow();
                     }
                   }}
@@ -627,7 +675,9 @@ const handleContainerCodeChange = (value) => {
                   <datalist id="shippingMarkSuggestions">
                     {shippingMarkSuggestions.map((mark, index) => (
                       <option key={index} value={mark.name}>
-                        {mark.source ? `${mark.name} (${mark.source})` : mark.name}
+                        {mark.source
+                          ? `${mark.name} (${mark.source})`
+                          : mark.name}
                       </option>
                     ))}
                   </datalist>
@@ -669,7 +719,8 @@ const handleContainerCodeChange = (value) => {
                       Shipment Items
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                      {rows.length} item{rows.length !== 1 ? 's' : ''} • Press Enter in last field to add new
+                      {rows.length} item{rows.length !== 1 ? "s" : ""} • Press
+                      Enter in last field to add new
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -695,9 +746,7 @@ const handleContainerCodeChange = (value) => {
 
                 {rows.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl">
-                    <div className="text-gray-400 mb-4">
-                      No items added yet
-                    </div>
+                    <div className="text-gray-400 mb-4">No items added yet</div>
                     <div className="space-y-2">
                       <button
                         onClick={addRow}
@@ -706,9 +755,7 @@ const handleContainerCodeChange = (value) => {
                         <Plus className="w-4 h-4" />
                         Add First Item
                       </button>
-                      <p className="text-xs text-gray-500">
-                        Or press Ctrl+N
-                      </p>
+                      <p className="text-xs text-gray-500">Or press Ctrl+N</p>
                     </div>
                   </div>
                 ) : (
@@ -736,7 +783,7 @@ const handleContainerCodeChange = (value) => {
                         Press Ctrl+S to save • Ctrl+Shift+N for Save & Next
                       </div>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={() => handleSave("save")}
@@ -747,7 +794,7 @@ const handleContainerCodeChange = (value) => {
                         <Save className="w-4 h-4" />
                         Save Only
                       </button>
-                      
+
                       <button
                         onClick={() => handleSave("next")}
                         disabled={isSubmitting}
@@ -757,7 +804,7 @@ const handleContainerCodeChange = (value) => {
                         <ArrowRight className="w-4 h-4" />
                         Save & Next
                       </button>
-                      
+
                       <button
                         onClick={() => handleSave("view")}
                         disabled={isSubmitting}
@@ -792,7 +839,6 @@ const handleContainerCodeChange = (value) => {
           )}
         </div>
       </div>
-
       {/* Quick Actions Footer */}
       {/* <QuickActionsFooter
         onSave={() => handleSave("save")}

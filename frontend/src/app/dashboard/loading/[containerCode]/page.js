@@ -20,7 +20,7 @@ export default function ContainerDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [containerData, setContainerData] = useState(null);
   const [containerStatus, setContainerStatus] = useState("DRAFT");
-  
+
   // Filters state
   const [filters, setFilters] = useState({
     search: "",
@@ -33,7 +33,7 @@ export default function ContainerDetailsPage() {
     maxWeight: "",
     minCBM: "",
     maxCBM: "",
-    sortBy: "client"
+    sortBy: "client",
   });
 
   // UI state
@@ -55,7 +55,7 @@ export default function ContainerDetailsPage() {
     try {
       setLoading(true);
       const paramsObj = new URLSearchParams();
-      
+
       // Add all filters to query params
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== "") {
@@ -63,12 +63,16 @@ export default function ContainerDetailsPage() {
         }
       });
 
-      const response = await api.get(`/loading/containers/${encodeURIComponent(containerCode)}/details?${paramsObj}`);
+      const response = await api.get(
+        `/loading/containers/${encodeURIComponent(
+          containerCode
+        )}/details?${paramsObj}`
+      );
 
       if (response.data.success) {
         const data = response.data.data;
         setContainerData(data);
-        
+
         if (data.clientGroups.length > 0) {
           setContainerStatus(data.clientGroups[0].status || "DRAFT");
         }
@@ -86,14 +90,17 @@ export default function ContainerDetailsPage() {
   // Update container status
   const updateContainerStatus = async (newStatus) => {
     try {
-      if (!['DRAFT', 'CONFIRMED', 'COMPLETED'].includes(newStatus)) {
+       if (!["DRAFT", "CONFIRMED"].includes(newStatus)) {
         toast.error("Invalid status");
         return;
       }
 
-      const response = await api.patch(`/loading/containers/${encodeURIComponent(containerCode)}/status`, {
-        status: newStatus
-      });
+      const response = await api.patch(
+        `/loading/containers/${encodeURIComponent(containerCode)}/status`,
+        {
+          status: newStatus,
+        }
+      );
 
       if (response.data.success) {
         setContainerStatus(newStatus);
@@ -110,7 +117,7 @@ export default function ContainerDetailsPage() {
 
   // Handle filter change
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   // Clear all filters
@@ -126,7 +133,7 @@ export default function ContainerDetailsPage() {
       maxWeight: "",
       minCBM: "",
       maxCBM: "",
-      sortBy: "client"
+      sortBy: "client",
     });
     setSelectedClients([]);
   };
@@ -153,8 +160,12 @@ export default function ContainerDetailsPage() {
             Back to Containers
           </button>
           <div className="bg-white rounded-lg shadow border p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Container Not Found</h2>
-            <p className="text-gray-600 mb-6">The container {containerCode} does not exist or has no data.</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Container Not Found
+            </h2>
+            <p className="text-gray-600 mb-6">
+              The container {containerCode} does not exist or has no data.
+            </p>
             <button
               onClick={() => router.push("/dashboard/loading")}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -176,7 +187,7 @@ export default function ContainerDetailsPage() {
           containerStatus={containerStatus}
           onBack={() => router.push("/dashboard/loading")}
           onStatusUpdate={updateContainerStatus}
-          onPreviewAll={() => setPreviewClient('all')}
+          onPreviewAll={() => setPreviewClient("all")}
           onExportClick={(type) => setExportType(type)}
         />
 
@@ -190,15 +201,15 @@ export default function ContainerDetailsPage() {
           onFilterChange={handleFilterChange}
           onToggleFilters={() => setShowFilters(!showFilters)}
           onToggleClient={(client) => {
-            setSelectedClients(prev =>
+            setSelectedClients((prev) =>
               prev.includes(client)
-                ? prev.filter(c => c !== client)
+                ? prev.filter((c) => c !== client)
                 : [...prev, client]
             );
           }}
           onToggleAllClients={() => {
-            const allClients = containerData.clientGroups.map(g => g.client);
-            setSelectedClients(prev =>
+            const allClients = containerData.clientGroups.map((g) => g.client);
+            setSelectedClients((prev) =>
               prev.length === allClients.length ? [] : allClients
             );
           }}
@@ -207,7 +218,11 @@ export default function ContainerDetailsPage() {
 
         <div className="my-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            Showing <span className="font-semibold">{containerData.clientGroups.length}</span> clients
+            Showing{" "}
+            <span className="font-semibold">
+              {containerData.clientGroups.length}
+            </span>{" "}
+            clients
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input
@@ -228,7 +243,11 @@ export default function ContainerDetailsPage() {
           onEdit={setEditClient}
           onCopySummary={async (clientName) => {
             try {
-              const response = await api.get(`/loading/containers/${encodeURIComponent(containerCode)}/clients/${clientName}/summary`);
+              const response = await api.get(
+                `/loading/containers/${encodeURIComponent(
+                  containerCode
+                )}/clients/${clientName}/summary`
+              );
               if (response.data.success) {
                 await navigator.clipboard.writeText(response.data.data.summary);
                 toast.success("Client summary copied to clipboard");
@@ -238,10 +257,13 @@ export default function ContainerDetailsPage() {
             }
           }}
           onShare={(clientName) => {
-            const clientGroup = containerData.clientGroups.find(g => g.client === clientName);
+            const clientGroup = containerData.clientGroups.find(
+              (g) => g.client === clientName
+            );
             if (!clientGroup) return;
 
-            const message = encodeURIComponent(`
+            const message = encodeURIComponent(
+              `
 *${containerCode} - ${clientName} Summary*
 
 📦 Total CTN: ${clientGroup.totals.ctn}
@@ -251,9 +273,10 @@ export default function ContainerDetailsPage() {
 📋 Items: ${clientGroup.totals.itemCount}
 📅 Loading Date: ${new Date(clientGroup.loadingDate).toLocaleDateString()}
 ✅ Status: ${clientGroup.status}
-            `.trim());
+            `.trim()
+            );
 
-            window.open(`https://wa.me/?text=${message}`, '_blank');
+            window.open(`https://wa.me/?text=${message}`, "_blank");
           }}
         />
       </div>
@@ -288,7 +311,9 @@ export default function ContainerDetailsPage() {
         <EditClientModal
           containerCode={containerCode}
           clientName={editClient}
-          clientData={containerData.clientGroups.find(g => g.client === editClient)}
+          clientData={containerData.clientGroups.find(
+            (g) => g.client === editClient
+          )}
           onClose={() => setEditClient(null)}
           onSave={(updatedData) => {
             // Handle edit save
