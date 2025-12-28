@@ -18,12 +18,16 @@ const loadingRoutes = require("./loading/loading.routes");
 const bifurcationRoutes = require('./bifurcation/bifurcation.routes');
 const packingListRoutes = require('./packing-list/packing-list.routes');
 const commercialInvoiceRoutes = require('./commercial-invoice/commercial-invoice.routes');
+const containerInSummary = require('./containerSummary/containerSummary.routes');
+const warehouseRoutes = require('./warehouse/warehouse.routes');
 
 
 router.use("/loading", loadingRoutes);
 router.use("/bifurcation", bifurcationRoutes);
 router.use('/packing-list', packingListRoutes);
 router.use('/commercial-invoice', commercialInvoiceRoutes);
+router.use('/container-summaries', containerInSummary);
+router.use('/warehouse', warehouseRoutes);
 module.exports = router;
 // Add this with your other route imports
 

@@ -301,14 +301,14 @@ export default function BifurcationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-   <Header
-  containerCode={containerCode}
-  status={bifurcationData?.status || "DRAFT"}
-  onBack={() => router.push("/dashboard/loading")}
-  onRefresh={loadData}
-  onExport={exportToExcel}
-  hasBifurcationData={hasBifurcationData}
-/>
+      <Header
+        containerCode={containerCode}
+        status={bifurcationData?.status || "DRAFT"}
+        onBack={() => router.push("/dashboard/loading")}
+        onRefresh={loadData}
+        onExport={exportToExcel}
+        hasBifurcationData={hasBifurcationData}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Warning for loading sheet data */}

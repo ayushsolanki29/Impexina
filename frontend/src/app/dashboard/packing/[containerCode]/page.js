@@ -507,8 +507,7 @@ export default function PackingListPage() {
   <th>T-QTY</th>
   <th>KG</th>
   <th>T.KG</th>
-  ${formData.showMixColumn ? '<th>MIX</th>' : ''}
-  ${formData.showHsnColumn ? '<th>HSN</th>' : ''}
+
 </tr>`;
 
     const rowsHtml = items
@@ -528,14 +527,13 @@ export default function PackingListPage() {
   <td class="right">${it.tQty}</td>
   <td class="right">${it.kg}</td>
   <td class="right">${Number(it.tKg).toFixed(2)}</td>
-  ${formData.showMixColumn ? `<td class="center">${escapeHtml(it.mix)}</td>` : ''}
-  ${formData.showHsnColumn ? `<td class="center">${escapeHtml(it.hsn)}</td>` : ''}
+
 </tr>`;
       })
       .join("");
 
     // Calculate colspan for totals row
-    const totalColspan = 4 + (formData.showMixColumn ? 1 : 0) + (formData.showHsnColumn ? 1 : 0);
+    const totalColspan = 4 ;
 
     return `<!DOCTYPE html>
 <html>
@@ -641,8 +639,7 @@ ${rowsHtml}
   <td class="right">${totals.tQty}</td>
   <td></td>
   <td class="right">${totals.tKg.toFixed(2)}</td>
-  ${formData.showMixColumn ? '<td></td>' : ''}
-  ${formData.showHsnColumn ? '<td></td>' : ''}
+
 </tr>
 </tbody>
 </table>

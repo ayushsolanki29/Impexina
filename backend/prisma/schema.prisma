@@ -60,6 +60,8 @@ model User {
   bifurcationActivities       BifurcationActivity[]
   packingListActivities       PackingListActivity[]
   commercialInvoiceActivities CommercialInvoiceActivity[]
+  summaryActivities           SummaryActivity[]
+  warehousePlanActivities     WarehousePlanActivity[]
 }
 
 model Module {
@@ -498,3 +500,198 @@ model CommercialInvoiceActivity {
 
   createdAt DateTime @default(now())
 }
+
+// Add to your existing schema
+
+enum SummaryStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model ContainerSummary {
+  id     String        @id @default(cuid())
+  month  String // e.g., "December 2024"
+  status SummaryStatus @default(DRAFT)
+
+  // Totals
+  totalContainers  Int   @default(0)
+  totalCTN         Int   @default(0)
+  totalDollar      Float @default(0)
+  totalINR         Float @default(0)
+  totalFinalAmount Float @default(0)
+
+  // Metadata
+  createdBy String
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  containers ContainerInSummary[]
+  activities SummaryActivity[]
+
+  @@unique([month, createdBy])
+}
+
+model ContainerInSummary {
+  id          String @id @default(cuid())
+  summaryId   String
+  containerNo Int // Sequence number in summary
+
+  // Basic Info
+  containerCode String
+  ctn           Int       @default(0)
+  loadingDate   DateTime?
+  eta           String?
+  status        String    @default("Loaded")
+
+  // Financial Inputs
+  dollar     Float @default(0)
+  dollarRate Float @default(89.7)
+  doCharge   Float @default(58000)
+  cfs        Float @default(21830)
+
+  // Calculated Fields
+  inr         Float @default(0)
+  duty        Float @default(0)
+  total       Float @default(0)
+  gst         Float @default(0)
+  totalDuty   Float @default(0)
+  finalAmount Float @default(0)
+
+  // Shipping Info
+  shippingLine     String?
+  bl               String?
+  containerNoField String? // Actual container number
+  sims             String?
+
+  // Relations
+  summary ContainerSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([summaryId, containerNo])
+}
+
+model SummaryActivity {
+  id        String  @id @default(cuid())
+  summaryId String
+  userId    Int
+  type      String // CREATED, UPDATED, STATUS_CHANGE, DELETED, CONTAINER_ADDED, CONTAINER_REMOVED
+  field     String?
+  oldValue  Json?
+  newValue  Json?
+  note      String?
+  ipAddress String?
+  userAgent String?
+
+  summary ContainerSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// Add to your existing schema
+
+enum WarehousePlanStatus {
+  PENDING
+  DISPATCHED
+  HOLD
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum WarehouseActivityType {
+  CREATED
+  UPDATED
+  STATUS_CHANGE
+  MARK_ADDED
+  MARK_UPDATED
+  MARK_DELETED
+  TRANSPORTER_ADDED
+  FILTER_APPLIED
+  EXPORTED
+  IMPORTED
+}
+
+model WarehousePlan {
+  id            String    @id @default(cuid())
+  containerCode String    @unique
+  origin        String?
+  loadingDate   DateTime?
+
+  // Totals
+  totalCTN    Int   @default(0)
+  totalCBM    Float @default(0)
+  totalWeight Float @default(0)
+  totalMarks  Int   @default(0)
+
+  // Status tracking
+  pendingCount    Int @default(0)
+  dispatchedCount Int @default(0)
+  holdCount       Int @default(0)
+  draftCount      Int @default(0)
+
+  // Delivery tracking
+  withDeliveryDate Int @default(0)
+  withInvoice      Int @default(0)
+  withGST          Int @default(0)
+  withTransporter  Int @default(0)
+
+  status WarehousePlanStatus @default(PENDING)
+  note   String?
+
+  // Relations
+  marks      WarehouseMark[]
+  activities WarehousePlanActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WarehouseMark {
+  id            String @id @default(cuid())
+  containerCode String
+  mark          String
+
+  ctn         Int     @default(0)
+  product     String?
+  totalCBM    Float   @default(0)
+  totalWeight Float   @default(0)
+
+  loadingDate  DateTime?
+  deliveryDate DateTime?
+
+  invNo       String?
+  gst         String?
+  transporter String?
+  status      WarehousePlanStatus @default(PENDING)
+
+  // Relations
+  warehousePlan WarehousePlan @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([containerCode, mark])
+}
+
+model WarehousePlanActivity {
+  id            String @id @default(cuid())
+  containerCode String
+  userId        Int
+
+  type     WarehouseActivityType
+  oldValue Json?
+  newValue Json?
+  note     String?
+
+  user      User          @relation(fields: [userId], references: [id])
+  warehouse WarehousePlan @relation(fields: [containerCode], references: [containerCode], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// Add warehouse permissions to UserPermission model

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import API from "@/lib/api";
 import {
   Plus,
@@ -603,8 +603,7 @@ export default function CommercialInvoicePage() {
   if (!invoice) {
     return (
       <div className="p-6">
-        <Toaster position="top-right" />
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
+      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
           <h2 className="text-2xl font-bold mb-2">Initialize Commercial Invoice</h2>
           <p className="text-gray-600 mb-6">
             No commercial invoice found for container <strong>{containerCode}</strong>
@@ -633,7 +632,7 @@ export default function CommercialInvoicePage() {
   // Main commercial invoice editor UI
   return (
     <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <Toaster position="top-right" />
+  
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
