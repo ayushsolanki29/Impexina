@@ -1,325 +1,479 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Plus, 
-  ArrowLeft, 
-  Trash2, 
-  Search, 
-  Download, 
+import {
+  Plus,
+  FolderOpen,
+  Search,
+  Filter,
+  Calendar,
+  Archive,
+  Lock,
+  Unlock,
+  FileText,
   TrendingUp,
-  Briefcase
+  TrendingDown,
+  Users,
+  Download,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Eye,
 } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
+import { dineshbhaiAPI } from "@/services/dineshbhai.service";
 
-export default function DineshSheet() {
+export default function DineshbhaiSheetsPage() {
   const router = useRouter();
-  const [rows, setRows] = useState([]);
+  const [sheets, setSheets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [years, setYears] = useState([]);
 
-  // --- Data Loading & Saving ---
+  // Load data
   useEffect(() => {
-    const saved = localStorage.getItem("igpl_dinesh_sheet");
-    if (saved) setRows(JSON.parse(saved));
-  }, []);
+    loadSheets();
+    loadDashboardStats();
+    loadYears();
+  }, [search, yearFilter, statusFilter]);
 
-  const save = (data) => {
-    setRows(data);
-    localStorage.setItem("igpl_dinesh_sheet", JSON.stringify(data));
-  };
-
-  // --- Actions ---
-  const addRow = () => {
-    const newRow = {
-      id: Date.now(),
-      supplier: "",
-      paymentDate: new Date().toISOString().split('T')[0],
-      amount: "",
-      booking: "",
-      rate: "",
-      total: 0,
-      paid: "",
-      clientRef: ""
-    };
-    save([...rows, newRow]);
-    
-    // Smooth scroll to bottom
-    setTimeout(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }, 100);
-  };
-
-  const updateRow = (id, field, value) => {
-    const updated = rows.map(r => {
-      if (r.id === id) {
-        const newData = { ...r, [field]: value };
-        // Auto-calc Total: Booking * Rate
-        if (field === 'booking' || field === 'rate') {
-          const b = parseFloat(field === 'booking' ? value : r.booking) || 0;
-          const rt = parseFloat(field === 'rate' ? value : r.rate) || 0;
-          newData.total = Math.round(b * rt);
-        }
-        return newData;
-      }
-      return r;
-    });
-    save(updated);
-  };
-
-  const deleteRow = (id) => {
-    if(confirm("Are you sure you want to delete this entry?")) {
-        save(rows.filter(r => r.id !== id));
-        toast.success("Row deleted");
+  const loadSheets = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        search,
+        year: yearFilter,
+        status: statusFilter,
+        page: 1,
+        limit: 100,
+      };
+      const data = await dineshbhaiAPI.getSheets(params);
+      setSheets(data.data.data.sheets || []);
+    } catch (error) {
+      toast.error(error.message || "Failed to load sheets");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- Filtering & Calculations ---
-  const filteredRows = rows.filter(r => 
-    (r.supplier || "").toLowerCase().includes(search.toLowerCase()) || 
-    (r.clientRef || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const loadDashboardStats = async () => {
+    try {
+      const data = await dineshbhaiAPI.getDashboardOverview();
+      setDashboardStats(data.data.data);
+    } catch (error) {
+      console.error("Failed to load dashboard stats:", error);
+    }
+  };
 
-  const stats = rows.reduce((acc, r) => ({
-    totalPayable: acc.totalPayable + (parseFloat(r.total) || 0),
-    totalPaid: acc.totalPaid + (parseFloat(r.paid) || 0)
-  }), { totalPayable: 0, totalPaid: 0 });
+  const loadYears = async () => {
+    try {
+      const data = await dineshbhaiAPI.getSheets({ limit: 1000 });
+      const uniqueYears = [
+        ...new Set(data.data.data.sheets.map((s) => s.year).filter(Boolean)),
+      ].sort((a, b) => b - a);
+      setYears(uniqueYears);
+    } catch (error) {
+      console.error("Failed to load years:", error);
+    }
+  };
+
+  const handleCreateSheet = async () => {
+    try {
+      const titleData = await dineshbhaiAPI.generateDefaultTitle();
+      const defaultTitle = titleData.data.data.title;
+
+      const sheet = await dineshbhaiAPI.createSheet({
+        title: defaultTitle,
+      });
+
+      toast.success("Sheet created successfully");
+      router.push(`/dashboard/accounts/dinesh/${sheet.data.data.id}`);
+    } catch (error) {
+      toast.error(error.message || "Failed to create sheet");
+    }
+  };
+
+  const handleDeleteSheet = async (sheetId, sheetTitle) => {
+    if (!confirm(`Are you sure you want to archive "${sheetTitle}"?`)) return;
+
+    try {
+      await dineshbhaiAPI.deleteSheet(sheetId);
+      toast.success("Sheet archived successfully");
+      loadSheets();
+      loadDashboardStats();
+    } catch (error) {
+      toast.error(error.message || "Failed to archive sheet");
+    }
+  };
+
+  const handleExportSheet = async (sheetId, sheetTitle) => {
+    try {
+      const blob = await dineshbhaiAPI.exportSheet(sheetId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${sheetTitle.replace(/\s+/g, "_")}_export_${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Sheet exported successfully");
+    } catch (error) {
+      toast.error(error.message || "Failed to export sheet");
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Toaster position="top-center" richColors />
-      
-      {/* --- Sticky Header --- */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-         <div className="max-w-[1600px] mx-auto px-4 py-3">
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                 
-                 {/* Left: Title & Back */}
-                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => router.push('/dashboard/accounts')} 
-                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <FolderOpen className="w-6 h-6 text-emerald-600" />
+                Dineshbhai Sheets
+              </h1>
+              <p className="text-sm text-slate-600 mt-1">
+                Manage Dineshbhai booking ledgers and payment sheets
+              </p>
+            </div>
+            <button
+              onClick={handleCreateSheet}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              New Sheet
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard Stats */}
+      {dashboardStats && (
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-medium text-slate-500 uppercase">
+                    Total Sheets
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-1">
+                    {dashboardStats.totals.totalSheets}
+                  </div>
+                </div>
+                <FileText className="w-8 h-8 text-blue-500" />
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                Active: {dashboardStats.totals.activeSheets} • Archived:{" "}
+                {dashboardStats.totals.archivedSheets}
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-medium text-slate-500 uppercase">
+                    Total Entries
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-1">
+                    {dashboardStats.totals.totalEntries}
+                  </div>
+                </div>
+                <Users className="w-8 h-8 text-purple-500" />
+              </div>
+            </div>
+
+            {dashboardStats.currentMonth.sheet && (
+              <>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            Dineshbhai
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
-                                Booking Ledger 25-26
-                            </span>
-                        </h1>
+                      <div className="text-xs font-medium text-slate-500 uppercase">
+                        Current Month Total
+                      </div>
+                      <div className="text-2xl font-bold text-slate-900 mt-1">
+                        ₹{dashboardStats.currentMonth.total.toLocaleString()}
+                      </div>
                     </div>
-                 </div>
+                    <TrendingUp className="w-8 h-8 text-emerald-500" />
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Paid: ₹{dashboardStats.currentMonth.paid.toLocaleString()}
+                  </div>
+                </div>
 
-                 {/* Right: Stats Cards */}
-                 <div className="flex items-center gap-4 text-sm overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
-                     {/* Total Payable */}
-                     <div className="flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm min-w-[180px]">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-full">
-                            <TrendingUp className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wide">Total Payable</div>
-                            <div className="font-bold text-slate-900 text-base">
-                                ₹{stats.totalPayable.toLocaleString()}
-                            </div>
-                        </div>
-                     </div>
+                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm bg-amber-50/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-medium text-amber-700 uppercase">
+                        Current Month Balance
+                      </div>
+                      <div className="text-2xl font-bold text-amber-700 mt-1">
+                        ₹{dashboardStats.currentMonth.balance.toLocaleString()}
+                      </div>
+                    </div>
+                    <TrendingDown className="w-8 h-8 text-amber-500" />
+                  </div>
+                  <div className="mt-2 text-xs text-amber-600">
+                    Sheet: {dashboardStats.currentMonth.sheet.title}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
-                     {/* Total Paid */}
-                     <div className="flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm min-w-[180px]">
-                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-full">
-                            <Briefcase className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wide">Total Paid</div>
-                            <div className="font-bold text-emerald-700 text-base">
-                                ₹{stats.totalPaid.toLocaleString()}
-                            </div>
-                        </div>
-                     </div>
-
-                     {/* Balance */}
-                     <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border border-amber-100 rounded-lg shadow-sm min-w-[180px]">
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-amber-700/70 tracking-wide">Balance Due</div>
-                            <div className="font-bold text-amber-700 text-lg">
-                                ₹{(stats.totalPayable - stats.totalPaid).toLocaleString()}
-                            </div>
-                        </div>
-                     </div>
-                 </div>
-             </div>
-         </div>
-      </header>
-
-      {/* --- Main Content --- */}
-      <main className="max-w-[1600px] mx-auto p-4 md:p-6">
-        
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-4">
-            <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input 
-                    className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
-                    placeholder="Search Supplier or Client Ref..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+      {/* Filters */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search sheets by title or description..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
+              </div>
             </div>
-            <div className="flex w-full sm:w-auto gap-2">
-                <button 
-                    onClick={() => toast.info("Export feature coming soon!")}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium text-sm rounded-lg hover:bg-slate-50 shadow-sm transition-all"
-                >
-                    <Download className="w-4 h-4" /> Export
-                </button>
-                <button 
-                    onClick={addRow} 
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2 bg-emerald-600 text-white font-medium text-sm rounded-lg hover:bg-emerald-700 shadow-md transition-all active:scale-95"
-                >
-                    <Plus className="w-4 h-4" /> Add Entry
-                </button>
+            <div className="flex gap-3">
+              <select
+                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+              >
+                <option value="">All Years</option>
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">All Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="ARCHIVED">Archived</option>
+                <option value="LOCKED">Locked</option>
+              </select>
+              <button
+                onClick={loadSheets}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg flex items-center gap-2"
+              >
+                <Filter className="w-4 h-4" />
+                Filter
+              </button>
             </div>
+          </div>
         </div>
+      </div>
 
-        {/* --- Ledger Table Card --- */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-semibold tracking-wider border-b border-slate-200">
-                        <tr>
-                            <th className="px-4 py-3 text-left w-48">Supplier</th>
-                            <th className="px-4 py-3 text-left w-36">Payment Date</th>
-                            <th className="px-4 py-3 text-right w-32">Amount</th>
-                            <th className="px-4 py-3 text-right w-32 bg-blue-50/50 text-blue-700">Booking</th>
-                            <th className="px-4 py-3 text-right w-24 bg-blue-50/50 text-blue-700">Rate</th>
-                            <th className="px-4 py-3 text-right w-36 bg-emerald-50/50 text-emerald-700 border-l border-emerald-100">Total</th>
-                            <th className="px-4 py-3 text-right w-36">Paid</th>
-                            <th className="px-4 py-3 text-left min-w-[200px]">Client Ref</th>
-                            <th className="px-2 py-3 w-12 text-center"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredRows.length === 0 ? (
-                            <tr>
-                                <td colSpan={9} className="text-center py-20 text-slate-400">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                                            <Search className="w-6 h-6 text-slate-300" />
-                                        </div>
-                                        <p>No entries found.</p>
-                                        <button onClick={addRow} className="mt-2 text-emerald-600 hover:underline font-medium">Add your first entry</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ) : (
-                            filteredRows.map((row) => (
-                                <tr key={row.id} className="group hover:bg-slate-50 transition-colors">
-                                    {/* Supplier */}
-                                    <td className="px-2 py-1 align-top">
-                                        <input 
-                                            className="w-full px-2 py-2 rounded border border-transparent hover:border-slate-200 focus:border-emerald-500 focus:bg-white bg-transparent outline-none font-bold text-slate-700 uppercase"
-                                            placeholder="Supplier Name" 
-                                            value={row.supplier} 
-                                            onChange={e => updateRow(row.id, 'supplier', e.target.value)} 
-                                        />
-                                    </td>
-                                    
-                                    {/* Date */}
-                                    <td className="px-2 py-1 align-top">
-                                        <input 
-                                            type="date" 
-                                            className="w-full px-2 py-2 rounded border border-transparent hover:border-slate-200 focus:border-emerald-500 focus:bg-white bg-transparent outline-none text-slate-600"
-                                            value={row.paymentDate} 
-                                            onChange={e => updateRow(row.id, 'paymentDate', e.target.value)} 
-                                        />
-                                    </td>
+      {/* Sheets Grid */}
+      <div className="max-w-7xl mx-auto px-4 pb-8">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-48 bg-slate-100 animate-pulse rounded-xl"
+              />
+            ))}
+          </div>
+        ) : sheets.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+            <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-slate-900">
+              No sheets found
+            </h3>
+            <p className="text-slate-500 text-sm mb-4">
+              Create your first Dineshbhai sheet to get started
+            </p>
+            <button
+              onClick={handleCreateSheet}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+            >
+              <Plus className="w-4 h-4 inline mr-2" />
+              Create Sheet
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sheets.map((sheet) => (
+              <div
+                key={sheet.id}
+                className={`group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md ${
+                  sheet.status === "ARCHIVED"
+                    ? "border-slate-200 opacity-80"
+                    : sheet.status === "LOCKED"
+                    ? "border-amber-200"
+                    : "border-emerald-200"
+                }`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700">
+                        {sheet.title}
+                      </h3>
+                      {sheet.status === "LOCKED" && (
+                        <Lock className="w-4 h-4 text-amber-500" />
+                      )}
+                      {sheet.status === "ARCHIVED" && (
+                        <Archive className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      {sheet.month && sheet.year && (
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(
+                            sheet.year,
+                            sheet.month - 1
+                          ).toLocaleDateString("en-US", {
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </span>
+                      )}
+                      {sheet.tags && sheet.tags.length > 0 && (
+                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                          {sheet.tags[0]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <button className="p-1 text-slate-400 hover:text-slate-600">
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
-                                    {/* Amount */}
-                                    <td className="px-2 py-1 align-top">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-slate-200 focus:border-emerald-500 focus:bg-white bg-transparent outline-none text-slate-600"
-                                            placeholder="-" 
-                                            value={row.amount} 
-                                            onChange={e => updateRow(row.id, 'amount', e.target.value)} 
-                                        />
-                                    </td>
+                {sheet.description && (
+                  <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+                    {sheet.description}
+                  </p>
+                )}
 
-                                    {/* Booking */}
-                                    <td className="px-2 py-1 align-top bg-blue-50/20 group-hover:bg-blue-50/40">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-blue-300 focus:border-blue-500 focus:bg-white bg-transparent outline-none font-medium text-slate-800"
-                                            placeholder="0" 
-                                            value={row.booking} 
-                                            onChange={e => updateRow(row.id, 'booking', e.target.value)} 
-                                        />
-                                    </td>
+                {/* Summary Stats */}
+                <div className="mb-4">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">
+                        Total
+                      </div>
+                      <div className="font-medium text-slate-900">
+                        ₹{sheet.summary.totalPayable.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">
+                        Paid
+                      </div>
+                      <div className="font-medium text-emerald-700">
+                        ₹{sheet.summary.totalPaid.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">
+                        Balance
+                      </div>
+                      <div
+                        className={`font-bold ${
+                          sheet.summary.balance > 0
+                            ? "text-amber-600"
+                            : "text-emerald-600"
+                        }`}
+                      >
+                        ₹{sheet.summary.balance.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                                    {/* Rate */}
-                                    <td className="px-2 py-1 align-top bg-blue-50/20 group-hover:bg-blue-50/40">
-                                        <input 
-                                            type="number" 
-                                            step="0.01"
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-blue-300 focus:border-blue-500 focus:bg-white bg-transparent outline-none font-medium text-slate-800"
-                                            placeholder="0.00" 
-                                            value={row.rate} 
-                                            onChange={e => updateRow(row.id, 'rate', e.target.value)} 
-                                        />
-                                    </td>
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs text-slate-400">
+                      {sheet.summary.entryCount} entries
+                    </span>
+                    <div
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        sheet.status === "ACTIVE"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          : sheet.status === "ARCHIVED"
+                          ? "bg-slate-100 text-slate-600 border border-slate-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-100"
+                      }`}
+                    >
+                      {sheet.status}
+                    </div>
+                  </div>
 
-                                    {/* Total (Calculated) */}
-                                    <td className="px-4 py-3 align-top text-right font-bold text-emerald-700 bg-emerald-50/20 group-hover:bg-emerald-50/40 border-l border-emerald-50">
-                                        {row.total ? row.total.toLocaleString() : "-"}
-                                    </td>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        router.push(`/dashboard/accounts/dinesh/${sheet.id}`)
+                      }
+                      className="flex-1 py-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center justify-center gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Open
+                    </button>
 
-                                    {/* Paid */}
-                                    <td className="px-2 py-1 align-top">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-slate-200 focus:border-emerald-500 focus:bg-white bg-transparent outline-none font-medium text-slate-700"
-                                            placeholder="-" 
-                                            value={row.paid} 
-                                            onChange={e => updateRow(row.id, 'paid', e.target.value)} 
-                                        />
-                                    </td>
-
-                                    {/* Client Ref */}
-                                    <td className="px-2 py-1 align-top">
-                                        <input 
-                                            className="w-full px-2 py-2 rounded border border-transparent hover:border-slate-200 focus:border-emerald-500 focus:bg-white bg-transparent outline-none text-slate-600"
-                                            placeholder="Add reference..." 
-                                            value={row.clientRef} 
-                                            onChange={e => updateRow(row.id, 'clientRef', e.target.value)} 
-                                        />
-                                    </td>
-
-                                    {/* Delete Action */}
-                                    <td className="px-2 py-1 align-middle text-center">
-                                        <button 
-                                            onClick={() => deleteRow(row.id)} 
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                            title="Delete Row"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            
-            {/* Table Footer / Summary */}
-            <div className="bg-slate-50 border-t border-slate-200 p-3 text-xs text-slate-500 flex justify-between items-center">
-                <span>Showing {filteredRows.length} entries</span>
-                <span>Auto-saved to local storage</span>
-            </div>
-        </div>
-      </main>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleExportSheet(sheet.id, sheet.title)}
+                        className="p-2 text-slate-400 hover:text-blue-600"
+                        title="Export"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      {sheet.status !== "ARCHIVED" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              router.push(
+                                `/dashboard/accounts/dinesh/${sheet.id}/edit`
+                              )
+                            }
+                            className="p-2 text-slate-400 hover:text-emerald-600"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDeleteSheet(sheet.id, sheet.title)
+                            }
+                            className="p-2 text-slate-400 hover:text-red-600"
+                            title="Archive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

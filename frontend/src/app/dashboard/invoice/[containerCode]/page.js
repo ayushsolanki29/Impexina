@@ -14,18 +14,8 @@ import {
   X,
   Eye,
   ArrowLeft,
-  Copy,
   Settings,
   Activity,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Building,
-  User,
-  FileText,
-  Truck,
-  CreditCard,
-  Calendar,
 } from "lucide-react";
 
 export default function CommercialInvoicePage() {
@@ -50,29 +40,29 @@ export default function CommercialInvoicePage() {
     companyName: "",
     companyAddress: "",
     title: "COMMERCIAL INVOICE",
-    
+
     // Buyer Information
     buyerName: "",
     buyerAddress: "",
     buyerIEC: "",
     buyerGST: "",
     buyerEmail: "",
-    
+
     // Invoice Information
     invoiceNo: "",
     date: new Date().toISOString().split("T")[0],
     from: "CHINA",
     to: "",
     cifText: "",
-    
+
     // Bank Details
     bankDetail: "",
-    
+
     // Stamp Settings
     stampImage: null,
     stampPosition: "BOTTOM_RIGHT",
     stampText: "",
-    
+
     // Status
     status: "DRAFT",
   });
@@ -88,7 +78,9 @@ export default function CommercialInvoicePage() {
   // Load activities
   async function loadActivities() {
     try {
-      const response = await API.get(`/commercial-invoice/${containerCode}/activities`);
+      const response = await API.get(
+        `/commercial-invoice/${containerCode}/activities`
+      );
       if (response.data.success) {
         setActivities(response.data.data);
       }
@@ -118,7 +110,7 @@ export default function CommercialInvoicePage() {
           buyerGST: invoiceData.buyerGST || "",
           buyerEmail: invoiceData.buyerEmail || "",
           invoiceNo: invoiceData.invoiceNo || "",
-          date: invoiceData.invoiceDate 
+          date: invoiceData.invoiceDate
             ? new Date(invoiceData.invoiceDate).toISOString().split("T")[0]
             : new Date().toISOString().split("T")[0],
           from: invoiceData.from || "CHINA",
@@ -138,7 +130,9 @@ export default function CommercialInvoicePage() {
     } catch (error) {
       console.error("Error loading commercial invoice:", error);
       if (error.response?.status === 404) {
-        toast.info("No commercial invoice found. Click 'Initialize' to create one.");
+        toast.info(
+          "No commercial invoice found. Click 'Initialize' to create one."
+        );
       } else {
         toast.error(error.message || "Failed to load commercial invoice");
       }
@@ -147,7 +141,6 @@ export default function CommercialInvoicePage() {
     }
   }
 
- 
   // Save commercial invoice
   async function saveInvoice(isAutoSave = false) {
     try {
@@ -277,11 +270,14 @@ export default function CommercialInvoicePage() {
   }
 
   function addMultipleRows(count) {
-    setItems([...items, ...Array.from({ length: count }, () => baseEmptyRow())]);
+    setItems([
+      ...items,
+      ...Array.from({ length: count }, () => baseEmptyRow()),
+    ]);
   }
 
   function duplicateRow(id) {
-    const rowToDuplicate = items.find(item => item.id === id);
+    const rowToDuplicate = items.find((item) => item.id === id);
     if (rowToDuplicate) {
       const duplicatedRow = {
         ...rowToDuplicate,
@@ -292,7 +288,7 @@ export default function CommercialInvoicePage() {
   }
 
   function insertRowAfter(id) {
-    const index = items.findIndex(item => item.id === id);
+    const index = items.findIndex((item) => item.id === id);
     if (index !== -1) {
       const newItems = [...items];
       newItems.splice(index + 1, 0, baseEmptyRow());
@@ -305,16 +301,20 @@ export default function CommercialInvoicePage() {
       items.map((item) => {
         if (item.id === id) {
           const updated = { ...item, [field]: value };
-          
+
           // Auto-calculate totals
-          if (field === "ctn" || field === "qtyPerCtn" || field === "unitPrice") {
+          if (
+            field === "ctn" ||
+            field === "qtyPerCtn" ||
+            field === "unitPrice"
+          ) {
             const ctn = Number(updated.ctn) || 0;
             const qtyPerCtn = Number(updated.qtyPerCtn) || 0;
             const unitPrice = Number(updated.unitPrice) || 0;
             updated.tQty = ctn * qtyPerCtn;
             updated.amountUsd = updated.tQty * unitPrice;
           }
-          
+
           return updated;
         }
         return item;
@@ -362,7 +362,7 @@ export default function CommercialInvoicePage() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setFormData(prev => ({ ...prev, stampImage: event.target.result }));
+      setFormData((prev) => ({ ...prev, stampImage: event.target.result }));
     };
     reader.readAsDataURL(file);
   }
@@ -382,11 +382,12 @@ export default function CommercialInvoicePage() {
 
   // Build printable HTML
   function buildPrintableHTML() {
-    const stampPositionStyle = {
-      "BOTTOM_LEFT": "text-align: left;",
-      "BOTTOM_CENTER": "text-align: center;",
-      "BOTTOM_RIGHT": "text-align: right;",
-    }[formData.stampPosition] || "text-align: right;";
+    const stampPositionStyle =
+      {
+        BOTTOM_LEFT: "text-align: left;",
+        BOTTOM_CENTER: "text-align: center;",
+        BOTTOM_RIGHT: "text-align: right;",
+      }[formData.stampPosition] || "text-align: right;";
 
     function escapeHtml(s) {
       if (s === null || s === undefined) return "";
@@ -484,7 +485,7 @@ export default function CommercialInvoicePage() {
   </td>
   <td style="width:35%;">
     <b>INV NO.:</b> ${escapeHtml(formData.invoiceNo)}<br/>
-    <b>DATE:</b> ${new Date(formData.date).toLocaleDateString('en-GB')}<br/>
+    <b>DATE:</b> ${new Date(formData.date).toLocaleDateString("en-GB")}<br/>
     <b>${escapeHtml(formData.to)}</b><br/>
     <b>FROM:</b> ${escapeHtml(formData.from)}
   </td>
@@ -578,7 +579,8 @@ export default function CommercialInvoicePage() {
         `/commercial-invoice/initialize/${containerCode}`,
         {
           companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
-          companyAddress: "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
+          companyAddress:
+            "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
         }
       );
       if (response.data.success) {
@@ -603,13 +605,16 @@ export default function CommercialInvoicePage() {
   if (!invoice) {
     return (
       <div className="p-6">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
-          <h2 className="text-2xl font-bold mb-2">Initialize Commercial Invoice</h2>
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8">
+          <h2 className="text-2xl font-bold mb-2">
+            Initialize Commercial Invoice
+          </h2>
           <p className="text-gray-600 mb-6">
-            No commercial invoice found for container <strong>{containerCode}</strong>
-            . Initialize from bifurcation data to create a new invoice.
+            No commercial invoice found for container{" "}
+            <strong>{containerCode}</strong>. Initialize from bifurcation data
+            to create a new invoice.
           </p>
-          
+
           <div className="flex gap-3">
             <button
               onClick={handleInitialize}
@@ -632,7 +637,6 @@ export default function CommercialInvoicePage() {
   // Main commercial invoice editor UI
   return (
     <div className="p-6 min-h-screen bg-gradient-to-b from-white to-slate-50">
-  
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -665,7 +669,6 @@ export default function CommercialInvoicePage() {
                     {formData.status}
                   </span>
                 </span>
-             
               </div>
             </div>
           </div>
@@ -699,9 +702,8 @@ export default function CommercialInvoicePage() {
               <Printer className="w-4 h-4" /> Print
             </button>
           </div>
-          
         </div>
-   {/* Advanced Settings */}
+        {/* Advanced Settings */}
         {showAdvancedSettings && (
           <div className="bg-white border rounded p-4 mt-4">
             <h3 className="font-semibold text-sm mb-3">Advanced Settings</h3>
@@ -727,16 +729,21 @@ export default function CommercialInvoicePage() {
                     setFormData({
                       ...formData,
                       companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
-                      companyAddress: "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
+                      companyAddress:
+                        "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
                       title: "COMMERCIAL INVOICE",
                       buyerName: "IMPEXINA GLOBAL PVT LTD",
-                      buyerAddress: "Ground Floor, C-5, Gami Industrial Park Pawane\nMIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705",
+                      buyerAddress:
+                        "Ground Floor, C-5, Gami Industrial Park Pawane\nMIDC Road NAVI MUMBAI, THANE, Maharashtra, 400705",
                       buyerIEC: "IEC NO.: AAHCI1462J",
                       buyerGST: "GST NO.: 27AAHCI1462J1ZG",
                       buyerEmail: "EMAIL: impexina91@gmail.com",
-                      cifText: "TOTAL CIF USD 9010 AND 90 WITHIN DAYS AFTER DELIVERY",
-                      bankDetail: "BENEFICIARY'S BANK NAME: ZHEJIANG TAILONG COMMERCIAL BANK\nBENEFICIARY NAME: YIWU ZHOULAI TRADING CO.,LIMITED\nSWIFT BIC: ZJTLNBHXKXX\nBENEFICIARY'S BANK ADD: ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE\nBENEFICIARY A/C NO.: 330800202001000155179",
-                      stampText: "YIWU ZHOULAI TRADING CO., LIMITED\nAUTHORIZED SIGNATORY",
+                      cifText:
+                        "TOTAL CIF USD 9010 AND 90 WITHIN DAYS AFTER DELIVERY",
+                      bankDetail:
+                        "BENEFICIARY'S BANK NAME: ZHEJIANG TAILONG COMMERCIAL BANK\nBENEFICIARY NAME: YIWU ZHOULAI TRADING CO.,LIMITED\nSWIFT BIC: ZJTLNBHXKXX\nBENEFICIARY'S BANK ADD: ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE\nBENEFICIARY A/C NO.: 330800202001000155179",
+                      stampText:
+                        "YIWU ZHOULAI TRADING CO., LIMITED\nAUTHORIZED SIGNATORY",
                     });
                     toast.success("Demo data loaded");
                   }}
@@ -812,7 +819,9 @@ export default function CommercialInvoicePage() {
               <label className="text-xs text-slate-600 mt-2 block">To</label>
               <input
                 value={formData.to}
-                onChange={(e) => setFormData((m) => ({ ...m, to: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((m) => ({ ...m, to: e.target.value }))
+                }
                 className="w-full border px-3 py-2 rounded mt-1 text-sm"
               />
             </div>
@@ -897,7 +906,6 @@ export default function CommercialInvoicePage() {
             >
               <Plus className="w-3 h-3" /> Add row
             </button>
-        
           </div>
         </div>
 
@@ -915,7 +923,7 @@ export default function CommercialInvoicePage() {
                 <th className="px-2 py-2">Unit</th>
                 <th className="px-2 py-2">T-QTY</th>
                 <th className="px-2 py-2">U.price</th>
-      
+
                 <th className="px-2 py-2">Amount/USD</th>
                 <th className="px-2 py-2">Actions</th>
               </tr>
@@ -1013,8 +1021,7 @@ export default function CommercialInvoicePage() {
                       className="border px-2 py-1 rounded text-xs w-20 text-right"
                     />
                   </td>
-                 
-                  
+
                   {/* Amount */}
                   <td className="px-2 py-2 text-right text-xs">
                     {Number(it.amountUsd || 0).toFixed(2)}
@@ -1022,7 +1029,6 @@ export default function CommercialInvoicePage() {
                   {/* Actions */}
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1">
-                   
                       <button
                         onClick={() => insertRowAfter(it.id)}
                         className="px-2 py-1 rounded bg-slate-100 text-xs"
@@ -1129,11 +1135,16 @@ export default function CommercialInvoicePage() {
                     rows={2}
                   />
                   <div className="mt-2">
-                    <label className="text-xs text-slate-600">Stamp Position</label>
+                    <label className="text-xs text-slate-600">
+                      Stamp Position
+                    </label>
                     <select
                       value={formData.stampPosition}
                       onChange={(e) =>
-                        setFormData((m) => ({ ...m, stampPosition: e.target.value }))
+                        setFormData((m) => ({
+                          ...m,
+                          stampPosition: e.target.value,
+                        }))
                       }
                       className="border px-2 py-1 rounded text-xs w-full mt-1"
                     >
@@ -1148,15 +1159,16 @@ export default function CommercialInvoicePage() {
           </div>
         </div>
 
-     
-
         {/* Activities Section */}
         {activities.length > 0 && (
           <div className="bg-white border rounded p-4 mt-4">
             <h3 className="font-semibold text-sm mb-3">Recent Activities</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {activities.map((activity, idx) => (
-                <div key={idx} className="flex items-start gap-3 text-xs border-b pb-2">
+                <div
+                  key={idx}
+                  className="flex items-start gap-3 text-xs border-b pb-2"
+                >
                   <Activity className="w-4 h-4 text-blue-500 mt-0.5" />
                   <div className="flex-1">
                     <div className="font-medium">{activity.type}</div>

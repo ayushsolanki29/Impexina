@@ -62,6 +62,9 @@ model User {
   commercialInvoiceActivities CommercialInvoiceActivity[]
   summaryActivities           SummaryActivity[]
   warehousePlanActivities     WarehousePlanActivity[]
+  accountClients              AccountClient[]
+
+  clientTransactions ClientTransaction[]
 }
 
 model Module {
@@ -694,4 +697,300 @@ model WarehousePlanActivity {
   createdAt DateTime @default(now())
 }
 
-// Add warehouse permissions to UserPermission model
+// Add these to your existing enums
+enum TransactionType {
+  EXPENSE
+  PAYMENT
+  ADJUSTMENT
+}
+
+enum PaymentMode {
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  UPI
+  CARD
+}
+
+model AccountClient {
+  id       String  @id @default(cuid())
+  name     String
+  location String?
+  phone    String?
+  email    String?
+  gst      String?
+  pan      String?
+
+  // Balance tracking
+  totalExpense Float @default(0)
+  totalPaid    Float @default(0)
+  balance      Float @default(0)
+
+  // Audit fields - store as strings for simplicity
+  createdBy String? // Store username or user ID as string
+  updatedBy String? // Store username or user ID as string
+
+  // Metadata
+  lastActive DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  transactions ClientTransaction[]
+  containers   ClientContainerLink[]
+
+  // Optional: If you want to track which user created/owns this client
+  userId Int? // Optional foreign key to User
+  user   User? @relation(fields: [userId], references: [id])
+
+  @@unique([name, location])
+  @@index([userId])
+}
+
+model ClientTransaction {
+  id              String   @id @default(cuid())
+  clientId        String
+  transactionDate DateTime
+
+  // Container reference
+  containerCode String?
+  containerMark String?
+
+  // Item details
+  particulars String
+  billingType String // 'cbm', 'weight', 'flat'
+  quantity    Float?
+  rate        Float?
+
+  // Amounts
+  amount  Float
+  paid    Float @default(0)
+  balance Float
+
+  // Payment details
+  paymentMode PaymentMode?
+  paymentDate DateTime?
+  paymentRef  String?
+
+  // Account transfer
+  fromAccount String @default("Main")
+  toAccount   String @default("Client")
+
+  // Audit fields - store as strings
+  createdBy String?
+  updatedBy String?
+
+  // Metadata
+  type      TransactionType @default(EXPENSE)
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  client AccountClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User?         @relation(fields: [userId], references: [id])
+  userId Int?
+
+  @@index([clientId, transactionDate])
+  @@index([containerCode])
+}
+
+model ClientContainerLink {
+  id            String @id @default(cuid())
+  clientId      String
+  containerCode String
+  mark          String // Shipping mark
+
+  // From bifurcation
+  totalCBM    Float   @default(0)
+  totalWeight Float   @default(0)
+  ctn         Int     @default(0)
+  product     String?
+
+  // Delivery info
+  deliveryDate DateTime?
+  invNo        String?
+  gstInv       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client AccountClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, containerCode, mark])
+  @@index([containerCode])
+  @@index([mark])
+}
+
+
+// Add these enums to your existing enums section
+enum DineshSheetStatus {
+  ACTIVE
+  ARCHIVED
+  LOCKED
+}
+
+// Add these models to your existing schema
+
+model DineshSheet {
+  id          String  @id @default(cuid())
+  title       String  @unique
+  description String?
+
+  // Status
+  status   DineshSheetStatus @default(ACTIVE)
+  isLocked Boolean           @default(false)
+
+  // Metadata
+  month Int? // 1-12 for filtering
+  year  Int? // 2025, 2026, etc
+  tags  String[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entries DineshSheetEntry[]
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([month, year])
+  @@index([status])
+}
+
+model DineshSheetEntry {
+  id      String      @id @default(cuid())
+  sheetId String
+  sheet   DineshSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  // Entry data
+  supplier    String
+  paymentDate DateTime
+  amount      Float?
+  booking     Float?
+  rate        Float?
+  total       Float    @default(0)
+  paid        Float?   @default(0)
+  clientRef   String?
+  notes       String?
+
+  // Calculated fields
+  balance Float @default(0) // total - paid
+
+  // Metadata
+  isPaid   Boolean @default(false)
+  priority String? // "HIGH", "MEDIUM", "LOW"
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([sheetId])
+  @@index([supplier])
+  @@index([paymentDate])
+  @@index([isPaid])
+}
+
+// Add to your existing enums
+enum ForexCurrency {
+  RMB
+  USD
+  EUR
+  GBP
+  JPY
+  OTHER
+}
+
+enum ForexSheetStatus {
+  ACTIVE
+  ARCHIVED
+  LOCKED
+}
+
+// Add these models
+model ForexSheet {
+  id          String  @id @default(cuid())
+  name        String  @unique  // User-defined name like "David Impex", "China Payments", etc.
+  description String?
+  
+  // Base currency
+  baseCurrency ForexCurrency @default(RMB)
+  
+  // Status
+  status   ForexSheetStatus @default(ACTIVE)
+  isLocked Boolean          @default(false)
+  
+  // Metadata
+  tags     String[]
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  entries ForexEntry[]
+  
+  // Audit fields (as strings for simplicity)
+  createdBy String?
+  updatedBy String?
+  
+  @@index([status])
+  @@index([baseCurrency])
+}
+
+model ForexEntry {
+  id       String   @id @default(cuid())
+  sheetId  String
+  sheet    ForexSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  
+  // Entry data
+  date        DateTime
+  particulars String
+  reference   String?  // Reference number, invoice number, etc.
+  
+  // Amounts in different currencies
+  debitRMB    Float?  @default(0)
+  creditRMB   Float?  @default(0)
+  debitUSD    Float?  @default(0)
+  creditUSD   Float?  @default(0)
+  debitEUR    Float?  @default(0)
+  creditEUR   Float?  @default(0)
+  debitGBP    Float?  @default(0)
+  creditGBP   Float?  @default(0)
+  debitJPY    Float?  @default(0)
+  creditJPY   Float?  @default(0)
+  debitOther  Float?  @default(0)
+  creditOther Float?  @default(0)
+  otherCurrencyCode String?  // For OTHER currency type
+  
+  // Calculated fields
+  rmbBalance  Float   @default(0)  // Debit - Credit
+  usdBalance  Float   @default(0)
+  eurBalance  Float   @default(0)
+  gbpBalance  Float   @default(0)
+  jpyBalance  Float   @default(0)
+  otherBalance Float  @default(0)
+  
+  // Metadata
+  category    String?  // e.g., "Payment", "Receipt", "Transfer", "Expense"
+  notes       String?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Audit fields
+  createdBy   String?
+  updatedBy   String?
+  
+  @@index([sheetId])
+  @@index([date])
+  @@index([category])
+}

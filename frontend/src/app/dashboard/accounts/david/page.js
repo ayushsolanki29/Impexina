@@ -319,3 +319,487 @@ export default function DavidSheet() {
     </div>
   );
 }
+// "use client";
+// import React, { useState, useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   Plus,
+//   Globe,
+//   Search,
+//   Filter,
+//   Calendar,
+//   Archive,
+//   Lock,
+//   Unlock,
+//   FileText,
+//   TrendingUp,
+//   TrendingDown,
+//   Download,
+//   MoreVertical,
+//   Edit,
+//   Trash2,
+//   Eye,
+//   Coins,
+//   Wallet,
+// } from "lucide-react";
+// import {  toast } from "sonner";
+// import { forexAPI } from "@/services/forex.service";
+
+
+// export default function ForexSheetsPage() {
+//   const router = useRouter();
+//   const [sheets, setSheets] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [search, setSearch] = useState("");
+//   const [currencyFilter, setCurrencyFilter] = useState("");
+//   const [statusFilter, setStatusFilter] = useState("");
+//   const [dashboardStats, setDashboardStats] = useState(null);
+//   const [currencies] = useState(["RMB", "USD", "EUR", "GBP", "JPY", "OTHER"]);
+
+//   // Load data
+//   useEffect(() => {
+//     loadSheets();
+//     loadDashboardStats();
+//   }, [search, currencyFilter, statusFilter]);
+
+//   const loadSheets = async () => {
+//     try {
+//       setLoading(true);
+//       const params = {
+//         search,
+//         currency: currencyFilter,
+//         status: statusFilter,
+//         page: 1,
+//         limit: 100,
+//       };
+//       const data = await forexAPI.getSheets(params);
+//       setSheets(data.data.data.sheets || []);
+//     } catch (error) {
+//       toast.error(error.message || "Failed to load forex sheets");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const loadDashboardStats = async () => {
+//     try {
+//       const data = await forexAPI.getDashboardOverview();
+//       setDashboardStats(data.data.data);
+//     } catch (error) {
+//       console.error("Failed to load dashboard stats:", error);
+//     }
+//   };
+
+//   const handleCreateSheet = async () => {
+//     router.push("/dashboard/accounts/david/new");
+//   };
+
+//   const handleDeleteSheet = async (sheetId, sheetName) => {
+//     if (!confirm(`Are you sure you want to archive "${sheetName}"?`)) return;
+
+//     try {
+//       await forexAPI.deleteSheet(sheetId);
+//       toast.success("Forex sheet archived successfully");
+//       loadSheets();
+//       loadDashboardStats();
+//     } catch (error) {
+//       toast.error(error.message || "Failed to archive sheet");
+//     }
+//   };
+
+//   const handleExportSheet = async (sheetId, sheetName) => {
+//     try {
+//       const blob = await forexAPI.exportSheet(sheetId);
+//       const url = window.URL.createObjectURL(blob);
+//       const a = document.createElement("a");
+//       a.href = url;
+//       a.download = `${sheetName.replace(/\s+/g, "_")}_forex_${new Date()
+//         .toISOString()
+//         .slice(0, 10)}.xlsx`;
+//       document.body.appendChild(a);
+//       a.click();
+//       window.URL.revokeObjectURL(url);
+//       document.body.removeChild(a);
+//       toast.success("Forex sheet exported successfully");
+//     } catch (error) {
+//       toast.error(error.message || "Failed to export sheet");
+//     }
+//   };
+
+//   // Get currency symbol
+//   const getCurrencySymbol = (currency) => {
+//     switch (currency) {
+//       case "RMB":
+//         return "¥";
+//       case "USD":
+//         return "$";
+//       case "EUR":
+//         return "€";
+//       case "GBP":
+//         return "£";
+//       case "JPY":
+//         return "¥";
+//       default:
+//         return currency;
+//     }
+//   };
+
+//   return (
+//     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+
+
+//       {/* Header */}
+//       <div className="bg-white border-b border-slate-200">
+//         <div className="max-w-7xl mx-auto px-4 py-6">
+//           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+//             <div>
+//               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+//                 <Globe className="w-6 h-6 text-blue-600" />
+//                 Forex Sheets
+//               </h1>
+//               <p className="text-sm text-slate-600 mt-1">
+//                 Manage multi-currency forex ledgers and transactions
+//               </p>
+//             </div>
+//             <button
+//               onClick={handleCreateSheet}
+//               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-sm"
+//             >
+//               <Plus className="w-4 h-4" />
+//               New Forex Sheet
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Dashboard Stats */}
+//       {dashboardStats && (
+//         <div className="max-w-7xl mx-auto px-4 py-6">
+//           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+//               <div className="flex items-center justify-between">
+//                 <div>
+//                   <div className="text-xs font-medium text-slate-500 uppercase">
+//                     Total Sheets
+//                   </div>
+//                   <div className="text-2xl font-bold text-slate-900 mt-1">
+//                     {dashboardStats.totals.totalSheets}
+//                   </div>
+//                 </div>
+//                 <FileText className="w-8 h-8 text-blue-500" />
+//               </div>
+//               <div className="mt-2 text-xs text-slate-500">
+//                 Active: {dashboardStats.totals.activeSheets}
+//               </div>
+//             </div>
+
+//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+//               <div className="flex items-center justify-between">
+//                 <div>
+//                   <div className="text-xs font-medium text-slate-500 uppercase">
+//                     Total Entries
+//                   </div>
+//                   <div className="text-2xl font-bold text-slate-900 mt-1">
+//                     {dashboardStats.totals.totalEntries}
+//                   </div>
+//                 </div>
+//                 <Wallet className="w-8 h-8 text-purple-500" />
+//               </div>
+//             </div>
+
+//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+//               <div className="flex items-center justify-between">
+//                 <div>
+//                   <div className="text-xs font-medium text-slate-500 uppercase">
+//                     Base Currencies
+//                   </div>
+//                   <div className="text-2xl font-bold text-slate-900 mt-1">
+//                     {dashboardStats.currencyDistribution.length}
+//                   </div>
+//                 </div>
+//                 <Coins className="w-8 h-8 text-amber-500" />
+//               </div>
+//               <div className="mt-2 text-xs text-slate-500">
+//                 {dashboardStats.currencyDistribution
+//                   .map((c) => c.currency)
+//                   .join(", ")}
+//               </div>
+//             </div>
+
+//             <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/50">
+//               <div className="flex items-center justify-between">
+//                 <div>
+//                   <div className="text-xs font-medium text-blue-700 uppercase">
+//                     Recent Activity
+//                   </div>
+//                   <div className="text-lg font-bold text-blue-700 mt-1">
+//                     {dashboardStats.recentSheets.length} active
+//                   </div>
+//                 </div>
+//                 <TrendingUp className="w-8 h-8 text-blue-500" />
+//               </div>
+//               <div className="mt-2 text-xs text-blue-600">
+//                 Latest: {dashboardStats.recentSheets[0]?.name}
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Filters */}
+//       <div className="max-w-7xl mx-auto px-4 py-4">
+//         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+//           <div className="flex flex-col md:flex-row gap-4">
+//             <div className="flex-1">
+//               <div className="relative">
+//                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+//                 <input
+//                   type="text"
+//                   placeholder="Search forex sheets by name or description..."
+//                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+//                   value={search}
+//                   onChange={(e) => setSearch(e.target.value)}
+//                 />
+//               </div>
+//             </div>
+//             <div className="flex gap-3">
+//               <select
+//                 className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+//                 value={currencyFilter}
+//                 onChange={(e) => setCurrencyFilter(e.target.value)}
+//               >
+//                 <option value="">All Currencies</option>
+//                 {currencies.map((currency) => (
+//                   <option key={currency} value={currency}>
+//                     {currency}
+//                   </option>
+//                 ))}
+//               </select>
+//               <select
+//                 className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+//                 value={statusFilter}
+//                 onChange={(e) => setStatusFilter(e.target.value)}
+//               >
+//                 <option value="">All Status</option>
+//                 <option value="ACTIVE">Active</option>
+//                 <option value="ARCHIVED">Archived</option>
+//                 <option value="LOCKED">Locked</option>
+//               </select>
+//               <button
+//                 onClick={loadSheets}
+//                 className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg flex items-center gap-2"
+//               >
+//                 <Filter className="w-4 h-4" />
+//                 Filter
+//               </button>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Sheets Grid */}
+//       <div className="max-w-7xl mx-auto px-4 pb-8">
+//         {loading ? (
+//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//             {[...Array(6)].map((_, i) => (
+//               <div
+//                 key={i}
+//                 className="h-48 bg-slate-100 animate-pulse rounded-xl"
+//               />
+//             ))}
+//           </div>
+//         ) : sheets.length === 0 ? (
+//           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+//             <Globe className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+//             <h3 className="text-lg font-medium text-slate-900">
+//               No forex sheets found
+//             </h3>
+//             <p className="text-slate-500 text-sm mb-4">
+//               Create your first forex sheet to track multi-currency transactions
+//             </p>
+//             <button
+//               onClick={handleCreateSheet}
+//               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+//             >
+//               <Plus className="w-4 h-4 inline mr-2" />
+//               Create Sheet
+//             </button>
+//           </div>
+//         ) : (
+//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//             {sheets.map((sheet) => (
+//               <div
+//                 key={sheet.id}
+//                 className={`group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md ${
+//                   sheet.status === "ARCHIVED"
+//                     ? "border-slate-200 opacity-80"
+//                     : sheet.status === "LOCKED"
+//                     ? "border-amber-200"
+//                     : "border-blue-200"
+//                 }`}
+//               >
+//                 <div className="flex justify-between items-start mb-4">
+//                   <div>
+//                     <div className="flex items-center gap-2">
+//                       <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">
+//                         {sheet.name}
+//                       </h3>
+//                       {sheet.status === "LOCKED" && (
+//                         <Lock className="w-4 h-4 text-amber-500" />
+//                       )}
+//                       {sheet.status === "ARCHIVED" && (
+//                         <Archive className="w-4 h-4 text-slate-400" />
+//                       )}
+//                     </div>
+//                     <div className="flex items-center gap-2 mt-1">
+//                       <span className="text-xs text-slate-500 flex items-center gap-1">
+//                         <Coins className="w-3 h-3" />
+//                         Base: {sheet.baseCurrency}
+//                       </span>
+//                       {sheet.tags && sheet.tags.length > 0 && (
+//                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+//                           {sheet.tags[0]}
+//                         </span>
+//                       )}
+//                     </div>
+//                   </div>
+//                   <div className="relative">
+//                     <button className="p-1 text-slate-400 hover:text-slate-600">
+//                       <MoreVertical className="w-4 h-4" />
+//                     </button>
+//                   </div>
+//                 </div>
+
+//                 {sheet.description && (
+//                   <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+//                     {sheet.description}
+//                   </p>
+//                 )}
+
+//                 {/* Currency Totals */}
+//                 <div className="mb-4">
+//                   <div className="grid grid-cols-2 gap-3">
+//                     {/* RMB */}
+//                     {sheet.totals.rmb.balance !== 0 && (
+//                       <div className="bg-amber-50 p-2 rounded-lg border border-amber-100">
+//                         <div className="text-[10px] uppercase font-bold text-amber-700">
+//                           RMB
+//                         </div>
+//                         <div className="flex justify-between items-center mt-1">
+//                           <span className="text-sm font-medium text-amber-900">
+//                             {getCurrencySymbol("RMB")}
+//                             {Math.abs(
+//                               sheet.totals.rmb.balance
+//                             ).toLocaleString()}
+//                           </span>
+//                           <span
+//                             className={`text-xs px-1 py-0.5 rounded ${
+//                               sheet.totals.rmb.balance > 0
+//                                 ? "bg-amber-100 text-amber-800"
+//                                 : "bg-red-100 text-red-800"
+//                             }`}
+//                           >
+//                             {sheet.totals.rmb.balance > 0 ? "DR" : "CR"}
+//                           </span>
+//                         </div>
+//                       </div>
+//                     )}
+
+//                     {/* USD */}
+//                     {sheet.totals.usd.balance !== 0 && (
+//                       <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+//                         <div className="text-[10px] uppercase font-bold text-emerald-700">
+//                           USD
+//                         </div>
+//                         <div className="flex justify-between items-center mt-1">
+//                           <span className="text-sm font-medium text-emerald-900">
+//                             {getCurrencySymbol("USD")}
+//                             {Math.abs(
+//                               sheet.totals.usd.balance
+//                             ).toLocaleString()}
+//                           </span>
+//                           <span
+//                             className={`text-xs px-1 py-0.5 rounded ${
+//                               sheet.totals.usd.balance > 0
+//                                 ? "bg-emerald-100 text-emerald-800"
+//                                 : "bg-red-100 text-red-800"
+//                             }`}
+//                           >
+//                             {sheet.totals.usd.balance > 0 ? "DR" : "CR"}
+//                           </span>
+//                         </div>
+//                       </div>
+//                     )}
+//                   </div>
+//                 </div>
+
+//                 <div className="border-t border-slate-100 pt-4">
+//                   <div className="flex justify-between items-center mb-3">
+//                     <span className="text-xs text-slate-400">
+//                       {sheet._count.entries} entries
+//                     </span>
+//                     <div
+//                       className={`text-xs px-2 py-1 rounded-full ${
+//                         sheet.status === "ACTIVE"
+//                           ? "bg-blue-50 text-blue-700 border border-blue-100"
+//                           : sheet.status === "ARCHIVED"
+//                           ? "bg-slate-100 text-slate-600 border border-slate-200"
+//                           : "bg-amber-50 text-amber-700 border border-amber-100"
+//                       }`}
+//                     >
+//                       {sheet.status}
+//                     </div>
+//                   </div>
+
+//                   <div className="flex gap-2">
+//                     <button
+//                       onClick={() =>
+//                         router.push(`/dashboard/forex/${sheet.id}`)
+//                       }
+//                       className="flex-1 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
+//                     >
+//                       <Eye className="w-4 h-4" />
+//                       Open
+//                     </button>
+
+//                     <div className="flex gap-1">
+//                       <button
+//                         onClick={() => handleExportSheet(sheet.id, sheet.name)}
+//                         className="p-2 text-slate-400 hover:text-blue-600"
+//                         title="Export"
+//                       >
+//                         <Download className="w-4 h-4" />
+//                       </button>
+//                       {sheet.status !== "ARCHIVED" && (
+//                         <>
+//                           <button
+//                             onClick={() =>
+//                               router.push(`/dashboard/forex/${sheet.id}/edit`)
+//                             }
+//                             className="p-2 text-slate-400 hover:text-blue-600"
+//                             title="Edit"
+//                           >
+//                             <Edit className="w-4 h-4" />
+//                           </button>
+//                           <button
+//                             onClick={() =>
+//                               handleDeleteSheet(sheet.id, sheet.name)
+//                             }
+//                             className="p-2 text-slate-400 hover:text-red-600"
+//                             title="Archive"
+//                           >
+//                             <Trash2 className="w-4 h-4" />
+//                           </button>
+//                         </>
+//                       )}
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
