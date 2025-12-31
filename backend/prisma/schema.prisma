@@ -28,6 +28,10 @@ enum ActivityType {
   CREATE
   UPDATE
   STATUS_CHANGE
+  CALL
+  EMAIL
+  MEETING
+  FILE_UPLOAD
 }
 
 enum BifurcationActivityType {
@@ -94,6 +98,8 @@ model ShippingMark {
   loadingSheets LoadingSheet[]
 
   createdAt DateTime @default(now())
+  client    Client?  @relation(fields: [clientId], references: [id])
+  clientId  String?
 }
 
 model CtnMark {
@@ -103,6 +109,8 @@ model CtnMark {
   items LoadingItem[]
 
   createdAt DateTime @default(now())
+  client    Client?  @relation(fields: [clientId], references: [id])
+  clientId  String?
 }
 
 model Container {
@@ -1056,6 +1064,7 @@ model PaymentCollectionEntry {
   @@index([paymentStatus])
   @@index([expectedDate])
 }
+
 // Add these models to your existing schema
 
 enum ShippingStatus {
@@ -1071,94 +1080,188 @@ model ShippingSheet {
   id          String  @id @default(cuid())
   name        String  @unique
   description String?
-  fiscalYear  String  // e.g., "2024-2025"
-  
+  fiscalYear  String // e.g., "2024-2025"
+
   // Status
   status   ShippingStatus @default(PLANNED)
   isLocked Boolean        @default(false)
-  
+
   // Financial totals (cached for performance)
-  totalFreightUSD     Float @default(0)
-  totalFreightINR     Float @default(0)
-  totalCHA            Float @default(0)
-  totalFobTerms       Float @default(0)
-  totalCfsDoYard      Float @default(0)
-  totalScanning       Float @default(0)
-  totalSimsPims       Float @default(0)
-  totalDuty           Float @default(0)
-  totalPenalty        Float @default(0)
-  totalTrucking       Float @default(0)
+  totalFreightUSD       Float @default(0)
+  totalFreightINR       Float @default(0)
+  totalCHA              Float @default(0)
+  totalFobTerms         Float @default(0)
+  totalCfsDoYard        Float @default(0)
+  totalScanning         Float @default(0)
+  totalSimsPims         Float @default(0)
+  totalDuty             Float @default(0)
+  totalPenalty          Float @default(0)
+  totalTrucking         Float @default(0)
   totalLoadingUnloading Float @default(0)
-  totalLocalCharges   Float @default(0)  // Sum of all local charges
-  grandTotal          Float @default(0)  // freightINR + localCharges
-  
+  totalLocalCharges     Float @default(0) // Sum of all local charges
+  grandTotal            Float @default(0) // freightINR + localCharges
+
   // Metadata
-  tags         String[]
-  
+  tags String[]
+
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
   entries ShippingEntry[]
-  
+
   // Audit fields
   createdBy String?
   updatedBy String?
-  
+
   @@index([status])
   @@index([fiscalYear])
 }
 
 model ShippingEntry {
-  id          String       @id @default(cuid())
-  sheetId     String
-  sheet       ShippingSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  
+  id      String        @id @default(cuid())
+  sheetId String
+  sheet   ShippingSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
   // Entry data matching frontend
-  containerCode  String
-  loadingFrom    String   @default("YIWU / GUANGZHOU / FULL")
-  ctn            Int      @default(0)
-  loadingDate    DateTime
-  deliveryDate   DateTime?
-  
+  containerCode String
+  loadingFrom   String    @default("YIWU / GUANGZHOU / FULL")
+  ctn           Int       @default(0)
+  loadingDate   DateTime
+  deliveryDate  DateTime?
+
   // Freight amounts
-  freightUSD     Float @default(0)
-  freightINR     Float @default(0)
-  
+  freightUSD Float @default(0)
+  freightINR Float @default(0)
+
   // Local charges (India side)
-  cha            Float @default(0)
-  fobTerms       Float @default(0)
-  cfsDoYard      Float @default(0)
-  scanning       Float @default(0)
-  simsPims       Float @default(0)
-  duty           Float @default(0)
-  penalty        Float @default(0)
-  trucking       Float @default(0)
+  cha              Float @default(0)
+  fobTerms         Float @default(0)
+  cfsDoYard        Float @default(0)
+  scanning         Float @default(0)
+  simsPims         Float @default(0)
+  duty             Float @default(0)
+  penalty          Float @default(0)
+  trucking         Float @default(0)
   loadingUnloading Float @default(0)
-  
+
   // Calculated fields
-  localCharges   Float @default(0)  // Sum of all local charges
-  totalAmount    Float @default(0)  // freightINR + localCharges
-  
+  localCharges Float @default(0) // Sum of all local charges
+  totalAmount  Float @default(0) // freightINR + localCharges
+
   // Status tracking
   deliveryStatus String @default("PENDING") // PENDING, IN_TRANSIT, ARRIVED, DELIVERED
-  
+
   // Additional fields
-  notes          String?
-  shippingLine   String?
-  blNumber       String?
-  
+  notes        String?
+  shippingLine String?
+  blNumber     String?
+
   // Timestamps
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Audit fields
-  createdBy      String?
-  updatedBy      String?
-  
+  createdBy String?
+  updatedBy String?
+
   @@index([sheetId])
   @@index([containerCode])
   @@index([loadingDate])
   @@index([deliveryStatus])
+}
+
+// CRM Models
+model Client {
+  id            String  @id @default(cuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  mobile        String?
+  address       String?
+  city          String?
+  state         String?
+  country       String? @default("India")
+
+  // Type: client or lead
+  type   ClientType   @default(LEAD)
+  status ClientStatus @default(NEW)
+
+  // Business details
+  companyName String?
+  gstNumber   String?
+  industry    String?
+
+  // Financial
+  creditLimit  Float?  @default(0)
+  paymentTerms String? @default("NET30")
+  currency     String? @default("INR")
+
+  // Relationships to other modules
+  shippingMarks ShippingMark[]
+  ctnMarks      CtnMark[]
+  orders        Order[]
+
+  // Metadata
+  notes  String?
+  tags   String[]
+  source String? // How they found us
+  rating Int?     @default(0) // 1-5 star rating
+
+  // Timestamps
+  lastContactedAt  DateTime?
+  nextFollowUpAt   DateTime?
+  convertedAt      DateTime? // When lead became client
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  clientActivities ClientActivity[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([type])
+  @@index([status])
+  @@index([city])
+  @@map("clients")
+}
+
+model Order {
+  id            String  @id @default(cuid())
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+}
+
+enum ClientType {
+  LEAD
+  CLIENT
+}
+
+enum ClientStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  ACTIVE
+  INACTIVE
+  LOST
+}
+
+// Optional: Activity log for client interactions
+model ClientActivity {
+  id          String       @id @default(cuid())
+  clientId    String
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type        ActivityType
+  description String
+  userId      String?
+  userName    String?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("client_activities")
 }
