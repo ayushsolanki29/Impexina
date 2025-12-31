@@ -1,18 +1,18 @@
-const forexService = require("./forex.service");
+const paymentCollectionService = require("./paymentCollection.service");
 const XLSX = require("xlsx");
 
-const forexController = {
+const paymentCollectionController = {
   // Get all sheets
   getAllSheets: async (req, res) => {
     try {
-      const { page = 1, limit = 20, search = "", currency, status } = req.query;
+      const { page = 1, limit = 20, search = "", status, fiscalYear } = req.query;
       
-      const result = await forexService.getAllSheets({
+      const result = await paymentCollectionService.getAllSheets({
         page,
         limit,
         search,
-        currency,
         status,
+        fiscalYear,
       });
       
       res.status(200).json({
@@ -32,14 +32,14 @@ const forexController = {
     try {
       const { sheetId } = req.params;
       
-      const sheet = await forexService.getSheetById(sheetId);
+      const sheet = await paymentCollectionService.getSheetById(sheetId);
       
       res.status(200).json({
         success: true,
         data: sheet,
       });
     } catch (error) {
-      if (error.message === "Forex sheet not found") {
+      if (error.message === "Sheet not found") {
         return res.status(404).json({
           success: false,
           message: error.message,
@@ -58,11 +58,11 @@ const forexController = {
       const sheetData = req.body;
       const userId = req.user.id;
       
-      const sheet = await forexService.createSheet(sheetData, userId);
+      const sheet = await paymentCollectionService.createSheet(sheetData, userId);
       
       res.status(201).json({
         success: true,
-        message: "Forex sheet created successfully",
+        message: "Payment collection sheet created successfully",
         data: sheet,
       });
     } catch (error) {
@@ -80,11 +80,11 @@ const forexController = {
       const sheetData = req.body;
       const userId = req.user.id;
       
-      const sheet = await forexService.updateSheet(sheetId, sheetData, userId);
+      const sheet = await paymentCollectionService.updateSheet(sheetId, sheetData, userId);
       
       res.status(200).json({
         success: true,
-        message: "Forex sheet updated successfully",
+        message: "Sheet updated successfully",
         data: sheet,
       });
     } catch (error) {
@@ -101,7 +101,7 @@ const forexController = {
       const { sheetId } = req.params;
       const userId = req.user.id;
       
-      const result = await forexService.deleteSheet(sheetId, userId);
+      const result = await paymentCollectionService.deleteSheet(sheetId, userId);
       
       res.status(200).json({
         success: true,
@@ -120,15 +120,14 @@ const forexController = {
   getSheetEntries: async (req, res) => {
     try {
       const { sheetId } = req.params;
-      const { page = 1, limit = 50, search = "", startDate, endDate, category } = req.query;
+      const { page = 1, limit = 50, search = "", status, highlight } = req.query;
       
-      const entries = await forexService.getSheetEntries(sheetId, {
+      const entries = await paymentCollectionService.getSheetEntries(sheetId, {
         page,
         limit,
         search,
-        startDate,
-        endDate,
-        category,
+        status,
+        highlight,
       });
       
       res.status(200).json({
@@ -150,7 +149,7 @@ const forexController = {
       const entryData = req.body;
       const userId = req.user.id;
       
-      const entry = await forexService.addEntry(sheetId, entryData, userId);
+      const entry = await paymentCollectionService.addEntry(sheetId, entryData, userId);
       
       res.status(201).json({
         success: true,
@@ -172,7 +171,7 @@ const forexController = {
       const entryData = req.body;
       const userId = req.user.id;
       
-      const entry = await forexService.updateEntry(entryId, entryData, userId);
+      const entry = await paymentCollectionService.updateEntry(entryId, entryData, userId);
       
       res.status(200).json({
         success: true,
@@ -193,11 +192,40 @@ const forexController = {
       const { entryId } = req.params;
       const userId = req.user.id;
       
-      const result = await forexService.deleteEntry(entryId, userId);
+      const result = await paymentCollectionService.deleteEntry(entryId, userId);
       
       res.status(200).json({
         success: true,
         message: result.message,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
+  
+  // Bulk update entries
+  bulkUpdateEntries: async (req, res) => {
+    try {
+      const { sheetId } = req.params;
+      const entriesData = req.body;
+      const userId = req.user.id;
+      
+      if (!Array.isArray(entriesData)) {
+        return res.status(400).json({
+          success: false,
+          message: "Entries data must be an array",
+        });
+      }
+      
+      const result = await paymentCollectionService.bulkUpdateEntries(sheetId, entriesData, userId);
+      
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.entries,
       });
     } catch (error) {
       res.status(400).json({
@@ -212,30 +240,11 @@ const forexController = {
     try {
       const { sheetId } = req.params;
       
-      const stats = await forexService.getSheetStats(sheetId);
+      const stats = await paymentCollectionService.getSheetStats(sheetId);
       
       res.status(200).json({
         success: true,
         data: stats,
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  },
-  
-  // Search sheet names for auto-suggest
-  searchSheetNames: async (req, res) => {
-    try {
-      const { search = "", limit = 10 } = req.query;
-      
-      const sheets = await forexService.searchSheetNames(search, limit);
-      
-      res.status(200).json({
-        success: true,
-        data: sheets,
       });
     } catch (error) {
       res.status(500).json({
@@ -250,7 +259,7 @@ const forexController = {
     try {
       const { sheetId } = req.params;
       
-      const exportData = await forexService.exportSheetToExcel(sheetId);
+      const exportData = await paymentCollectionService.exportSheetToExcel(sheetId);
       
       // Create workbook
       const workbook = XLSX.utils.book_new();
@@ -264,10 +273,13 @@ const forexController = {
         {
           "Sheet Name": exportData.sheet.name,
           "Description": exportData.sheet.description || "",
-          "Base Currency": exportData.sheet.baseCurrency,
+          "Fiscal Year": exportData.sheet.fiscalYear,
           "Status": exportData.sheet.status,
-          "Tags": exportData.sheet.tags.join(", "),
-          "Total Entries": exportData.entries.length,
+          "Total 24-25": exportData.sheet.total24_25,
+          "Total Add Company": exportData.sheet.totalAddCompany,
+          "Total 25-26": exportData.sheet.total25_26,
+          "Total Advance": exportData.sheet.totalAdvance,
+          "Total Balance": exportData.sheet.totalBalance,
           "Created": new Date(exportData.sheet.createdAt).toLocaleDateString(),
           "Last Updated": new Date(exportData.sheet.updatedAt).toLocaleDateString(),
         },
@@ -289,7 +301,7 @@ const forexController = {
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=${exportData.sheet.name.replace(/\s+/g, "_")}_forex_${new Date()
+        `attachment; filename=${exportData.sheet.name.replace(/\s+/g, "_")}_${new Date()
           .toISOString()
           .slice(0, 10)}.xlsx`
       );
@@ -306,7 +318,7 @@ const forexController = {
   // Get dashboard overview
   getDashboardOverview: async (req, res) => {
     try {
-      const overview = await forexService.getDashboardOverview();
+      const overview = await paymentCollectionService.getDashboardOverview();
       
       res.status(200).json({
         success: true,
@@ -319,6 +331,23 @@ const forexController = {
       });
     }
   },
+  
+  // Generate default name
+  generateDefaultName: async (req, res) => {
+    try {
+      const name = paymentCollectionService.generateDefaultName();
+      
+      res.status(200).json({
+        success: true,
+        data: { name },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
 };
 
-module.exports = forexController;
+module.exports = paymentCollectionController;

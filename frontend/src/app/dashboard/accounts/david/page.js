@@ -1,805 +1,523 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Plus, 
-  ArrowLeft, 
-  Trash2, 
-  Coins, 
+import {
+  Plus,
   Search,
+  Folder,
+  FileText,
+  Calendar,
   Download,
-  Wallet
+  MoreVertical,
+  Trash2,
+  Edit,
+  Share2,
+  Copy,
+  Filter,
+  ChevronRight,
+  Loader2,
+  Archive,
+  ArrowLeft,
 } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
+import API from "@/lib/api";
 
-export default function DavidSheet() {
+export default function DavidSheetsList() {
   const router = useRouter();
-  const [rows, setRows] = useState([]);
+  const [sheets, setSheets] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all"); // all, active, archived
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedSheets, setSelectedSheets] = useState([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("igpl_david_sheet");
-    if (saved) setRows(JSON.parse(saved));
-    else {
-        // Initial Seed Data
-        setRows([
-            { id: 1, date: "", particulars: "OCTOBER BALANCE", debitRMB: 365543, creditRMB: 0, debitUSD: 0, creditUSD: 0 }
-        ])
+    fetchSheets();
+  }, [currentPage, search, filter]);
+
+  const fetchSheets = async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: 20,
+        search: search,
+        ...(filter !== "all" && { status: filter.toUpperCase() }),
+      });
+
+      const response = await API.get(`/accounts/david?${params}`);
+      if (response.data.success) {
+        setSheets(response.data.data.sheets || []);
+        setTotalPages(response.data.data.pagination?.totalPages || 1);
+      }
+    } catch (error) {
+      console.error("Error fetching sheets:", error);
+      toast.error("Failed to load sheets");
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-
-  const save = (data) => {
-    setRows(data);
-    localStorage.setItem("igpl_david_sheet", JSON.stringify(data));
   };
 
-  const addRow = () => {
-    const newRow = {
-      id: Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      particulars: "",
-      debitRMB: "", creditRMB: "",
-      debitUSD: "", creditUSD: ""
+  const createNewSheet = async () => {
+    try {
+      const response = await API.post("/accounts/david/", {
+        name: `New David Sheet ${new Date().toLocaleDateString()}`,
+        description: "",
+        tags: ["forex", "ledger"],
+      });
+
+      if (response.data.success) {
+        toast.success("New sheet created");
+        router.push(`/dashboard/accounts/david/${response.data.data.id}`);
+      }
+    } catch (error) {
+      console.error("Error creating sheet:", error);
+      toast.error("Failed to create sheet");
+    }
+  };
+
+  const duplicateSheet = async (sheetId, sheetName) => {
+    try {
+      const response = await API.post("/accounts/david/", {
+        name: `${sheetName} (Copy)`,
+        description: "",
+        tags: ["forex", "ledger", "copy"],
+      });
+
+      if (response.data.success) {
+        const newSheet = response.data.data;
+
+        // Load original sheet to duplicate entries
+        const originalSheet = await API.get(`/accounts/david/${sheetId}`);
+        if (originalSheet.data.success && originalSheet.data.data.entries) {
+          await API.post(
+            `/accounts/david/${newSheet.id}/import`,
+            originalSheet.data.data.entries.map((entry) => ({
+              date: entry.date,
+              particulars: entry.particulars,
+              debitRMB: entry.debitRMB || 0,
+              creditRMB: entry.creditRMB || 0,
+              debitUSD: entry.debitUSD || 0,
+              creditUSD: entry.creditUSD || 0,
+            }))
+          );
+        }
+
+        toast.success("Sheet duplicated");
+        fetchSheets();
+      }
+    } catch (error) {
+      console.error("Error duplicating sheet:", error);
+      toast.error("Failed to duplicate sheet");
+    }
+  };
+
+  const archiveSheet = async (sheetId, archive = true) => {
+    try {
+      const response = await API.put(`/accounts/david/${sheetId}`, {
+        status: archive ? "ARCHIVED" : "ACTIVE",
+      });
+
+      if (response.data.success) {
+        toast.success(`Sheet ${archive ? "archived" : "restored"}`);
+        fetchSheets();
+      }
+    } catch (error) {
+      console.error("Error archiving sheet:", error);
+      toast.error("Failed to update sheet");
+    }
+  };
+
+  const exportSheet = async (sheetId, sheetName) => {
+    try {
+    //   window.open(
+    //     `${process.env.NEXT_PUBLIC_API_URL}/accounts/david/${sheetId}/export`,
+    //     "_blank"
+    //   );
+      toast.success("Export started");
+    } catch (error) {
+      console.error("Error exporting:", error);
+      toast.error("Failed to export sheet");
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      ACTIVE: { color: "bg-green-100 text-green-800", label: "Active" },
+      ARCHIVED: { color: "bg-gray-100 text-gray-800", label: "Archived" },
+      LOCKED: { color: "bg-red-100 text-red-800", label: "Locked" },
     };
-    save([...rows, newRow]);
-    // Scroll to bottom
-    setTimeout(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }, 100);
+    const config = statusConfig[status] || statusConfig.ACTIVE;
+    return (
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
+      >
+        {config.label}
+      </span>
+    );
   };
 
-  const updateRow = (id, field, value) => {
-    const updated = rows.map(r => r.id === id ? { ...r, [field]: value } : r);
-    save(updated);
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-IN").format(amount || 0);
   };
 
-  const deleteRow = (id) => {
-     if(confirm("Are you sure you want to delete this line?")) {
-        save(rows.filter(r => r.id !== id));
-        toast.success("Entry removed");
-     }
-  }
+  const handleSelectSheet = (sheetId) => {
+    setSelectedSheets((prev) =>
+      prev.includes(sheetId)
+        ? prev.filter((id) => id !== sheetId)
+        : [...prev, sheetId]
+    );
+  };
 
-  // Filter rows
-  const filteredRows = rows.filter(r => 
-    (r.particulars || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  // Calculate Totals
-  const totals = rows.reduce((acc, r) => ({
-    dRMB: acc.dRMB + (Number(r.debitRMB) || 0),
-    cRMB: acc.cRMB + (Number(r.creditRMB) || 0),
-    dUSD: acc.dUSD + (Number(r.debitUSD) || 0),
-    cUSD: acc.cUSD + (Number(r.creditUSD) || 0),
-  }), { dRMB: 0, cRMB: 0, dUSD: 0, cUSD: 0 });
+  const handleSelectAll = () => {
+    if (selectedSheets.length === sheets.length) {
+      setSelectedSheets([]);
+    } else {
+      setSelectedSheets(sheets.map((sheet) => sheet.id));
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Toaster position="top-center" richColors />
-      
-      {/* --- Top Header with Actions --- */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-         <div className="max-w-[1400px] mx-auto px-4 py-3">
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                 
-                 {/* Left: Title & Back */}
-                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => router.push('/dashboard/accounts')} 
-                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            David Impex 
-                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium border border-slate-200">
-                                Forex Ledger
-                            </span>
-                        </h1>
-                    </div>
-                 </div>
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <button
+                onClick={() => router.push("/dashboard/accounts/")}
+                className="p-2 bg-slate-100 hover:bg-slate-200 flex justify-center items-center gap-4 text-slate-600 rounded-lg transition-colors"
+                title="Back to Accounts"
+              >
+                <ArrowLeft className="w-5 h-5" /> Back to Accounts
+              </button>
+              <h1 className="text-3xl font-bold text-slate-900">
+                David Forex Sheets
+              </h1>
+              <p className="text-slate-600 mt-2">
+                Manage your forex ledger sheets for David Impex
+              </p>
+            </div>
+            <button
+              onClick={createNewSheet}
+              className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-md transition-all hover:shadow-lg"
+            >
+              <Plus className="w-5 h-5" />
+              New Sheet
+            </button>
+          </div>
+        </div>
 
-                 {/* Right: Quick Stats */}
-                 <div className="flex items-center gap-4">
-                     {/* RMB Card */}
-                     <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border border-amber-100 rounded-lg">
-                        <div className="p-2 bg-amber-100 text-amber-600 rounded-full">
-                            <span className="font-bold text-xs">¥</span>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-semibold text-amber-700 tracking-wide">RMB Net</div>
-                            <div className="font-mono font-bold text-slate-900">
-                                {(totals.dRMB - totals.cRMB).toLocaleString()}
-                            </div>
-                        </div>
-                     </div>
-
-                     {/* USD Card */}
-                     <div className="flex items-center gap-3 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-full">
-                            <span className="font-bold text-xs">$</span>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-semibold text-emerald-700 tracking-wide">USD Net</div>
-                            <div className="font-mono font-bold text-slate-900">
-                                {(totals.dUSD - totals.cUSD).toLocaleString()}
-                            </div>
-                        </div>
-                     </div>
-                 </div>
-             </div>
-         </div>
-      </header>
-
-      {/* --- Main Content --- */}
-      <main className="max-w-[1400px] mx-auto p-4 md:p-6">
-        
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4">
-            <div className="relative w-64">
+        {/* Filters and Search */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input 
-                    className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                    placeholder="Search particulars..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                <input
+                  className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64"
+                  placeholder="Search sheets..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
-            </div>
-            <div className="flex gap-2">
-                <button 
-                    onClick={() => toast.info("Export feature coming soon!")}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium text-sm rounded-lg hover:bg-slate-50 shadow-sm transition-all"
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFilter("all")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === "all"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
-                    <Download className="w-4 h-4" /> Export
+                  All
                 </button>
-                <button 
-                    onClick={addRow} 
-                    className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white font-medium text-sm rounded-lg hover:bg-slate-800 shadow-md transition-all hover:shadow-lg active:scale-95"
+                <button
+                  onClick={() => setFilter("active")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
-                    <Plus className="w-4 h-4" /> Add Transaction
+                  Active
                 </button>
-            </div>
-        </div>
-
-        {/* --- Ledger Table --- */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-220px)]">
-            <div className="overflow-auto flex-1">
-                <table className="w-full text-sm border-collapse">
-                    <thead className="sticky top-0 z-10">
-                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                            <th className="font-semibold px-4 py-3 text-left w-32">Date</th>
-                            <th className="font-semibold px-4 py-3 text-left min-w-[280px]">Particulars</th>
-                            
-                            {/* RMB Group */}
-                            <th className="font-semibold px-2 py-3 text-center bg-amber-50/50 border-l border-amber-100 w-32 text-amber-800">
-                                Debit (RMB)
-                            </th>
-                            <th className="font-semibold px-2 py-3 text-center bg-amber-50/50 border-r border-amber-100 w-32 text-amber-800">
-                                Credit (RMB)
-                            </th>
-
-                            {/* USD Group */}
-                            <th className="font-semibold px-2 py-3 text-center bg-emerald-50/50 border-l border-emerald-100 w-32 text-emerald-800">
-                                Debit (USD)
-                            </th>
-                            <th className="font-semibold px-2 py-3 text-center bg-emerald-50/50 w-32 text-emerald-800">
-                                Credit (USD)
-                            </th>
-                            
-                            <th className="w-12 px-2 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredRows.length === 0 ? (
-                            <tr>
-                                <td colSpan={7} className="text-center py-20 text-slate-400">
-                                    <Wallet className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                                    No transactions found.
-                                </td>
-                            </tr>
-                        ) : (
-                            filteredRows.map((row) => (
-                                <tr key={row.id} className="group hover:bg-slate-50 transition-colors">
-                                    {/* Date */}
-                                    <td className="px-2 py-1 align-top border-r border-transparent group-hover:border-slate-200/50">
-                                        <input 
-                                            type="date" 
-                                            className="w-full px-2 py-2 rounded border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent outline-none text-slate-600" 
-                                            value={row.date} 
-                                            onChange={e => updateRow(row.id, 'date', e.target.value)} 
-                                        />
-                                    </td>
-
-                                    {/* Particulars */}
-                                    <td className="px-2 py-1 align-top border-r border-transparent group-hover:border-slate-200/50">
-                                        <textarea 
-                                            rows={1}
-                                            className="w-full px-3 py-2.5 rounded border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent outline-none font-medium text-slate-800 resize-none overflow-hidden" 
-                                            placeholder="Enter description..." 
-                                            value={row.particulars} 
-                                            onChange={e => {
-                                                updateRow(row.id, 'particulars', e.target.value);
-                                                e.target.style.height = 'auto';
-                                                e.target.style.height = e.target.scrollHeight + 'px';
-                                            }}
-                                            style={{ minHeight: '40px' }}
-                                        />
-                                    </td>
-
-                                    {/* RMB Inputs */}
-                                    <td className="px-2 py-1 align-top bg-amber-50/20 group-hover:bg-amber-50/40 border-l border-amber-100/50">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-amber-300 focus:border-amber-500 focus:bg-white bg-transparent outline-none font-mono" 
-                                            placeholder="-" 
-                                            value={row.debitRMB} 
-                                            onChange={e => updateRow(row.id, 'debitRMB', e.target.value)} 
-                                        />
-                                    </td>
-                                    <td className="px-2 py-1 align-top bg-amber-50/20 group-hover:bg-amber-50/40 border-r border-amber-100/50">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-amber-300 focus:border-amber-500 focus:bg-white bg-transparent outline-none font-mono text-red-600" 
-                                            placeholder="-" 
-                                            value={row.creditRMB} 
-                                            onChange={e => updateRow(row.id, 'creditRMB', e.target.value)} 
-                                        />
-                                    </td>
-
-                                    {/* USD Inputs */}
-                                    <td className="px-2 py-1 align-top bg-emerald-50/20 group-hover:bg-emerald-50/40 border-l border-emerald-100/50">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-emerald-300 focus:border-emerald-500 focus:bg-white bg-transparent outline-none font-mono" 
-                                            placeholder="-" 
-                                            value={row.debitUSD} 
-                                            onChange={e => updateRow(row.id, 'debitUSD', e.target.value)} 
-                                        />
-                                    </td>
-                                    <td className="px-2 py-1 align-top bg-emerald-50/20 group-hover:bg-emerald-50/40">
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-2 py-2 text-right rounded border border-transparent hover:border-emerald-300 focus:border-emerald-500 focus:bg-white bg-transparent outline-none font-mono text-red-600" 
-                                            placeholder="-" 
-                                            value={row.creditUSD} 
-                                            onChange={e => updateRow(row.id, 'creditUSD', e.target.value)} 
-                                        />
-                                    </td>
-
-                                    {/* Delete */}
-                                    <td className="px-2 py-1 align-middle text-center">
-                                        <button 
-                                            onClick={() => deleteRow(row.id)} 
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                            title="Delete Entry"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                <button
+                  onClick={() => setFilter("archived")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === "archived"
+                      ? "bg-gray-100 text-gray-700"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
             </div>
 
-            {/* --- Footer Totals --- */}
-            <div className="bg-slate-50 border-t border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-end gap-8 text-sm">
-                    <div className="font-semibold text-slate-500 uppercase tracking-wider text-xs">Totals</div>
-                    
-                    {/* RMB Summary */}
-                    <div className="flex gap-6 border-r border-slate-300 pr-8">
-                        <div className="text-right">
-                            <div className="text-[10px] text-amber-700/70 uppercase">Total Debit</div>
-                            <div className="font-bold text-slate-700 font-mono">¥{totals.dRMB.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-[10px] text-amber-700/70 uppercase">Total Credit</div>
-                            <div className="font-bold text-red-600 font-mono">¥{totals.cRMB.toLocaleString()}</div>
-                        </div>
-                    </div>
-
-                    {/* USD Summary */}
-                    <div className="flex gap-6">
-                        <div className="text-right">
-                            <div className="text-[10px] text-emerald-700/70 uppercase">Total Debit</div>
-                            <div className="font-bold text-slate-700 font-mono">${totals.dUSD.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-[10px] text-emerald-700/70 uppercase">Total Credit</div>
-                            <div className="font-bold text-red-600 font-mono">${totals.cUSD.toLocaleString()}</div>
-                        </div>
-                    </div>
+            <div className="flex items-center gap-2">
+              {selectedSheets.length > 0 && (
+                <div className="text-sm text-slate-600">
+                  {selectedSheets.length} selected
                 </div>
+              )}
+              <button
+                onClick={handleSelectAll}
+                className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                {selectedSheets.length === sheets.length
+                  ? "Deselect All"
+                  : "Select All"}
+              </button>
             </div>
+          </div>
         </div>
-      </main>
+
+        {/* Sheets Grid/Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <span className="ml-3 text-slate-600">Loading sheets...</span>
+            </div>
+          ) : sheets.length === 0 ? (
+            <div className="text-center py-16">
+              <Folder className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-slate-900 mb-2">
+                No sheets found
+              </h3>
+              <p className="text-slate-600 mb-6">
+                {search
+                  ? "Try a different search term"
+                  : "Create your first forex sheet"}
+              </p>
+              <button
+                onClick={createNewSheet}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Create New Sheet
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left p-4">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedSheets.length === sheets.length &&
+                          sheets.length > 0
+                        }
+                        onChange={handleSelectAll}
+                        className="rounded border-slate-300"
+                      />
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      Sheet Name
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      Entries
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      RMB Balance
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      USD Balance
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      Status
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      Last Updated
+                    </th>
+                    <th className="text-left p-4 font-semibold text-slate-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sheets.map((sheet) => (
+                    <tr
+                      key={sheet.id}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="p-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedSheets.includes(sheet.id)}
+                          onChange={() => handleSelectSheet(sheet.id)}
+                          className="rounded border-slate-300"
+                        />
+                      </td>
+                      <td className="p-4">
+                        <div
+                          className="font-medium text-slate-900 hover:text-blue-600 cursor-pointer"
+                          onClick={() =>
+                            router.push(`/dashboard/accounts/david/${sheet.id}`)
+                          }
+                        >
+                          {sheet.name}
+                        </div>
+                        {sheet.description && (
+                          <div className="text-sm text-slate-500 mt-1">
+                            {sheet.description}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1">
+                          <FileText className="w-4 h-4 text-slate-400" />
+                          <span className="font-medium">
+                            {sheet.summary?.entryCount || 0}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-mono font-medium">
+                          ¥{formatCurrency(sheet.summary?.netRMB || 0)}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-mono font-medium">
+                          ${formatCurrency(sheet.summary?.netUSD || 0)}
+                        </div>
+                      </td>
+                      <td className="p-4">{getStatusBadge(sheet.status)}</td>
+                      <td className="p-4 text-sm text-slate-600">
+                        {new Date(sheet.updatedAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              router.push(
+                                `/dashboard/accounts/david/${sheet.id}`
+                              )
+                            }
+                            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="Open"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => duplicateSheet(sheet.id, sheet.name)}
+                            className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Duplicate"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => exportSheet(sheet.id, sheet.name)}
+                            className="p-2 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg"
+                            title="Export"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              archiveSheet(
+                                sheet.id,
+                                sheet.status !== "ARCHIVED"
+                              )
+                            }
+                            className="p-2 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg"
+                            title={
+                              sheet.status === "ARCHIVED"
+                                ? "Restore"
+                                : "Archive"
+                            }
+                          >
+                            {sheet.status === "ARCHIVED" ? (
+                              <Share2 className="w-4 h-4" />
+                            ) : (
+                              <Archive className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="border-t border-slate-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Stats */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="text-3xl font-bold text-slate-900">
+              {sheets.length}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">Total Sheets</div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="text-3xl font-bold text-slate-900">
+              {sheets.filter((s) => s.status === "ACTIVE").length}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">Active Sheets</div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="text-3xl font-bold text-slate-900">
+              ¥
+              {formatCurrency(
+                sheets.reduce(
+                  (sum, sheet) => sum + (sheet.summary?.netRMB || 0),
+                  0
+                )
+              )}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">Total RMB</div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="text-3xl font-bold text-slate-900">
+              $
+              {formatCurrency(
+                sheets.reduce(
+                  (sum, sheet) => sum + (sheet.summary?.netUSD || 0),
+                  0
+                )
+              )}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">Total USD</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-// "use client";
-// import React, { useState, useEffect } from "react";
-// import { useRouter } from "next/navigation";
-// import {
-//   Plus,
-//   Globe,
-//   Search,
-//   Filter,
-//   Calendar,
-//   Archive,
-//   Lock,
-//   Unlock,
-//   FileText,
-//   TrendingUp,
-//   TrendingDown,
-//   Download,
-//   MoreVertical,
-//   Edit,
-//   Trash2,
-//   Eye,
-//   Coins,
-//   Wallet,
-// } from "lucide-react";
-// import {  toast } from "sonner";
-// import { forexAPI } from "@/services/forex.service";
-
-
-// export default function ForexSheetsPage() {
-//   const router = useRouter();
-//   const [sheets, setSheets] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [search, setSearch] = useState("");
-//   const [currencyFilter, setCurrencyFilter] = useState("");
-//   const [statusFilter, setStatusFilter] = useState("");
-//   const [dashboardStats, setDashboardStats] = useState(null);
-//   const [currencies] = useState(["RMB", "USD", "EUR", "GBP", "JPY", "OTHER"]);
-
-//   // Load data
-//   useEffect(() => {
-//     loadSheets();
-//     loadDashboardStats();
-//   }, [search, currencyFilter, statusFilter]);
-
-//   const loadSheets = async () => {
-//     try {
-//       setLoading(true);
-//       const params = {
-//         search,
-//         currency: currencyFilter,
-//         status: statusFilter,
-//         page: 1,
-//         limit: 100,
-//       };
-//       const data = await forexAPI.getSheets(params);
-//       setSheets(data.data.data.sheets || []);
-//     } catch (error) {
-//       toast.error(error.message || "Failed to load forex sheets");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const loadDashboardStats = async () => {
-//     try {
-//       const data = await forexAPI.getDashboardOverview();
-//       setDashboardStats(data.data.data);
-//     } catch (error) {
-//       console.error("Failed to load dashboard stats:", error);
-//     }
-//   };
-
-//   const handleCreateSheet = async () => {
-//     router.push("/dashboard/accounts/david/new");
-//   };
-
-//   const handleDeleteSheet = async (sheetId, sheetName) => {
-//     if (!confirm(`Are you sure you want to archive "${sheetName}"?`)) return;
-
-//     try {
-//       await forexAPI.deleteSheet(sheetId);
-//       toast.success("Forex sheet archived successfully");
-//       loadSheets();
-//       loadDashboardStats();
-//     } catch (error) {
-//       toast.error(error.message || "Failed to archive sheet");
-//     }
-//   };
-
-//   const handleExportSheet = async (sheetId, sheetName) => {
-//     try {
-//       const blob = await forexAPI.exportSheet(sheetId);
-//       const url = window.URL.createObjectURL(blob);
-//       const a = document.createElement("a");
-//       a.href = url;
-//       a.download = `${sheetName.replace(/\s+/g, "_")}_forex_${new Date()
-//         .toISOString()
-//         .slice(0, 10)}.xlsx`;
-//       document.body.appendChild(a);
-//       a.click();
-//       window.URL.revokeObjectURL(url);
-//       document.body.removeChild(a);
-//       toast.success("Forex sheet exported successfully");
-//     } catch (error) {
-//       toast.error(error.message || "Failed to export sheet");
-//     }
-//   };
-
-//   // Get currency symbol
-//   const getCurrencySymbol = (currency) => {
-//     switch (currency) {
-//       case "RMB":
-//         return "¥";
-//       case "USD":
-//         return "$";
-//       case "EUR":
-//         return "€";
-//       case "GBP":
-//         return "£";
-//       case "JPY":
-//         return "¥";
-//       default:
-//         return currency;
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-
-
-//       {/* Header */}
-//       <div className="bg-white border-b border-slate-200">
-//         <div className="max-w-7xl mx-auto px-4 py-6">
-//           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-//             <div>
-//               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-//                 <Globe className="w-6 h-6 text-blue-600" />
-//                 Forex Sheets
-//               </h1>
-//               <p className="text-sm text-slate-600 mt-1">
-//                 Manage multi-currency forex ledgers and transactions
-//               </p>
-//             </div>
-//             <button
-//               onClick={handleCreateSheet}
-//               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-sm"
-//             >
-//               <Plus className="w-4 h-4" />
-//               New Forex Sheet
-//             </button>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Dashboard Stats */}
-//       {dashboardStats && (
-//         <div className="max-w-7xl mx-auto px-4 py-6">
-//           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-//               <div className="flex items-center justify-between">
-//                 <div>
-//                   <div className="text-xs font-medium text-slate-500 uppercase">
-//                     Total Sheets
-//                   </div>
-//                   <div className="text-2xl font-bold text-slate-900 mt-1">
-//                     {dashboardStats.totals.totalSheets}
-//                   </div>
-//                 </div>
-//                 <FileText className="w-8 h-8 text-blue-500" />
-//               </div>
-//               <div className="mt-2 text-xs text-slate-500">
-//                 Active: {dashboardStats.totals.activeSheets}
-//               </div>
-//             </div>
-
-//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-//               <div className="flex items-center justify-between">
-//                 <div>
-//                   <div className="text-xs font-medium text-slate-500 uppercase">
-//                     Total Entries
-//                   </div>
-//                   <div className="text-2xl font-bold text-slate-900 mt-1">
-//                     {dashboardStats.totals.totalEntries}
-//                   </div>
-//                 </div>
-//                 <Wallet className="w-8 h-8 text-purple-500" />
-//               </div>
-//             </div>
-
-//             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-//               <div className="flex items-center justify-between">
-//                 <div>
-//                   <div className="text-xs font-medium text-slate-500 uppercase">
-//                     Base Currencies
-//                   </div>
-//                   <div className="text-2xl font-bold text-slate-900 mt-1">
-//                     {dashboardStats.currencyDistribution.length}
-//                   </div>
-//                 </div>
-//                 <Coins className="w-8 h-8 text-amber-500" />
-//               </div>
-//               <div className="mt-2 text-xs text-slate-500">
-//                 {dashboardStats.currencyDistribution
-//                   .map((c) => c.currency)
-//                   .join(", ")}
-//               </div>
-//             </div>
-
-//             <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/50">
-//               <div className="flex items-center justify-between">
-//                 <div>
-//                   <div className="text-xs font-medium text-blue-700 uppercase">
-//                     Recent Activity
-//                   </div>
-//                   <div className="text-lg font-bold text-blue-700 mt-1">
-//                     {dashboardStats.recentSheets.length} active
-//                   </div>
-//                 </div>
-//                 <TrendingUp className="w-8 h-8 text-blue-500" />
-//               </div>
-//               <div className="mt-2 text-xs text-blue-600">
-//                 Latest: {dashboardStats.recentSheets[0]?.name}
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Filters */}
-//       <div className="max-w-7xl mx-auto px-4 py-4">
-//         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-//           <div className="flex flex-col md:flex-row gap-4">
-//             <div className="flex-1">
-//               <div className="relative">
-//                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-//                 <input
-//                   type="text"
-//                   placeholder="Search forex sheets by name or description..."
-//                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-//                   value={search}
-//                   onChange={(e) => setSearch(e.target.value)}
-//                 />
-//               </div>
-//             </div>
-//             <div className="flex gap-3">
-//               <select
-//                 className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-//                 value={currencyFilter}
-//                 onChange={(e) => setCurrencyFilter(e.target.value)}
-//               >
-//                 <option value="">All Currencies</option>
-//                 {currencies.map((currency) => (
-//                   <option key={currency} value={currency}>
-//                     {currency}
-//                   </option>
-//                 ))}
-//               </select>
-//               <select
-//                 className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-//                 value={statusFilter}
-//                 onChange={(e) => setStatusFilter(e.target.value)}
-//               >
-//                 <option value="">All Status</option>
-//                 <option value="ACTIVE">Active</option>
-//                 <option value="ARCHIVED">Archived</option>
-//                 <option value="LOCKED">Locked</option>
-//               </select>
-//               <button
-//                 onClick={loadSheets}
-//                 className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg flex items-center gap-2"
-//               >
-//                 <Filter className="w-4 h-4" />
-//                 Filter
-//               </button>
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Sheets Grid */}
-//       <div className="max-w-7xl mx-auto px-4 pb-8">
-//         {loading ? (
-//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-//             {[...Array(6)].map((_, i) => (
-//               <div
-//                 key={i}
-//                 className="h-48 bg-slate-100 animate-pulse rounded-xl"
-//               />
-//             ))}
-//           </div>
-//         ) : sheets.length === 0 ? (
-//           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-//             <Globe className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-//             <h3 className="text-lg font-medium text-slate-900">
-//               No forex sheets found
-//             </h3>
-//             <p className="text-slate-500 text-sm mb-4">
-//               Create your first forex sheet to track multi-currency transactions
-//             </p>
-//             <button
-//               onClick={handleCreateSheet}
-//               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-//             >
-//               <Plus className="w-4 h-4 inline mr-2" />
-//               Create Sheet
-//             </button>
-//           </div>
-//         ) : (
-//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-//             {sheets.map((sheet) => (
-//               <div
-//                 key={sheet.id}
-//                 className={`group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md ${
-//                   sheet.status === "ARCHIVED"
-//                     ? "border-slate-200 opacity-80"
-//                     : sheet.status === "LOCKED"
-//                     ? "border-amber-200"
-//                     : "border-blue-200"
-//                 }`}
-//               >
-//                 <div className="flex justify-between items-start mb-4">
-//                   <div>
-//                     <div className="flex items-center gap-2">
-//                       <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">
-//                         {sheet.name}
-//                       </h3>
-//                       {sheet.status === "LOCKED" && (
-//                         <Lock className="w-4 h-4 text-amber-500" />
-//                       )}
-//                       {sheet.status === "ARCHIVED" && (
-//                         <Archive className="w-4 h-4 text-slate-400" />
-//                       )}
-//                     </div>
-//                     <div className="flex items-center gap-2 mt-1">
-//                       <span className="text-xs text-slate-500 flex items-center gap-1">
-//                         <Coins className="w-3 h-3" />
-//                         Base: {sheet.baseCurrency}
-//                       </span>
-//                       {sheet.tags && sheet.tags.length > 0 && (
-//                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-//                           {sheet.tags[0]}
-//                         </span>
-//                       )}
-//                     </div>
-//                   </div>
-//                   <div className="relative">
-//                     <button className="p-1 text-slate-400 hover:text-slate-600">
-//                       <MoreVertical className="w-4 h-4" />
-//                     </button>
-//                   </div>
-//                 </div>
-
-//                 {sheet.description && (
-//                   <p className="text-sm text-slate-600 mb-4 line-clamp-2">
-//                     {sheet.description}
-//                   </p>
-//                 )}
-
-//                 {/* Currency Totals */}
-//                 <div className="mb-4">
-//                   <div className="grid grid-cols-2 gap-3">
-//                     {/* RMB */}
-//                     {sheet.totals.rmb.balance !== 0 && (
-//                       <div className="bg-amber-50 p-2 rounded-lg border border-amber-100">
-//                         <div className="text-[10px] uppercase font-bold text-amber-700">
-//                           RMB
-//                         </div>
-//                         <div className="flex justify-between items-center mt-1">
-//                           <span className="text-sm font-medium text-amber-900">
-//                             {getCurrencySymbol("RMB")}
-//                             {Math.abs(
-//                               sheet.totals.rmb.balance
-//                             ).toLocaleString()}
-//                           </span>
-//                           <span
-//                             className={`text-xs px-1 py-0.5 rounded ${
-//                               sheet.totals.rmb.balance > 0
-//                                 ? "bg-amber-100 text-amber-800"
-//                                 : "bg-red-100 text-red-800"
-//                             }`}
-//                           >
-//                             {sheet.totals.rmb.balance > 0 ? "DR" : "CR"}
-//                           </span>
-//                         </div>
-//                       </div>
-//                     )}
-
-//                     {/* USD */}
-//                     {sheet.totals.usd.balance !== 0 && (
-//                       <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-100">
-//                         <div className="text-[10px] uppercase font-bold text-emerald-700">
-//                           USD
-//                         </div>
-//                         <div className="flex justify-between items-center mt-1">
-//                           <span className="text-sm font-medium text-emerald-900">
-//                             {getCurrencySymbol("USD")}
-//                             {Math.abs(
-//                               sheet.totals.usd.balance
-//                             ).toLocaleString()}
-//                           </span>
-//                           <span
-//                             className={`text-xs px-1 py-0.5 rounded ${
-//                               sheet.totals.usd.balance > 0
-//                                 ? "bg-emerald-100 text-emerald-800"
-//                                 : "bg-red-100 text-red-800"
-//                             }`}
-//                           >
-//                             {sheet.totals.usd.balance > 0 ? "DR" : "CR"}
-//                           </span>
-//                         </div>
-//                       </div>
-//                     )}
-//                   </div>
-//                 </div>
-
-//                 <div className="border-t border-slate-100 pt-4">
-//                   <div className="flex justify-between items-center mb-3">
-//                     <span className="text-xs text-slate-400">
-//                       {sheet._count.entries} entries
-//                     </span>
-//                     <div
-//                       className={`text-xs px-2 py-1 rounded-full ${
-//                         sheet.status === "ACTIVE"
-//                           ? "bg-blue-50 text-blue-700 border border-blue-100"
-//                           : sheet.status === "ARCHIVED"
-//                           ? "bg-slate-100 text-slate-600 border border-slate-200"
-//                           : "bg-amber-50 text-amber-700 border border-amber-100"
-//                       }`}
-//                     >
-//                       {sheet.status}
-//                     </div>
-//                   </div>
-
-//                   <div className="flex gap-2">
-//                     <button
-//                       onClick={() =>
-//                         router.push(`/dashboard/forex/${sheet.id}`)
-//                       }
-//                       className="flex-1 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
-//                     >
-//                       <Eye className="w-4 h-4" />
-//                       Open
-//                     </button>
-
-//                     <div className="flex gap-1">
-//                       <button
-//                         onClick={() => handleExportSheet(sheet.id, sheet.name)}
-//                         className="p-2 text-slate-400 hover:text-blue-600"
-//                         title="Export"
-//                       >
-//                         <Download className="w-4 h-4" />
-//                       </button>
-//                       {sheet.status !== "ARCHIVED" && (
-//                         <>
-//                           <button
-//                             onClick={() =>
-//                               router.push(`/dashboard/forex/${sheet.id}/edit`)
-//                             }
-//                             className="p-2 text-slate-400 hover:text-blue-600"
-//                             title="Edit"
-//                           >
-//                             <Edit className="w-4 h-4" />
-//                           </button>
-//                           <button
-//                             onClick={() =>
-//                               handleDeleteSheet(sheet.id, sheet.name)
-//                             }
-//                             className="p-2 text-slate-400 hover:text-red-600"
-//                             title="Archive"
-//                           >
-//                             <Trash2 className="w-4 h-4" />
-//                           </button>
-//                         </>
-//                       )}
-//                     </div>
-//                   </div>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// }

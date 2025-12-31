@@ -22,7 +22,9 @@ const containerInSummary = require("./containerSummary/containerSummary.routes")
 const warehouseRoutes = require("./warehouse/warehouse.routes");
 const clientsRoutes = require("./accounts/clients/clients.routes");
 const dinieshbhaiRoutes = require("./accounts/dineshbhai/dineshbhai.routes");
-const forexRoutes = require("./accounts/forex/forex.routes");
+const davidSheet = require("./accounts/david/davidSheet.routes");
+const paymentCollection = require("./accounts/paymentCollection/paymentCollection.routes");
+const ShippingRoutes = require("./accounts/shipping/shipping.routes");
 
 router.use("/loading", loadingRoutes);
 router.use("/bifurcation", bifurcationRoutes);
@@ -32,7 +34,10 @@ router.use("/container-summaries", containerInSummary);
 router.use("/warehouse", warehouseRoutes);
 router.use("/accounts/clts", clientsRoutes);
 router.use("/accounts/dineshbhai", dinieshbhaiRoutes);
-router.use("/accounts/forex", forexRoutes);
+router.use("/accounts/david", davidSheet);
+router.use("/accounts/collection", paymentCollection);
+router.use("/accounts/shipping", ShippingRoutes);
+
 module.exports = router;
 // Add this with your other route imports
 

@@ -822,7 +822,6 @@ model ClientContainerLink {
   @@index([mark])
 }
 
-
 // Add these enums to your existing enums section
 enum DineshSheetStatus {
   ACTIVE
@@ -898,99 +897,268 @@ model DineshSheetEntry {
   @@index([isPaid])
 }
 
-// Add to your existing enums
-enum ForexCurrency {
-  RMB
-  USD
-  EUR
-  GBP
-  JPY
-  OTHER
-}
-
-enum ForexSheetStatus {
+// Add this enum
+enum DavidSheetStatus {
   ACTIVE
   ARCHIVED
   LOCKED
 }
 
-// Add these models
-model ForexSheet {
+// Add this model
+model DavidSheet {
   id          String  @id @default(cuid())
-  name        String  @unique  // User-defined name like "David Impex", "China Payments", etc.
+  name        String  @unique
   description String?
-  
-  // Base currency
-  baseCurrency ForexCurrency @default(RMB)
-  
+
   // Status
-  status   ForexSheetStatus @default(ACTIVE)
+  status   DavidSheetStatus @default(ACTIVE)
   isLocked Boolean          @default(false)
-  
-  // Metadata
-  tags     String[]
-  
+
+  // Metadata for filtering
+  currencyTypes String[] // ["RMB", "USD"]
+  tags          String[]
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
-  entries ForexEntry[]
-  
-  // Audit fields (as strings for simplicity)
+  entries DavidSheetEntry[]
+
+  // Audit fields
   createdBy String?
   updatedBy String?
-  
+
   @@index([status])
-  @@index([baseCurrency])
+  @@index([createdAt])
 }
 
-model ForexEntry {
-  id       String   @id @default(cuid())
-  sheetId  String
-  sheet    ForexSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  
-  // Entry data
-  date        DateTime
+model DavidSheetEntry {
+  id      String     @id @default(cuid())
+  sheetId String
+  sheet   DavidSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  // Entry data matching frontend
+  date        DateTime?
   particulars String
-  reference   String?  // Reference number, invoice number, etc.
-  
-  // Amounts in different currencies
-  debitRMB    Float?  @default(0)
-  creditRMB   Float?  @default(0)
-  debitUSD    Float?  @default(0)
-  creditUSD   Float?  @default(0)
-  debitEUR    Float?  @default(0)
-  creditEUR   Float?  @default(0)
-  debitGBP    Float?  @default(0)
-  creditGBP   Float?  @default(0)
-  debitJPY    Float?  @default(0)
-  creditJPY   Float?  @default(0)
-  debitOther  Float?  @default(0)
-  creditOther Float?  @default(0)
-  otherCurrencyCode String?  // For OTHER currency type
-  
+
+  // RMB amounts
+  debitRMB  Float @default(0)
+  creditRMB Float @default(0)
+
+  // USD amounts
+  debitUSD  Float @default(0)
+  creditUSD Float @default(0)
+
+  // Calculated totals (for quick queries)
+  totalDebitRMB  Float @default(0)
+  totalCreditRMB Float @default(0)
+  totalDebitUSD  Float @default(0)
+  totalCreditUSD Float @default(0)
+
+  // Metadata
+  isBalanced Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Audit fields
+  createdBy String?
+  updatedBy String?
+
+  @@index([sheetId])
+  @@index([date])
+}
+
+// Add these models to your existing schema
+
+enum CollectionStatus {
+  ACTIVE
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model PaymentCollectionSheet {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  fiscalYear  String // e.g., "2024-2025", "2025-2026"
+
+  // Status
+  status   CollectionStatus @default(ACTIVE)
+  isLocked Boolean          @default(false)
+
+  // Financial totals (cached for performance)
+  total24_25      Float @default(0)
+  totalAddCompany Float @default(0)
+  total25_26      Float @default(0)
+  totalAdvance    Float @default(0)
+  totalBalance    Float @default(0)
+
+  // Metadata
+  tags    String[]
+  dueDate DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entries PaymentCollectionEntry[]
+
+  // Audit fields
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+  @@index([fiscalYear])
+  @@index([dueDate])
+}
+
+model PaymentCollectionEntry {
+  id      String                 @id @default(cuid())
+  sheetId String
+  sheet   PaymentCollectionSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  // Entry data matching frontend
+  clientName   String
+  expectedDate DateTime?
+  amount24_25  Float     @default(0)
+  addCompany   Float     @default(0)
+  amount25_26  Float     @default(0)
+  advance      Float     @default(0)
+
   // Calculated fields
-  rmbBalance  Float   @default(0)  // Debit - Credit
-  usdBalance  Float   @default(0)
-  eurBalance  Float   @default(0)
-  gbpBalance  Float   @default(0)
-  jpyBalance  Float   @default(0)
-  otherBalance Float  @default(0)
+  balance       Float   @default(0) // amount25_26 - advance
+  isHighlighted Boolean @default(false)
+  isCritical    Boolean @default(false)
+
+  // Additional fields
+  notes       String?
+  paymentMode String? // CASH, BANK_TRANSFER, CHEQUE, etc
+  paymentRef  String?
+
+  // Status tracking
+  paymentStatus String @default("PENDING") // PENDING, PARTIAL, PAID
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Audit fields
+  createdBy String?
+  updatedBy String?
+
+  @@index([sheetId])
+  @@index([clientName])
+  @@index([paymentStatus])
+  @@index([expectedDate])
+}
+// Add these models to your existing schema
+
+enum ShippingStatus {
+  PLANNED
+  LOADING
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  CANCELLED
+}
+
+model ShippingSheet {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  fiscalYear  String  // e.g., "2024-2025"
+  
+  // Status
+  status   ShippingStatus @default(PLANNED)
+  isLocked Boolean        @default(false)
+  
+  // Financial totals (cached for performance)
+  totalFreightUSD     Float @default(0)
+  totalFreightINR     Float @default(0)
+  totalCHA            Float @default(0)
+  totalFobTerms       Float @default(0)
+  totalCfsDoYard      Float @default(0)
+  totalScanning       Float @default(0)
+  totalSimsPims       Float @default(0)
+  totalDuty           Float @default(0)
+  totalPenalty        Float @default(0)
+  totalTrucking       Float @default(0)
+  totalLoadingUnloading Float @default(0)
+  totalLocalCharges   Float @default(0)  // Sum of all local charges
+  grandTotal          Float @default(0)  // freightINR + localCharges
   
   // Metadata
-  category    String?  // e.g., "Payment", "Receipt", "Transfer", "Expense"
-  notes       String?
+  tags         String[]
   
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  // Relations
+  entries ShippingEntry[]
+  
   // Audit fields
-  createdBy   String?
-  updatedBy   String?
+  createdBy String?
+  updatedBy String?
+  
+  @@index([status])
+  @@index([fiscalYear])
+}
+
+model ShippingEntry {
+  id          String       @id @default(cuid())
+  sheetId     String
+  sheet       ShippingSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  
+  // Entry data matching frontend
+  containerCode  String
+  loadingFrom    String   @default("YIWU / GUANGZHOU / FULL")
+  ctn            Int      @default(0)
+  loadingDate    DateTime
+  deliveryDate   DateTime?
+  
+  // Freight amounts
+  freightUSD     Float @default(0)
+  freightINR     Float @default(0)
+  
+  // Local charges (India side)
+  cha            Float @default(0)
+  fobTerms       Float @default(0)
+  cfsDoYard      Float @default(0)
+  scanning       Float @default(0)
+  simsPims       Float @default(0)
+  duty           Float @default(0)
+  penalty        Float @default(0)
+  trucking       Float @default(0)
+  loadingUnloading Float @default(0)
+  
+  // Calculated fields
+  localCharges   Float @default(0)  // Sum of all local charges
+  totalAmount    Float @default(0)  // freightINR + localCharges
+  
+  // Status tracking
+  deliveryStatus String @default("PENDING") // PENDING, IN_TRANSIT, ARRIVED, DELIVERED
+  
+  // Additional fields
+  notes          String?
+  shippingLine   String?
+  blNumber       String?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Audit fields
+  createdBy      String?
+  updatedBy      String?
   
   @@index([sheetId])
-  @@index([date])
-  @@index([category])
+  @@index([containerCode])
+  @@index([loadingDate])
+  @@index([deliveryStatus])
 }
