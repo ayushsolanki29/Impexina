@@ -1265,3 +1265,145 @@ model ClientActivity {
   @@index([createdAt])
   @@map("client_activities")
 }
+
+// Add this to your existing schema
+
+model MumbaiLedger {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  description     String?
+  
+  // Stats
+  totalExpense    Float     @default(0)
+  totalAdvance    Float     @default(0)
+  totalBalance    Float     @default(0)
+  
+  // Metadata
+  status          String    @default("ACTIVE")
+  isLocked        Boolean   @default(false)
+  month           Int?
+  year            Int?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Audit fields - ADD THESE
+  createdBy       String?   // Add this line
+  updatedBy       String?   // Add this line
+  
+  // Relations
+  entries         MumbaiLedgerEntry[]
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MumbaiLedgerEntry {
+  id              String        @id @default(cuid())
+  ledgerId        String
+  ledger          MumbaiLedger  @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  
+  // Entry Info
+  type            String        // "EXPENSE" or "ADVANCE"
+  entryDate       DateTime      @default(now())
+  
+  // For EXPENSE
+  containerCode   String?
+  expenseNote     String?
+  
+  // For ADVANCE
+  advanceNote     String?
+  
+  // Items breakdown (for expenses)
+  items           Json?
+  
+  // Amount
+  amount          Float         @default(0)
+  
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Audit fields - ADD THESE
+  createdBy       String?       // Add this line
+  updatedBy       String?       // Add this line
+  
+  @@index([ledgerId])
+  @@index([type])
+  @@index([entryDate])
+  @@index([containerCode])
+}
+
+// Add this to your existing schema
+
+model AhmedabadPettyCash {
+  id              String    @id @default(cuid())
+  name            String    @unique  // e.g., "January 2025 Petty Cash"
+  description     String?
+  
+  // Opening balance
+  openingBalance  Float     @default(0)
+  
+  // Stats
+  totalCredit     Float     @default(0)
+  totalDebit      Float     @default(0)
+  closingBalance  Float     @default(0)
+  
+  // Metadata
+  status          String    @default("ACTIVE") // ACTIVE, ARCHIVED
+  isLocked        Boolean   @default(false)
+  month           Int?
+  year            Int?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Audit fields
+  createdBy       String?
+  updatedBy       String?
+  
+  // Relations
+  entries         AhmedabadPettyCashEntry[]
+  
+  @@index([status])
+  @@index([createdAt])
+  @@index([month, year])
+}
+
+model AhmedabadPettyCashEntry {
+  id              String                @id @default(cuid())
+  sheetId         String
+  sheet           AhmedabadPettyCash    @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  
+  // Entry Info
+  type            String                // "CREDIT" or "DEBIT"
+  entryDate       DateTime              @default(now())
+  
+  // Transaction details
+  particular      String
+  contCode        String?               // Container code or reference
+  mode            String                @default("Cash") // Cash, Online/UPI, Cheque, Self
+  
+  // Amounts
+  credit          Float                 @default(0)
+  debit           Float                 @default(0)
+  
+  // Additional info
+  notes           String?
+  
+  // Timestamps
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  
+  // Audit fields
+  createdBy       String?
+  updatedBy       String?
+  
+  @@index([sheetId])
+  @@index([type])
+  @@index([entryDate])
+  @@index([contCode])
+  @@index([particular])
+}

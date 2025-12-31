@@ -26,7 +26,11 @@ const davidSheet = require("./accounts/david/davidSheet.routes");
 const paymentCollection = require("./accounts/paymentCollection/paymentCollection.routes");
 const ShippingRoutes = require("./accounts/shipping/shipping.routes");
 const ClientsRoutes = require("./clients/clients.routes");
+const mumbaiLedger = require("./expenses/mumbai/mumbai-ledger.routes");
+const ahmedabadPettyCashRoutes = require("./expenses/ahmedabad/ahmedabad-petty-cash.routes");
 
+// Mount routes
+router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
 router.use("/loading", loadingRoutes);
 router.use("/bifurcation", bifurcationRoutes);
 router.use("/packing-list", packingListRoutes);
@@ -39,8 +43,7 @@ router.use("/accounts/david", davidSheet);
 router.use("/accounts/collection", paymentCollection);
 router.use("/accounts/shipping", ShippingRoutes);
 router.use("/clients", ClientsRoutes);
+router.use("/expenses/mumbai-ledger", mumbaiLedger); 
+router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes); 
 
 module.exports = router;
-// Add this with your other route imports
-
-// Add this with your other app.use() statements
