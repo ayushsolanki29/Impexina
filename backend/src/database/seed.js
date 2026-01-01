@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
+// Main seed function
 async function main() {
   console.log("🌱 Starting DB Seed...");
 
@@ -23,14 +24,24 @@ async function main() {
 
   console.log("✅ Admin created:", admin.username);
 
-  // Create Modules
+  // Create Modules (including task management module)
   const modules = [
+    { key: "DASHBOARD", name: "Dashboard" },
+    { key: "ORDER_TRACKER", name: "Order Tracker" },
     { key: "LOADING_SHEET", name: "Loading Sheet" },
-    { key: "ACCOUNTS", name: "Accounts" },
-    { key: "CONTAINERS", name: "Container Overview" },
     { key: "BIFURCATION", name: "Bifurcation" },
     { key: "PACKING_LIST", name: "Packing List" },
-    { key: "COMPANY_MASTER", name: "Company Master" },
+    { key: "INVOICE", name: "Invoice" },
+    { key: "CONTAINERS", name: "Containers" },
+    { key: "CONTAINER_SUMMARY", name: "Container Summary" },
+    { key: "CONTAINERS_LIST", name: "Containers List" },
+    { key: "WAREHOUSE_PLAN", name: "Warehouse Plan" },
+    { key: "ACCOUNTS", name: "Accounts" },
+    { key: "CLIENTS", name: "Clients" },
+    { key: "EXPENSES", name: "Expenses" },
+    { key: "USER_MANAGEMENT", name: "User Management" },
+    { key: "TASK_MANAGEMENT", name: "Task Management" },
+    { key: "MY_TASK", name: "My Tasks" },
   ];
 
   for (const mod of modules) {
@@ -67,31 +78,36 @@ async function main() {
   const companyMasters = [
     {
       companyName: "YIWU ZHOULAI TRADING CO., LIMITED",
-      companyAddress: "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
+      companyAddress:
+        "Add.: Room 801, Unit 3, Building 1, Jiuheyuan, Jiangdong Street, Yiwu City, Jinhua City, Zhejiang Province Tel.:13735751445",
       companyPhone: "13735751445",
       companyEmail: "sales@yiwuzhou.com",
       bankName: "ZHEJIANG TAILONG COMMERCIAL BANK",
       beneficiaryName: "YIWU ZHOULAI TRADING CO.,LIMITED",
       swiftBic: "ZJTLCNBHXXX",
-      bankAddress: "ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE",
+      bankAddress:
+        "ROOM 801, UNIT 3, BUILDING 1, JIUHEYUAN, JIANGDONG STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE",
       accountNumber: "33080020201000155179",
       signatureText: "Authorized Signatory",
     },
     {
       companyName: "SHANGHAI GLOBAL TRADING LTD",
-      companyAddress: "Room 1208, No. 888, Pudong Avenue, Shanghai, China Tel.: +86-21-58881234",
+      companyAddress:
+        "Room 1208, No. 888, Pudong Avenue, Shanghai, China Tel.: +86-21-58881234",
       companyPhone: "+86-21-58881234",
       companyEmail: "info@shanghaiglobal.com",
       bankName: "INDUSTRIAL AND COMMERCIAL BANK OF CHINA",
       beneficiaryName: "SHANGHAI GLOBAL TRADING LTD",
       swiftBic: "ICBKCNBJSHI",
-      bankAddress: "NO.1 FUCHENGMENTOU STREET, XICHENG DISTRICT, BEIJING 100140, CHINA",
+      bankAddress:
+        "NO.1 FUCHENGMENTOU STREET, XICHENG DISTRICT, BEIJING 100140, CHINA",
       accountNumber: "4567890123456789",
       signatureText: "Director",
     },
     {
       companyName: "GUANGDONG IMPORT EXPORT CORP",
-      companyAddress: "Floor 15, Tianhe Plaza, Tianhe District, Guangzhou, Guangdong, China Tel.: +86-20-85551234",
+      companyAddress:
+        "Floor 15, Tianhe Plaza, Tianhe District, Guangzhou, Guangdong, China Tel.: +86-20-85551234",
       companyPhone: "+86-20-85551234",
       companyEmail: "export@guangdongcorp.com",
       bankName: "BANK OF CHINA",
@@ -162,57 +178,6 @@ async function main() {
   });
 
   console.log("✅ Demo container created:", demoContainer.containerCode);
-
-  // Create demo employee
-  const employeePassword = await bcrypt.hash("emp123", 10);
-  
-  const employee = await prisma.user.upsert({
-    where: { username: "employee" },
-    update: {},
-    create: {
-      username: "employee",
-      password: employeePassword,
-      name: "John Employee",
-      role: "EMPLOYEE",
-      isActive: true,
-    },
-  });
-
-  console.log("✅ Employee created:", employee.username);
-
-  // Assign limited modules to employee
-  const employeeModules = await prisma.module.findMany({
-    where: {
-      key: {
-        in: ["LOADING_SHEET", "CONTAINERS", "PACKING_LIST"],
-      },
-    },
-  });
-
-  for (const mod of employeeModules) {
-    await prisma.userPermission.upsert({
-      where: {
-        userId_moduleId: {
-          userId: employee.id,
-          moduleId: mod.id,
-        },
-      },
-      update: {},
-      create: {
-        userId: employee.id,
-        moduleId: mod.id,
-      },
-    });
-  }
-
-  console.log("✅ Employee permissions assigned");
-
-  console.log("🎉 Database seeding completed successfully!");
-  console.log("\n📋 Default Login Credentials:");
-  console.log("   Admin:     admin / admin123");
-  console.log("   Employee:  employee / emp123");
-  console.log("\n📦 Demo Container: PSDH-86");
-  console.log("🏢 Company Masters: 3 companies with bank details");
 }
 
 main()

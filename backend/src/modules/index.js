@@ -28,6 +28,9 @@ const ShippingRoutes = require("./accounts/shipping/shipping.routes");
 const ClientsRoutes = require("./clients/clients.routes");
 const mumbaiLedger = require("./expenses/mumbai/mumbai-ledger.routes");
 const ahmedabadPettyCashRoutes = require("./expenses/ahmedabad/ahmedabad-petty-cash.routes");
+const usersRoutes = require("./users/users.routes");
+const taskRoutes = require("./tasks/tasks.routes");
+const clientOrderTracker = require("./client-order-tracker/order-tracker.routes");
 
 // Mount routes
 router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
@@ -43,7 +46,10 @@ router.use("/accounts/david", davidSheet);
 router.use("/accounts/collection", paymentCollection);
 router.use("/accounts/shipping", ShippingRoutes);
 router.use("/clients", ClientsRoutes);
-router.use("/expenses/mumbai-ledger", mumbaiLedger); 
-router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes); 
+router.use("/expenses/mumbai-ledger", mumbaiLedger);
+router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
+router.use("/users", usersRoutes);
+router.use("/tasks", taskRoutes);
+router.use("/client-order-tracker", clientOrderTracker);
 
 module.exports = router;

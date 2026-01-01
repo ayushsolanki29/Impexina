@@ -1,401 +1,613 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  CheckCircle2, 
-  Circle, 
-  Clock, 
-  Calendar as CalendarIcon, 
-  Plus, 
-  MoreHorizontal, 
-  BarChart3,
-  Users,
-  LayoutGrid,
-  CheckSquare,
-  ChevronLeft,
-  ChevronRight,
+import {
+  Plus,
   Search,
-  Filter
+  Filter,
+  MoreVertical,
+  User,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Calendar,
+  RefreshCw,
+  Eye,
+  Edit,
+  Trash2,
+  BarChart3,
+  CheckSquare,
+  AlertCircle,
+  FileText,
+  Users,
+  CalendarDays,
+  CheckCheck,
 } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
+import API from "@/lib/api";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// --- Configuration ---
-// Using a more professional, subdued palette for avatars
-const EMPLOYEES = [
-  { id: "e1", name: "Narendra", role: "Manager", initials: "NA", color: "bg-slate-800" },
-  { id: "e2", name: "Nikita", role: "Accounts/Doc", initials: "NI", color: "bg-indigo-600" },
-  { id: "e3", name: "Niki", role: "Invoicing", initials: "NK", color: "bg-violet-600" },
-  { id: "e4", name: "Jinal", role: "Logistics", initials: "JI", color: "bg-blue-600" },
-  { id: "e5", name: "Mayur", role: "Accounts/Tally", initials: "MA", color: "bg-cyan-600" },
-  { id: "e6", name: "Mehul", role: "Import Doc", initials: "ME", color: "bg-teal-600" },
-  { id: "e7", name: "Bhargav", role: "E-Commerce", initials: "BH", color: "bg-emerald-600" },
-];
-
-const TASK_TEMPLATES = [
-  // Narendra
-  { title: "China Loading Plan", assignee: "Narendra", frequency: "Daily", priority: "High" },
-  { title: "China Order Plan & Payment", assignee: "Narendra", frequency: "Daily", priority: "High" },
-  { title: "Tally AC Overview", assignee: "Narendra", frequency: "Weekly", day: 1, priority: "Medium" },
-  { title: "Monthly Ledger Checking", assignee: "Narendra", frequency: "Monthly", date: 1, priority: "High" },
-  // Nikita
-  { title: "Client AC", assignee: "Nikita", frequency: "Weekly", day: 1, priority: "Medium" },
-  { title: "New Client Acquisition", assignee: "Nikita", frequency: "Weekly", day: 2, priority: "High" },
-  { title: "Container Tracking", assignee: "Nikita", frequency: "Daily", priority: "Medium" },
-  // Niki
-  { title: "Invoice Printing", assignee: "Niki", frequency: "Daily", priority: "Medium" },
-  { title: "Import Document Check", assignee: "Niki", frequency: "Daily", priority: "High" },
-  // Jinal
-  { title: "Loading Sheet Final", assignee: "Jinal", frequency: "Daily", priority: "High" },
-  { title: "Warehouse Stock", assignee: "Jinal", frequency: "Daily", priority: "Medium" },
-  // Bhargav
-  { title: "Amazon / Flipkart Ops", assignee: "Bhargav", frequency: "Daily", priority: "Medium" },
-  { title: "New Client Acquisition", assignee: "Bhargav", frequency: "Daily", priority: "High" },
-];
-
-export default function TaskDashboard() {
+export default function TaskManagement() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState([]);
-  const [filterEmp, setFilterEmp] = useState("ALL");
-  const [isClient, setIsClient] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [frequencyFilter, setFrequencyFilter] = useState("ALL");
+  const [assigneeFilter, setAssigneeFilter] = useState("ALL");
+  const [assignees, setAssignees] = useState([]);
+  const [stats, setStats] = useState({
+    totalTasks: 0,
+    pendingTasks: 0,
+    completedTasks: 0,
+    overdueTasks: 0,
+    dailyTasks: 0,
+    weeklyTasks: 0,
+    monthlyTasks: 0
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1,
+  });
 
-  useEffect(() => { setIsClient(true); }, []);
-  useEffect(() => { loadTasksForDate(selectedDate); }, [selectedDate]);
+  // Load tasks
+  const loadTasks = async (page = 1) => {
+    try {
+      setLoading(true);
+      const params = {
+        page,
+        limit: 10,
+        ...(search && { search }),
+        ...(statusFilter !== "ALL" && { status: statusFilter }),
+        ...(frequencyFilter !== "ALL" && { frequency: frequencyFilter }),
+        ...(assigneeFilter !== "ALL" && { assigneeId: assigneeFilter }),
+      };
 
-  const loadTasksForDate = (dateStr) => {
-    const storageKey = `igpl_tasks_${dateStr}`;
-    const saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-    if (saved) {
-      setTasks(JSON.parse(saved));
-    } else {
-      const generated = generateDailyTasks(dateStr);
-      setTasks(generated);
-      if (typeof window !== 'undefined') localStorage.setItem(storageKey, JSON.stringify(generated));
+      const response = await API.get("/tasks", { params });
+
+      if (response.data.success) {
+        setTasks(response.data.data.tasks);
+        setPagination(response.data.data.pagination);
+      }
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      toast.error(error.message || "Failed to load tasks");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const generateDailyTasks = (dateStr) => {
-    const dateObj = new Date(dateStr);
-    const dayOfWeek = dateObj.getDay(); 
-    const dayOfMonth = dateObj.getDate();
-    const newTasks = [];
-    
-    TASK_TEMPLATES.forEach(template => {
-      let shouldAssign = false;
-      if (template.frequency === "Daily") shouldAssign = true;
-      if (template.frequency === "Weekly" && template.day === dayOfWeek) shouldAssign = true;
-      if (template.frequency === "Monthly" && template.date === dayOfMonth) shouldAssign = true;
-
-      if (shouldAssign) {
-        newTasks.push({
-          id: `t_${Date.now()}_${Math.random()}`,
-          title: template.title,
-          assignee: template.assignee,
-          status: "Pending",
-          priority: template.priority || "Medium",
-          isSystem: true,
-          date: dateStr
-        });
+  // Load assignees
+  const loadAssignees = async () => {
+    try {
+      const response = await API.get("/tasks/users/assignable");
+      if (response.data.success) {
+        setAssignees(response.data.data);
       }
+    } catch (error) {
+      console.error("Error loading assignees:", error);
+    }
+  };
+
+  // Load stats
+  const loadStats = async () => {
+    try {
+      const response = await API.get("/tasks/stats");
+      if (response.data.success) {
+        setStats(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error loading stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+    loadAssignees();
+    loadStats();
+  }, [search, statusFilter, frequencyFilter, assigneeFilter]);
+
+  // Delete task
+  const deleteTask = async (taskId) => {
+    if (!confirm("Are you sure you want to delete this task?")) {
+      return;
+    }
+
+    try {
+      const response = await API.delete(`/tasks/${taskId}`);
+      if (response.data.success) {
+        toast.success(response.data.message || "Task deleted successfully");
+        loadTasks();
+        loadStats();
+      }
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error(error.message || "Failed to delete task");
+    }
+  };
+
+  // Mark task as complete
+  const markComplete = async (taskId) => {
+    try {
+      const response = await API.post(`/tasks/${taskId}/complete`);
+      if (response.data.success) {
+        toast.success(response.data.message || "Task marked as complete");
+        loadTasks();
+        loadStats();
+      }
+    } catch (error) {
+      console.error("Error marking task complete:", error);
+      toast.error(error.message || "Failed to mark task as complete");
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-    return newTasks;
   };
 
-  const toggleStatus = (taskId) => {
-    const updated = tasks.map(t => {
-      if (t.id === taskId) return { ...t, status: t.status === "Done" ? "Pending" : "Done" };
-      return t;
-    });
-    setTasks(updated);
-    localStorage.setItem(`igpl_tasks_${selectedDate}`, JSON.stringify(updated));
+  // Get status badge
+  const getStatusBadge = (status, isOverdue = false) => {
+    if (isOverdue) {
+      return (
+        <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
+          <AlertCircle className="w-3 h-3 mr-1" />
+          Overdue
+        </Badge>
+      );
+    }
+
+    switch (status) {
+      case "COMPLETED":
+        return (
+          <Badge className="bg-green-100 text-green-800 border-green-200">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case "PENDING":
+        return (
+          <Badge variant="outline" className="border-amber-200 text-amber-700">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      case "OVERDUE":
+        return (
+          <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Overdue
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
-  const deleteTask = (taskId) => {
-    const updated = tasks.filter(t => t.id !== taskId);
-    setTasks(updated);
-    localStorage.setItem(`igpl_tasks_${selectedDate}`, JSON.stringify(updated));
-    toast.success("Task removed");
+  // Get frequency badge
+  const getFrequencyBadge = (frequency) => {
+    switch (frequency) {
+      case "DAILY":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Daily</Badge>;
+      case "WEEKLY":
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Weekly</Badge>;
+      case "MONTHLY":
+        return <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200">Monthly</Badge>;
+      case "AS_PER_REQUIREMENT":
+        return <Badge variant="outline">As Required</Badge>;
+      default:
+        return <Badge variant="outline">{frequency}</Badge>;
+    }
   };
 
-  const shiftDate = (days) => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + days);
-    setSelectedDate(date.toISOString().split('T')[0]);
-  };
-
-  const filteredTasks = useMemo(() => {
-    if (filterEmp === "ALL") return tasks;
-    return tasks.filter(t => t.assignee === filterEmp);
-  }, [tasks, filterEmp]);
-
-  const stats = {
-    total: filteredTasks.length,
-    completed: filteredTasks.filter(t => t.status === "Done").length,
-    pending: filteredTasks.filter(t => t.status === "Pending").length
-  };
-  const progress = stats.total === 0 ? 0 : Math.round((stats.completed / stats.total) * 100);
-
-  // Formatting helpers
-  const formatDateDisplay = (dateStr) => {
-    if(!isClient) return dateStr;
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
-  };
-
-  if (!isClient) return null; // Prevent hydration mismatch
-
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans text-slate-900 pb-20">
-      <Toaster position="bottom-right" theme="light" />
-
-      {/* --- Header --- */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-indigo-600 p-2 rounded-lg">
-                <LayoutGrid className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 leading-none">OpsCenter</h1>
-                <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">Task Dashboard</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-               {/* Custom Date Navigator */}
-               <div className="flex items-center bg-gray-100 rounded-md p-1 border border-gray-200">
-                  <button onClick={() => shiftDate(-1)} className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-slate-500"><ChevronLeft className="w-4 h-4"/></button>
-                  <div className="relative group">
-                     <input 
-                      type="date" 
-                      value={selectedDate} 
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                    />
-                    <div className="flex items-center gap-2 px-3 py-1 text-sm font-semibold text-slate-700 w-32 justify-center">
-                      <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
-                      {formatDateDisplay(selectedDate)}
-                    </div>
-                  </div>
-                  <button onClick={() => shiftDate(1)} className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-slate-500"><ChevronRight className="w-4 h-4"/></button>
-               </div>
-
-              <button 
-                onClick={() => router.push('/dashboard/tasks/planner')}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all text-sm font-medium shadow-sm hover:shadow"
-              >
-                <Plus className="w-4 h-4" /> Add Task
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* --- KPI Stats Row --- */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard 
-            label="Total Tasks" 
-            value={stats.total} 
-            icon={LayoutGrid} 
-            color="text-indigo-600" 
-            bg="bg-indigo-50" 
-          />
-          <StatCard 
-            label="Pending" 
-            value={stats.pending} 
-            icon={Clock} 
-            color="text-amber-600" 
-            bg="bg-amber-50" 
-          />
-          <StatCard 
-            label="Completed" 
-            value={stats.completed} 
-            icon={CheckCircle2} 
-            color="text-emerald-600" 
-            bg="bg-emerald-50" 
-          />
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center">
-             <div className="flex justify-between items-end mb-2">
-                <span className="text-slate-500 text-xs font-semibold uppercase">Daily Goal</span>
-                <span className="text-slate-900 font-bold text-lg">{progress}%</span>
-             </div>
-             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-slate-900 h-full rounded-full transition-all duration-700 ease-out" 
-                  style={{ width: `${progress}%` }}
-                ></div>
-             </div>
-          </div>
-        </div>
-
-        {/* --- Filters --- */}
-        <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-          <div className="flex p-1 bg-gray-100 rounded-lg border border-gray-200 shrink-0">
-             <button
-               onClick={() => setFilterEmp("ALL")}
-               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                 filterEmp === "ALL" 
-                 ? "bg-white text-slate-900 shadow-sm" 
-                 : "text-slate-500 hover:text-slate-700"
-               }`}
-             >
-               All Team
-             </button>
-          </div>
-          <div className="w-px h-6 bg-gray-300 hidden md:block"></div>
-          {EMPLOYEES.map(emp => (
-            <button
-              key={emp.id}
-              onClick={() => setFilterEmp(emp.name)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-sm whitespace-nowrap ${
-                filterEmp === emp.name 
-                ? "bg-indigo-50 border-indigo-200 text-indigo-700" 
-                : "bg-white border-gray-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-              }`}
-            >
-              <span className={`w-5 h-5 rounded-full ${emp.color} text-white flex items-center justify-center text-[9px] font-bold`}>
-                {emp.initials}
-              </span>
-              {emp.name}
-            </button>
-          ))}
-        </div>
-
-        {/* --- Content Grid --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {EMPLOYEES.filter(emp => filterEmp === 'ALL' || filterEmp === emp.name).map(emp => {
-             const empTasks = filteredTasks.filter(t => t.assignee === emp.name);
-             if (empTasks.length === 0 && filterEmp === "ALL") return null;
-             
-             const doneCount = empTasks.filter(t => t.status === 'Done').length;
-             const total = empTasks.length;
-             const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-
-             return (
-               <div key={emp.id} className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col overflow-hidden">
-                  {/* Card Header */}
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full ${emp.color} flex items-center justify-center text-white font-bold text-sm shadow-sm ring-2 ring-white`}>
-                        {emp.initials}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">{emp.name}</h3>
-                        <p className="text-xs text-slate-500">{emp.role}</p>
-                      </div>
-                    </div>
-                    <div className="relative w-10 h-10 flex items-center justify-center">
-                       <svg className="w-full h-full transform -rotate-90">
-                          <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-gray-100" />
-                          <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="3" fill="transparent" 
-                            strokeDasharray={100} 
-                            strokeDashoffset={100 - percent} 
-                            className={`transition-all duration-1000 ease-out ${percent === 100 ? 'text-emerald-500' : 'text-indigo-600'}`} 
-                          />
-                       </svg>
-                       <span className="absolute text-[10px] font-bold text-slate-700">{percent}%</span>
-                    </div>
-                  </div>
-
-                  {/* Task List */}
-                  <div className="flex-1 bg-white min-h-[150px]">
-                    {empTasks.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
-                        <CheckSquare className="w-8 h-8 mb-2 opacity-20" />
-                        <span className="text-xs">No tasks assigned</span>
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-gray-50">
-                        {empTasks.map(task => (
-                          <TaskItem 
-                            key={task.id} 
-                            task={task} 
-                            onToggle={() => toggleStatus(task.id)} 
-                            onDelete={() => deleteTask(task.id)} 
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Action Footer */}
-                  <div className="p-2 border-t border-gray-100 bg-gray-50/50">
-                    <button 
-                      onClick={() => router.push(`/dashboard/tasks/planner?emp=${emp.name}&date=${selectedDate}`)}
-                      className="w-full py-2 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Assign Ad-hoc Task
-                    </button>
-                  </div>
-               </div>
-             )
-          })}
-        </div>
-      </main>
+  // Pagination controls
+  const PaginationControls = () => (
+    <div className="flex items-center justify-between px-4 py-3 border-t">
+      <div className="text-sm text-gray-500">
+        Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+        {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+        {pagination.total} tasks
+      </div>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => loadTasks(pagination.page - 1)}
+          disabled={pagination.page === 1}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => loadTasks(pagination.page + 1)}
+          disabled={pagination.page >= pagination.pages}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   );
-}
-
-// --- Sub-components for Cleaner Code ---
-
-function StatCard({ label, value, icon: Icon, color, bg }) {
-  return (
-    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-      <div>
-        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-      </div>
-      <div className={`p-2.5 rounded-lg ${bg}`}>
-        <Icon className={`w-5 h-5 ${color}`} />
-      </div>
-    </div>
-  )
-}
-
-function TaskItem({ task, onToggle, onDelete }) {
-  const isDone = task.status === "Done";
-  
-  // Priority Colors
-  const priorityStyle = {
-    High: "bg-red-50 text-red-700 border-red-100",
-    Medium: "bg-amber-50 text-amber-700 border-amber-100",
-    Low: "bg-blue-50 text-blue-700 border-blue-100"
-  }[task.priority] || "bg-gray-50 text-gray-600";
 
   return (
-    <div className={`group flex items-start gap-3 p-3 hover:bg-gray-50 transition-colors ${isDone ? 'opacity-50' : ''}`}>
-      <button 
-        onClick={onToggle}
-        className={`mt-0.5 shrink-0 transition-all ${isDone ? 'text-emerald-500' : 'text-gray-300 hover:text-indigo-500'}`}
-      >
-        {isDone ? <CheckCircle2 className="w-5 h-5 fill-emerald-50" /> : <Circle className="w-5 h-5" />}
-      </button>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Task Management
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Create, assign, and track tasks for employees
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/dashboard/tasks/stats")}
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="w-4 h-4" />
+                Advanced Stats
+              </Button>
+              <Button
+                onClick={() => router.push("/dashboard/tasks/create")}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Task
+              </Button>
+            </div>
+          </div>
 
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium leading-tight ${isDone ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-800'}`}>
-          {task.title}
-        </p>
-        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${priorityStyle}`}>
-            {task.priority}
-          </span>
-          {task.isSystem && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-               <Clock className="w-3 h-3" /> Recurring
-            </span>
-          )}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Total Tasks</p>
+                    <p className="text-2xl font-bold">{stats.totalTasks}</p>
+                  </div>
+                  <CheckSquare className="w-8 h-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Pending Tasks</p>
+                    <p className="text-2xl font-bold">{stats.pendingTasks}</p>
+                  </div>
+                  <Clock className="w-8 h-8 text-amber-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Completed</p>
+                    <p className="text-2xl font-bold">{stats.completedTasks}</p>
+                  </div>
+                  <CheckCheck className="w-8 h-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Overdue</p>
+                    <p className="text-2xl font-bold">{stats.overdueTasks}</p>
+                  </div>
+                  <AlertCircle className="w-8 h-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Frequency Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Daily Tasks</p>
+                    <p className="text-2xl font-bold">{stats.dailyTasks}</p>
+                  </div>
+                  <CalendarDays className="w-8 h-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Weekly Tasks</p>
+                    <p className="text-2xl font-bold">{stats.weeklyTasks}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Monthly Tasks</p>
+                    <p className="text-2xl font-bold">{stats.monthlyTasks}</p>
+                  </div>
+                  <CalendarDays className="w-8 h-8 text-indigo-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
 
-      <button 
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-      >
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by title or description..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Status</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="COMPLETED">Completed</SelectItem>
+                  <SelectItem value="OVERDUE">Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={frequencyFilter} onValueChange={setFrequencyFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Frequency</SelectItem>
+                  <SelectItem value="DAILY">Daily</SelectItem>
+                  <SelectItem value="WEEKLY">Weekly</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  <SelectItem value="AS_PER_REQUIREMENT">As Required</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Assignees</SelectItem>
+                  {assignees.map((user) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Task Table */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[300px]">Task</TableHead>
+                    <TableHead>Assignee</TableHead>
+                    <TableHead>Frequency</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex justify-center">
+                          <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : tasks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="text-gray-500">
+                          <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                          <p>No tasks found</p>
+                          {search ||
+                          statusFilter !== "ALL" ||
+                          frequencyFilter !== "ALL" ||
+                          assigneeFilter !== "ALL" ? (
+                            <Button
+                              variant="link"
+                              onClick={() => {
+                                setSearch("");
+                                setStatusFilter("ALL");
+                                setFrequencyFilter("ALL");
+                                setAssigneeFilter("ALL");
+                              }}
+                              className="mt-2"
+                            >
+                              Clear filters
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tasks.map((task) => (
+                      <TableRow
+                        key={task.id}
+                        className="hover:bg-gray-50"
+                      >
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{task.title}</p>
+                            {task.description && (
+                              <p className="text-sm text-gray-500 mt-1">
+                                {task.description.length > 100
+                                  ? `${task.description.substring(0, 100)}...`
+                                  : task.description}
+                              </p>
+                            )}
+                            {task.timeline && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Timeline: {task.timeline}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                              <User className="w-4 h-4 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{task.assignee.name}</p>
+                              <p className="text-xs text-gray-500">@{task.assignee.username}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getFrequencyBadge(task.frequency)}
+                          {task.deadlineDay && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Day {task.deadlineDay}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(task.status, task.isOverdue)}
+                          {task.completedAt && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Completed: {formatDate(task.completedAt)}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          {formatDate(task.createdAt)}
+                          <p className="text-xs mt-1">
+                            By {task.assignedBy.name}
+                          </p>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            {task.status === "PENDING" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() => markComplete(task.id)}
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Complete
+                              </Button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/dashboard/tasks/${task.id}`)}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/dashboard/tasks/${task.id}/edit`)}
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit Task
+                                </DropdownMenuItem>
+                                {task.status === "PENDING" && (
+                                  <DropdownMenuItem
+                                    onClick={() => markComplete(task.id)}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Mark Complete
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => deleteTask(task.id)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Task
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {!loading && tasks.length > 0 && <PaginationControls />}
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,6 @@
+
 "use client";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Download, RefreshCw } from "lucide-react";
@@ -13,7 +14,7 @@ import EmptyState from "../loading/_components/containers/EmptyState";
 import ResultsHeader from "../loading/_components/containers/ResultsHeader";
 import LoadingSkeleton from "../loading/_components/containers/LoadingSkeleton";
 
-function ContainersContent() {
+export default function ContainersOverviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -47,8 +48,8 @@ function ContainersContent() {
     });
     const queryString = params.toString();
     const newUrl = queryString
-      ? `/dashboard/packing?${queryString}`
-      : "/dashboard/packing";
+      ? `/dashboard/invoice?${queryString}`
+      : "/dashboard/invoice";
     window.history.replaceState(null, "", newUrl);
   }, [filters]);
 
@@ -168,7 +169,7 @@ function ContainersContent() {
 
   // Navigation
   const goToContainer = (containerCode) => {
-    router.push(`/dashboard/packing/${encodeURIComponent(containerCode)}`);
+    router.push(`/dashboard/invoice/${encodeURIComponent(containerCode)}`);
   };
 
   // Get unique origins from current containers
@@ -186,15 +187,15 @@ function ContainersContent() {
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
+         
           {/* Header */}
           <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                Packing List
+                Commercial Invoices
               </h1>
               <p className="text-sm text-gray-600">
-                Manage and track all packing containers. Currently, there are{" "}
+                Manage and track all commercial invoices. Currently, there are{" "}
                 {pagination.total}{" "}
                 {pagination.total === 1 ? "container" : "containers"} available.
               </p>
@@ -272,13 +273,5 @@ function ContainersContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ContainersOverviewPage() {
-  return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <ContainersContent />
-    </Suspense>
   );
 }

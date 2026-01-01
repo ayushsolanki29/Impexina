@@ -68,7 +68,14 @@ model User {
   warehousePlanActivities     WarehousePlanActivity[]
   accountClients              AccountClient[]
 
+  // Add these instead:
+  assignedTasks Task[] @relation("assignedTasks")
+  createdTasks  Task[] @relation("createdTasks")
+
   clientTransactions ClientTransaction[]
+
+  createdOrders OrderTracker[] @relation("createdOrders")
+  updatedOrders OrderTracker[] @relation("updatedOrders")
 }
 
 model Module {
@@ -1074,6 +1081,8 @@ enum ShippingStatus {
   ARRIVED
   DELIVERED
   CANCELLED
+  PENDING
+  LOADED
 }
 
 model ShippingSheet {
@@ -1227,7 +1236,7 @@ model Client {
 }
 
 model Order {
-  id            String  @id @default(cuid())
+  id       String  @id @default(cuid())
   client   Client? @relation(fields: [clientId], references: [id])
   clientId String?
 }
@@ -1269,66 +1278,66 @@ model ClientActivity {
 // Add this to your existing schema
 
 model MumbaiLedger {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  description     String?
-  
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
   // Stats
-  totalExpense    Float     @default(0)
-  totalAdvance    Float     @default(0)
-  totalBalance    Float     @default(0)
-  
+  totalExpense Float @default(0)
+  totalAdvance Float @default(0)
+  totalBalance Float @default(0)
+
   // Metadata
-  status          String    @default("ACTIVE")
-  isLocked        Boolean   @default(false)
-  month           Int?
-  year            Int?
-  
+  status   String  @default("ACTIVE")
+  isLocked Boolean @default(false)
+  month    Int?
+  year     Int?
+
   // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Audit fields - ADD THESE
-  createdBy       String?   // Add this line
-  updatedBy       String?   // Add this line
-  
+  createdBy String? // Add this line
+  updatedBy String? // Add this line
+
   // Relations
-  entries         MumbaiLedgerEntry[]
-  
+  entries MumbaiLedgerEntry[]
+
   @@index([status])
   @@index([createdAt])
 }
 
 model MumbaiLedgerEntry {
-  id              String        @id @default(cuid())
-  ledgerId        String
-  ledger          MumbaiLedger  @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
-  
+  id       String       @id @default(cuid())
+  ledgerId String
+  ledger   MumbaiLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
   // Entry Info
-  type            String        // "EXPENSE" or "ADVANCE"
-  entryDate       DateTime      @default(now())
-  
+  type      String // "EXPENSE" or "ADVANCE"
+  entryDate DateTime @default(now())
+
   // For EXPENSE
-  containerCode   String?
-  expenseNote     String?
-  
+  containerCode String?
+  expenseNote   String?
+
   // For ADVANCE
-  advanceNote     String?
-  
+  advanceNote String?
+
   // Items breakdown (for expenses)
-  items           Json?
-  
+  items Json?
+
   // Amount
-  amount          Float         @default(0)
-  
+  amount Float @default(0)
+
   // Timestamps
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Audit fields - ADD THESE
-  createdBy       String?       // Add this line
-  updatedBy       String?       // Add this line
-  
+  createdBy String? // Add this line
+  updatedBy String? // Add this line
+
   @@index([ledgerId])
   @@index([type])
   @@index([entryDate])
@@ -1338,72 +1347,172 @@ model MumbaiLedgerEntry {
 // Add this to your existing schema
 
 model AhmedabadPettyCash {
-  id              String    @id @default(cuid())
-  name            String    @unique  // e.g., "January 2025 Petty Cash"
-  description     String?
-  
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g., "January 2025 Petty Cash"
+  description String?
+
   // Opening balance
-  openingBalance  Float     @default(0)
-  
+  openingBalance Float @default(0)
+
   // Stats
-  totalCredit     Float     @default(0)
-  totalDebit      Float     @default(0)
-  closingBalance  Float     @default(0)
-  
+  totalCredit    Float @default(0)
+  totalDebit     Float @default(0)
+  closingBalance Float @default(0)
+
   // Metadata
-  status          String    @default("ACTIVE") // ACTIVE, ARCHIVED
-  isLocked        Boolean   @default(false)
-  month           Int?
-  year            Int?
-  
+  status   String  @default("ACTIVE") // ACTIVE, ARCHIVED
+  isLocked Boolean @default(false)
+  month    Int?
+  year     Int?
+
   // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Audit fields
-  createdBy       String?
-  updatedBy       String?
-  
+  createdBy String?
+  updatedBy String?
+
   // Relations
-  entries         AhmedabadPettyCashEntry[]
-  
+  entries AhmedabadPettyCashEntry[]
+
   @@index([status])
   @@index([createdAt])
   @@index([month, year])
 }
 
 model AhmedabadPettyCashEntry {
-  id              String                @id @default(cuid())
-  sheetId         String
-  sheet           AhmedabadPettyCash    @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  
+  id      String             @id @default(cuid())
+  sheetId String
+  sheet   AhmedabadPettyCash @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
   // Entry Info
-  type            String                // "CREDIT" or "DEBIT"
-  entryDate       DateTime              @default(now())
-  
+  type      String // "CREDIT" or "DEBIT"
+  entryDate DateTime @default(now())
+
   // Transaction details
-  particular      String
-  contCode        String?               // Container code or reference
-  mode            String                @default("Cash") // Cash, Online/UPI, Cheque, Self
-  
+  particular String
+  contCode   String? // Container code or reference
+  mode       String  @default("Cash") // Cash, Online/UPI, Cheque, Self
+
   // Amounts
-  credit          Float                 @default(0)
-  debit           Float                 @default(0)
-  
+  credit Float @default(0)
+  debit  Float @default(0)
+
   // Additional info
-  notes           String?
-  
+  notes String?
+
   // Timestamps
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Audit fields
-  createdBy       String?
-  updatedBy       String?
-  
+  createdBy String?
+  updatedBy String?
+
   @@index([sheetId])
   @@index([type])
   @@index([entryDate])
   @@index([contCode])
   @@index([particular])
+}
+
+// Add to your existing enums
+enum TaskFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  AS_PER_REQUIREMENT
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+// Simple Task model
+model Task {
+  id String @id @default(cuid())
+
+  // Task details
+  title       String
+  description String?
+
+  // Timing
+  frequency   TaskFrequency @default(DAILY)
+  deadlineDay Int? // For monthly tasks: 8, 17, 28 etc
+  timeline    String? // e.g., "AS PER REQUIREMENT"
+
+  // Assignment
+  assigneeId   Int // User who needs to do the task
+  assignedById Int // Admin who created the task
+
+  // Status
+  status      TaskStatus @default(PENDING)
+  completedAt DateTime?
+  notes       String? // User can add completion notes
+
+  // Relations
+  assignee   User @relation("assignedTasks", fields: [assigneeId], references: [id])
+  assignedBy User @relation("createdTasks", fields: [assignedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId, status])
+  @@index([frequency])
+}
+
+// Add to your existing enums
+
+// Order Tracker model
+model OrderTracker {
+  id String @id @default(cuid())
+
+  // Basic Information
+  shippingMark String // BHK - 328, BHK - 19, etc.
+  supplier     String? // MELISSAYU, BRAVEMAN, etc.
+  product      String // SS HEAVY FLOWER CUTTER, ANGLE GRINDING BRACKET STAND, etc.
+  quantity     Int // 3600, 560, 90, etc.
+  ctn          Int // 50, 10, 15, etc.
+
+  // Financial
+  deposit       Float? @default(0)
+  balanceAmount Float? @default(0)
+  totalAmount   Float? @default(0)
+
+  // Shipping Information
+  shippingMode String?
+  shippingCode String? // PSDE-83, PSDL-90, etc.
+  status       ShippingStatus @default(PENDING)
+  lrNo         String?
+
+  // Dates
+  orderDate    DateTime? // DATE column
+  paymentDate  String? // 25-09-25, 11-10-28, etc.
+  deliveryDate String? // 26-09-25, 13-10-25, etc.
+  loadingDate  String? // 29-09-25, 17-10-25, etc.
+  arrivalDate  String? // 29-10-25, 17-11-25, etc.
+
+  // Tracking
+  notes String?
+
+  // Relations
+  createdById Int
+  updatedById Int?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdBy User  @relation("createdOrders", fields: [createdById], references: [id])
+  updatedBy User? @relation("updatedOrders", fields: [updatedById], references: [id])
+
+  @@index([shippingMark])
+  @@index([supplier])
+  @@index([shippingCode])
+  @@index([status])
+  @@index([createdAt])
 }

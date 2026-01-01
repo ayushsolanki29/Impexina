@@ -1,19 +1,19 @@
 "use client";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Download, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 
 // Import reusable components
-import ContainerCard from "../loading/_components/containers/ContainerCard";
-import FiltersPanel from "../loading/_components/containers/FiltersPanel";
-import PaginationFooter from "../loading/_components/containers/PaginationFooter";
-import EmptyState from "../loading/_components/containers/EmptyState";
-import ResultsHeader from "../loading/_components/containers/ResultsHeader";
-import LoadingSkeleton from "../loading/_components/containers/LoadingSkeleton";
+import ContainerCard from "./_components/containers/ContainerCard";
+import FiltersPanel from "./_components/containers/FiltersPanel";
+import PaginationFooter from "./_components/containers/PaginationFooter";
+import EmptyState from "./_components/containers/EmptyState";
+import ResultsHeader from "./_components/containers/ResultsHeader";
+import LoadingSkeleton from "./_components/containers/LoadingSkeleton";
 
-function ContainersContent() {
+export default function ContainersOverviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -34,7 +34,7 @@ function ContainersContent() {
   const [filters, setFilters] = useState({
     search: searchParams.get("search") || "",
     origin: searchParams.get("origin") || "",
-    status: searchParams.get("status") || "CONFIRMED",
+    status: searchParams.get("status") || "",
     dateFrom: searchParams.get("dateFrom") || "",
     dateTo: searchParams.get("dateTo") || "",
   });
@@ -47,8 +47,8 @@ function ContainersContent() {
     });
     const queryString = params.toString();
     const newUrl = queryString
-      ? `/dashboard/packing?${queryString}`
-      : "/dashboard/packing";
+      ? `/dashboard/loading?${queryString}`
+      : "/dashboard/loading";
     window.history.replaceState(null, "", newUrl);
   }, [filters]);
 
@@ -168,7 +168,11 @@ function ContainersContent() {
 
   // Navigation
   const goToContainer = (containerCode) => {
-    router.push(`/dashboard/packing/${encodeURIComponent(containerCode)}`);
+    router.push(`/dashboard/loading/${encodeURIComponent(containerCode)}`);
+  };
+
+  const goToNewLoading = () => {
+    router.push("/dashboard/loading/new");
   };
 
   // Get unique origins from current containers
@@ -187,16 +191,14 @@ function ContainersContent() {
       <div className="p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          {/* Header */}
           <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                Packing List
+                Containers Overview
               </h1>
               <p className="text-sm text-gray-600">
-                Manage and track all packing containers. Currently, there are{" "}
-                {pagination.total}{" "}
-                {pagination.total === 1 ? "container" : "containers"} available.
+                Track and manage all container shipments. {pagination.total}{" "}
+                containers found.
               </p>
             </div>
 
@@ -215,8 +217,16 @@ function ContainersContent() {
               >
                 <RefreshCw className="w-4 h-4" /> Refresh
               </button>
+
+              <button
+                onClick={goToNewLoading}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow"
+              >
+                <Plus className="w-4 h-4" /> New Loading
+              </button>
             </div>
           </header>
+
           {/* Main Container */}
           <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
             {/* Filters */}
@@ -225,7 +235,6 @@ function ContainersContent() {
               uniqueOrigins={uniqueOrigins}
               onFilterChange={handleFilterChange}
               onClearFilters={clearFilters}
-              hideStatusFilter={true} // ADD THIS FLAG
             />
 
             {/* Results Header */}
@@ -240,7 +249,7 @@ function ContainersContent() {
               {loading && containers.length === 0 ? (
                 <LoadingSkeleton count={6} />
               ) : containers.length === 0 ? (
-                <EmptyState hasFilters={hasFilters} />
+                <EmptyState hasFilters={hasFilters} onAction={goToNewLoading} />
               ) : (
                 <div>
                   {containers.map((container) => (
@@ -250,6 +259,7 @@ function ContainersContent() {
                       onViewDetails={goToContainer}
                       onStatusUpdate={handleStatusUpdate}
                       updatingStatus={updatingStatus}
+                      hideStatusFilter={true}
                     />
                   ))}
                 </div>
@@ -272,13 +282,5 @@ function ContainersContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ContainersOverviewPage() {
-  return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <ContainersContent />
-    </Suspense>
   );
 }

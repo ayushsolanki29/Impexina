@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Download, RefreshCw } from "lucide-react";
@@ -13,7 +13,7 @@ import EmptyState from "../loading/_components/containers/EmptyState";
 import ResultsHeader from "../loading/_components/containers/ResultsHeader";
 import LoadingSkeleton from "../loading/_components/containers/LoadingSkeleton";
 
-export default function ContainersOverviewPage() {
+function ContainersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -272,5 +272,13 @@ export default function ContainersOverviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContainersOverviewPage() {
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <ContainersContent />
+    </Suspense>
   );
 }

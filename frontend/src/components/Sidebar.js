@@ -28,66 +28,69 @@ import Image from "next/image";
 import API from "@/lib/api";
 import { toast } from "sonner";
 import { clearAuthCookies } from "@/utils/auth-storage";
-
-const MENU = [
+   
+// Define all possible menu items with their module keys
+const ALL_MENU_ITEMS = [
   {
     key: "dashboard",
     label: "Dashboard",
     icon: Home,
     path: "/dashboard",
-    roles: ["ADMIN", "mod", "employee", "newjoinner"],
+    moduleKey: "DASHBOARD",
   },
   {
     key: "order-tracker",
     label: "Order Tracker",
     icon: ClipboardCheck,
-    path: "/dashboard/order-tracker",
-    roles: ["ADMIN", "mod"],
+    path: "/dashboard/client-order-tracker",
+    moduleKey: "ORDER_TRACKER",
   },
   {
     key: "loading",
     label: "Loading Sheet",
     icon: Truck,
     path: "/dashboard/loading",
-    roles: ["ADMIN", "mod", "employee"],
+    moduleKey: "LOADING_SHEET",
   },
   {
     key: "bifurcation",
     label: "Bifurcation",
     icon: Layers,
     path: "/dashboard/bifurcation",
-    roles: ["ADMIN", "mod"],
+    moduleKey: "BIFURCATION",
   },
   {
     key: "packing",
     label: "Packing List",
     icon: Package,
     path: "/dashboard/packing",
-    roles: ["ADMIN", "mod", "employee"],
+    moduleKey: "PACKING_LIST",
   },
   {
     key: "invoice",
     label: "Invoice",
     icon: FileSpreadsheet,
     path: "/dashboard/invoice",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "INVOICE",
   },
   {
     key: "containers",
     label: "Containers",
     icon: Container,
     path: "/dashboard/containers",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "CONTAINERS",
     children: [
       {
         key: "container-summary",
         label: "Summary",
         path: "/dashboard/container-summary",
+        moduleKey: "CONTAINER_SUMMARY",
       },
       {
         key: "containers-list",
         label: "All Containers",
         path: "/dashboard/containers",
+        moduleKey: "CONTAINERS_LIST",
       },
     ],
   },
@@ -96,42 +99,49 @@ const MENU = [
     label: "Warehouse Plan",
     icon: Warehouse,
     path: "/dashboard/warehouse",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "WAREHOUSE_PLAN",
   },
   {
     key: "accounts",
     label: "Accounts",
     icon: Calculator,
     path: "/dashboard/accounts",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "ACCOUNTS",
   },
   {
     key: "clients",
     label: "Clients",
     icon: Briefcase,
     path: "/dashboard/clients",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "CLIENTS",
   },
   {
     key: "expenses",
     label: "Expenses",
     icon: DollarSign,
     path: "/dashboard/expenses",
-    roles: ["ADMIN", "mod", "accounts"],
+    moduleKey: "EXPENSES",
   },
   {
     key: "users",
     label: "User Management",
     icon: UserCog,
     path: "/dashboard/users",
-    roles: ["ADMIN"],
+    moduleKey: "USER_MANAGEMENT",
   },
   {
     key: "tasks",
     label: "Task Management",
     icon: CheckSquare,
     path: "/dashboard/tasks",
-    roles: ["ADMIN", "mod"],
+    moduleKey: "TASK_MANAGEMENT",
+  },
+  {
+    key: "my-tasks",
+    label: "My Task",
+    icon: CheckSquare,
+    path: "/dashboard/my-tasks",
+    moduleKey: "MY_TASK",
   },
 ];
 
@@ -143,11 +153,17 @@ function roleColor(role) {
         text: "text-red-700",
         border: "border-red-200",
       };
-    case "employee":
+    case "EMPLOYEE":
       return {
         bg: "bg-emerald-50",
         text: "text-emerald-700",
         border: "border-emerald-200",
+      };
+    case "NEW_JOINNER":
+      return {
+        bg: "bg-blue-50",
+        text: "text-blue-700",
+        border: "border-blue-200",
       };
     case "mod":
       return {
@@ -201,7 +217,11 @@ function UserSkeleton({ isOpen }) {
   );
 }
 
-export default function SidebarAdvanced({ role: propRole, currentPath: propPath }) {
+export default function SidebarAdvanced({ 
+  role: propRole, 
+  currentPath: propPath,
+  initialPermissions = [] 
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const currentPath = propPath || pathname || "";
@@ -209,15 +229,35 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
   const [open, setOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [userPermissions, setUserPermissions] = useState(initialPermissions);
   const [expandedMap, setExpandedMap] = useState({});
   const containerRef = useRef(null);
   const indicatorRef = useRef(null);
   const itemsRef = useRef({});
 
-  const visible = useMemo(() => 
-    MENU.filter((m) => m.roles.includes(user?.role || propRole)), 
-    [user, propRole]
-  );
+  // Filter menu items based on user permissions
+  const visibleMenuItems = useMemo(() => {
+    // If user has admin role, show all menu items
+    if (user?.role === 'ADMIN') {
+      return ALL_MENU_ITEMS;
+    }
+
+    // Filter based on permissions
+    return ALL_MENU_ITEMS.filter(menuItem => {
+      // Check if user has permission for this menu item
+      const hasPermission = userPermissions.includes(menuItem.moduleKey);
+      
+      // For parent items with children, check if user has permission for any child
+      if (menuItem.children) {
+        const hasChildPermission = menuItem.children.some(child => 
+          userPermissions.includes(child.moduleKey)
+        );
+        return hasPermission || hasChildPermission;
+      }
+      
+      return hasPermission;
+    });
+  }, [user, userPermissions]);
 
   const activeKey = useMemo(() => {
     let activeKey = null;
@@ -227,7 +267,7 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
       ? currentPath.slice(0, -1) 
       : currentPath;
 
-    for (const item of MENU) {
+    for (const item of ALL_MENU_ITEMS) {
       if (item.children) {
         for (const child of item.children) {
           if (normalizedPath === child.path || normalizedPath.startsWith(child.path + "/")) {
@@ -248,13 +288,13 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
   }, [currentPath]);
 
   useEffect(() => {
-    if (activeKey && MENU.find((m) => m.key === activeKey)?.children) {
+    if (activeKey && ALL_MENU_ITEMS.find((m) => m.key === activeKey)?.children) {
       setExpandedMap((prev) => ({ ...prev, [activeKey]: true }));
     }
   }, [activeKey]);
 
   useEffect(() => {
-    fetchData();
+    fetchUserData();
   }, []);
 
   useEffect(() => {
@@ -270,17 +310,38 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
     } else if (indicator) {
       indicator.style.opacity = "0";
     }
-  }, [activeKey, open, visible]);
+  }, [activeKey, open, visibleMenuItems]);
 
-  const fetchData = async () => {
+  const fetchUserData = async () => {
     setIsLoading(true);
     try {
-      // Fetch user data only
+      // Fetch user data
       const userRes = await API.get("/auth/me");
       if (userRes.data.success) {
-        setUser(userRes.data.data);
+        const userData = userRes.data.data;
+        setUser(userData);
+        
+        // If user has permissions in response, use them
+        if (userData.permissions) {
+          setUserPermissions(userData.permissions);
+        } else if (userData.id) {
+          // Otherwise fetch permissions separately
+          try {
+            const permRes = await API.get(`/users/roles/permissions?userId=${userData.id}`);
+            if (permRes.data.success) {
+              setUserPermissions(permRes.data.data);
+            }
+          } catch (permError) {
+            console.error("Failed to fetch permissions:", permError);
+            // If user is admin, set all permissions
+            if (userData.role === 'ADMIN') {
+              setUserPermissions(ALL_MENU_ITEMS.map(item => item.moduleKey));
+            }
+          }
+        }
       }
     } catch (error) {
+      console.error("Failed to load user data:", error);
       toast.error("Failed to load user data");
     } finally {
       setIsLoading(false);
@@ -302,7 +363,16 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
     setExpandedMap((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const currentUser = user || { name: "Ayush Solanki", role: propRole || "ADMIN" };
+  const currentUser = user || { 
+    name: "Ayush Solanki", 
+    role: propRole || "ADMIN" 
+  };
+
+  // Helper function to check if user has specific permission
+  const hasPermission = (moduleKey) => {
+    if (currentUser.role === 'ADMIN') return true;
+    return userPermissions.includes(moduleKey);
+  };
 
   return (
     <aside
@@ -359,10 +429,20 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
           </div>
         ) : (
           <ul className="space-y-0.5 px-3">
-            {visible.map((item) => {
+            {visibleMenuItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.key === activeKey;
               const hasChildren = item.children && item.children.length > 0;
+              
+              // Filter children based on permissions
+              const visibleChildren = hasChildren 
+                ? item.children.filter(child => hasPermission(child.moduleKey))
+                : [];
+
+              // Don't show parent if no children are visible (unless parent itself has permission)
+              if (hasChildren && visibleChildren.length === 0 && !hasPermission(item.moduleKey)) {
+                return null;
+              }
 
               return (
                 <li key={item.key} className="relative">
@@ -376,20 +456,21 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
                   >
                     <button
                       onClick={() => {
-                        if (hasChildren) {
+                        if (hasChildren && visibleChildren.length > 0) {
                           toggleGroup(item.key);
-                        } else {
+                        } else if (item.path) {
                           navTo(item.path);
                         }
                       }}
                       className="flex items-center gap-3 w-full text-left group outline-none"
+                      disabled={!item.path && !hasChildren}
                     >
                       <Icon
                         className={`w-5 h-5 shrink-0 transition-colors ${
                           isActive
                             ? "text-blue-600"
                             : "text-slate-400 group-hover:text-slate-600"
-                        }`}
+                        } ${(!item.path && !hasChildren) ? "opacity-50" : ""}`}
                       />
 
                       {open && (
@@ -397,11 +478,11 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
                           <div className="flex-1 flex items-center justify-between overflow-hidden">
                             <span className={`text-sm truncate ${
                               isActive ? "font-semibold" : "font-medium"
-                            }`}>
+                            } ${(!item.path && !hasChildren) ? "opacity-50" : ""}`}>
                               {item.label}
                             </span>
                             <div className="flex items-center gap-2">
-                              {hasChildren && (
+                              {hasChildren && visibleChildren.length > 0 && (
                                 <span className="text-slate-400">
                                   {expandedMap[item.key] ? (
                                     <ChevronDown className="w-3.5 h-3.5" />
@@ -418,9 +499,9 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
                   </div>
 
                   {/* Submenu */}
-                  {hasChildren && open && expandedMap[item.key] && (
+                  {hasChildren && open && expandedMap[item.key] && visibleChildren.length > 0 && (
                     <ul className="mt-1 ml-4 space-y-0.5 pl-3 border-l border-slate-100">
-                      {item.children.map((child) => {
+                      {visibleChildren.map((child) => {
                         const isChildActive = currentPath.startsWith(child.path);
                         return (
                           <li key={child.key}>
@@ -450,41 +531,47 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
           </ul>
         )}
 
-        {/* Quick Actions */}
-        <div className="mt-6 px-4">
-          {open && (
-            <div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
-              Quick Actions
-            </div>
-          )}
-          <div className="flex gap-2 flex-col">
-            <Button
-              onClick={() => navTo("/dashboard/loading/new")}
-              className="w-full bg-slate-900 text-white hover:bg-slate-800"
-              size="sm"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-1" />
-                  {open && "New Loading Sheet"}
-                </>
+        {/* Quick Actions - Only show if user has permission */}
+        {hasPermission('loading_sheet') || hasPermission('invoice') ? (
+          <div className="mt-6 px-4">
+            {open && (
+              <div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
+                Quick Actions
+              </div>
+            )}
+            <div className="flex gap-2 flex-col">
+              {hasPermission('loading_sheet') && (
+                <Button
+                  onClick={() => navTo("/dashboard/loading/new")}
+                  className="w-full bg-slate-900 text-white hover:bg-slate-800"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-1" />
+                      {open && "New Loading Sheet"}
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
-            <Button
-              onClick={() => navTo("/dashboard/invoice/new")}
-              variant="outline"
-              className="w-full border-slate-200 text-slate-700 hover:bg-slate-50"
-              size="sm"
-              disabled={isLoading}
-            >
-              <FileSpreadsheet className="w-4 h-4 mr-1" />
-              {open && "Create Invoice"}
-            </Button>
+              {hasPermission('invoice') && (
+                <Button
+                  onClick={() => navTo("/dashboard/invoice/new")}
+                  variant="outline"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-50"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-1" />
+                  {open && "Create Invoice"}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : null}
       </nav>
 
       {/* Footer - User Info */}
@@ -506,7 +593,7 @@ export default function SidebarAdvanced({ role: propRole, currentPath: propPath 
                 {currentUser.name}
               </div>
               <div className="text-xs text-slate-500 truncate capitalize">
-                {currentUser.role}
+                {currentUser.role?.toLowerCase().replace('_', ' ')}
               </div>
             </div>
           )}
