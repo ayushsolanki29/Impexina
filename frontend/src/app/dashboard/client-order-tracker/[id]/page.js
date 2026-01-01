@@ -1,568 +1,449 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Edit,
-  Trash2,
-  Copy,
-  Printer,
-  Download,
+import API from "@/lib/api";
+import { toast } from "sonner";
+import { 
+  ArrowLeft, 
+  Save, 
+  Plus, 
+  Trash2, 
+  Loader2,
+  Info,
+  Calendar,
   Package,
   Truck,
-  Calendar,
-  Hash,
-  User,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Layers,
-  Tag,
+  DollarSign
 } from "lucide-react";
-import { toast } from "sonner";
-import API from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
-export default function OrderDetails() {
+export default function OrderSheetEditor({ params }) {
   const router = useRouter();
-  const params = useParams();
-  const [order, setOrder] = useState(null);
+  const [unwrappedParams, setUnwrappedParams] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  // Sheet Data
+  const [sheet, setSheet] = useState(null);
+  const [rows, setRows] = useState([]);
+
+  // Handle Params
+  useEffect(() => {
+    if (params instanceof Promise) {
+      params.then(p => setUnwrappedParams(p));
+    } else {
+      setUnwrappedParams(params);
+    }
+  }, [params]);
 
   useEffect(() => {
-    if (params.id) {
-      loadOrder();
+    if (unwrappedParams?.id) {
+      fetchSheet(unwrappedParams.id);
     }
-  }, [params.id]);
+  }, [unwrappedParams]);
 
-  const loadOrder = async () => {
+  const fetchSheet = async (sheetId) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await API.get(`/client-order-tracker/${params.id}`);
-      if (response.data.success) {
-        setOrder(response.data.data);
+      const res = await API.get(`/client-order-tracker/sheets/${sheetId}`);
+      if (res.data.success) {
+        setSheet(res.data.data);
+        const fetchedRows = res.data.data.orders.map(o => ({ ...o, _key: o.id }));
+        // If no rows, start with one empty row
+        if (fetchedRows.length === 0) {
+            setRows([createEmptyRow()]);
+        } else {
+            setRows(fetchedRows);
+        }
       }
     } catch (error) {
-      console.error("Error loading order:", error);
-      toast.error(error.message || "Failed to load order details");
+      toast.error("Failed to load sheet");
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteOrder = async () => {
-    try {
-      const response = await API.delete(`/client-order-tracker/${params.id}`);
-      if (response.data.success) {
-        toast.success(response.data.message || "Order deleted successfully");
-        router.push("/dashboard/client-order-tracker");
-      }
-    } catch (error) {
-      console.error("Error deleting order:", error);
-      toast.error(error.message || "Failed to delete order");
+  const createEmptyRow = () => ({
+      _key: `temp_${Date.now()}_${Math.random()}`,
+      id: `temp_${Date.now()}`,
+      shippingMark: "",
+      supplier: "",
+      product: "",
+      quantity: 0,
+      ctn: 0,
+      totalAmount: 0,
+      deposit: 0,
+      balanceAmount: 0,
+      shippingMode: "",
+      shippingCode: "",
+      lrNo: "",
+      status: "PENDING",
+      orderDate: "",
+      paymentDate: "",
+      deliveryDate: "",
+      loadingDate: "",
+      arrivalDate: "",
+      isNew: true
+  });
+
+  const handleAddRow = () => {
+    setRows([...rows, createEmptyRow()]);
+    toast.success("New order card added");
+  };
+
+  const handleChange = (index, field, value) => {
+    const newRows = [...rows];
+    let processedValue = value;
+
+    if (['quantity', 'ctn', 'totalAmount', 'deposit'].includes(field)) {
+        processedValue = (value === "" ? 0 : parseFloat(value) || 0);
+    }
+
+    newRows[index] = { ...newRows[index], [field]: processedValue };
+
+    // Auto calculate balance
+    if (field === 'totalAmount' || field === 'deposit') {
+        const total = parseFloat(newRows[index].totalAmount || 0);
+        const deposit = parseFloat(newRows[index].deposit || 0);
+        newRows[index].balanceAmount = total - deposit;
+    }
+
+    setRows(newRows);
+  };
+
+  const handleDeleteRow = (index) => {
+    if (rows.length <= 1 && !rows[0].shippingMark) {
+        toast.error("Cannot delete the only empty row");
+        return;
+    }
+    if (confirm("Are you sure you want to remove this order?")) {
+        setRows(rows.filter((_, i) => i !== index));
+        toast.success("Order removed");
     }
   };
 
-  const updateStatus = async (newStatus) => {
+  const handleSave = async () => {
+    if (!unwrappedParams?.id) return;
+    
+    // Validation
+    const invalid = rows.find(r => !r.shippingMark || !r.product);
+    if (invalid) {
+        toast.error("All orders must have at least a Shipping Mark and Product Name.");
+        return;
+    }
+
+    setSaving(true);
     try {
-      const response = await API.post(`/client-order-tracker/${params.id}/status`, {
-        status: newStatus
+      const res = await API.post(`/client-order-tracker/sheets/${unwrappedParams.id}/orders`, {
+        orders: rows
       });
-      
-      if (response.data.success) {
-        toast.success("Order status updated");
-        loadOrder();
+      if (res.data.success) {
+        toast.success("Sheet saved successfully");
+        router.push("/dashboard/client-order-tracker"); // Go back to list after save? Or stay? Let's stay and refresh.
+        fetchSheet(unwrappedParams.id);
       }
     } catch (error) {
-      console.error("Error updating status:", error);
-      toast.error(error.message || "Failed to update status");
+      toast.error("Failed to save sheet");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const copyToClipboard = (text, label = "text") => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard`);
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount) return "₹0";
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "LOADED":
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Loaded</Badge>;
-      case "IN_TRANSIT":
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">In Transit</Badge>;
-      case "ARRIVED":
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Arrived</Badge>;
-      case "DELIVERED":
-        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Delivered</Badge>;
-      case "PENDING":
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
-      case "CANCELLED":
-        return <Badge className="bg-red-100 text-red-800 border-red-200">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const formatDateDisplay = (dateString) => {
-    if (!dateString) return "Not specified";
-    if (typeof dateString === 'string' && dateString.includes('-')) {
-      return dateString;
-    }
-    try {
-      return new Date(dateString).toLocaleDateString("en-GB");
-    } catch (e) {
-      return dateString;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-            <div className="space-y-4">
-              <div className="h-64 bg-gray-200 rounded"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
+  if (loading || !unwrappedParams) return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
-    );
-  }
+  );
 
-  if (!order) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-        <div className="max-w-6xl mx-auto text-center">
-          <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Order not found</h2>
-          <p className="text-gray-600 mb-6">The order you're looking for doesn't exist.</p>
-          <Button onClick={() => router.push("/dashboard/client-order-tracker")}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Orders
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const totalValue = rows.reduce((s, r) => s + (parseFloat(r.totalAmount)||0), 0);
+  const totalBalance = rows.reduce((s, r) => s + (parseFloat(r.balanceAmount)||0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            className="mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Orders
-          </Button>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                  {order.shippingMark}
-                </h1>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => copyToClipboard(order.shippingMark, "Shipping mark")}
-                  className="h-8 w-8"
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-3">
-                {getStatusBadge(order.status)}
-                {order.shippingCode && (
-                  <Badge variant="outline" className="font-mono">
-                    {order.shippingCode}
-                  </Badge>
-                )}
-                <span className="text-sm text-gray-500">
-                  Created: {formatDateDisplay(order.createdAt)}
-                </span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
+        <div className="max-w-5xl mx-auto space-y-6">
             
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => window.print()}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/client-order-tracker/${order.id}/edit`)}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              
-              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
+            {/* Top Navigation */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <Button variant="outline" size="icon" onClick={() => router.back()} className="rounded-full h-10 w-10 bg-white border-slate-200">
+                    <ArrowLeft className="w-5 h-5 text-slate-600" />
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete Order</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete this order? This action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="destructive" onClick={deleteOrder}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Order
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Product Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Product Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Product Name</p>
-                      <p className="font-medium text-lg">{order.product}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Supplier</p>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{order.supplier || "Not specified"}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Quantity</p>
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium text-xl">{order.quantity.toLocaleString()}</p>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-500">CTN</p>
-                      <Badge variant="outline" className="text-lg px-3 py-1">
-                        {order.ctn}
-                      </Badge>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-500">Shipping Mode</p>
-                      <p className="font-medium">{order.shippingMode || "Not specified"}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Financial Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Hash className="w-5 h-5" />
-                  Financial Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <p className="text-sm text-gray-500">Deposit</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(order.deposit)}
-                    </p>
-                  </div>
-                  
-                  <div className="text-center">
-                    <p className="text-sm text-gray-500">Balance Amount</p>
-                    <p className="text-2xl font-bold text-amber-600">
-                      {formatCurrency(order.balanceAmount)}
-                    </p>
-                  </div>
-                  
-                  <div className="text-center">
-                    <p className="text-sm text-gray-500">Total Amount</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {formatCurrency(order.totalAmount)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Shipping Timeline */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Shipping Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {order.paymentDate && (
-                      <div>
-                        <p className="text-sm text-gray-500">Payment Date</p>
-                        <p className="font-medium">{formatDateDisplay(order.paymentDate)}</p>
-                      </div>
-                    )}
-                    
-                    {order.deliveryDate && (
-                      <div>
-                        <p className="text-sm text-gray-500">Delivery Date (China)</p>
-                        <p className="font-medium">{formatDateDisplay(order.deliveryDate)}</p>
-                      </div>
-                    )}
-                    
-                    {order.loadingDate && (
-                      <div>
-                        <p className="text-sm text-gray-500">Loading Date (China)</p>
-                        <p className="font-medium">{formatDateDisplay(order.loadingDate)}</p>
-                      </div>
-                    )}
-                    
-                    {order.arrivalDate && (
-                      <div>
-                        <p className="text-sm text-gray-500">Arrival Date (India)</p>
-                        <p className="font-medium">{formatDateDisplay(order.arrivalDate)}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* Shipping Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="w-5 h-5" />
-                  Shipping Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-500">Shipping Code</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Tag className="w-4 h-4 text-gray-400" />
-                    <p className="font-medium font-mono">{order.shippingCode || "Not assigned"}</p>
-                    {order.shippingCode && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => copyToClipboard(order.shippingCode, "Shipping code")}
-                        className="h-6 w-6"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <div className="mt-2">
-                    {getStatusBadge(order.status)}
-                  </div>
-                </div>
-                
-                {order.lrNo && (
                   <div>
-                    <p className="text-sm text-gray-500">LR Number</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="font-mono">
-                        {order.lrNo}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => copyToClipboard(order.lrNo, "LR number")}
-                        className="h-6 w-6"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </Button>
+                    <h1 className="text-2xl font-bold text-slate-900">{sheet?.name}</h1>
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Calendar className="w-4 h-4" />
+                        <span>{sheet?.month || 'General Sheet'}</span>
+                        <span className="text-slate-300">|</span>
+                        <span>{rows.length} Orders</span>
                     </div>
                   </div>
-                )}
-                
-                {/* Status Update Buttons */}
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-gray-500 mb-2">Update Status:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {order.status !== "LOADED" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateStatus("LOADED")}
-                      >
-                        <Package className="w-3 h-3 mr-1" />
-                        Loaded
-                      </Button>
-                    )}
-                    {order.status !== "IN_TRANSIT" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateStatus("IN_TRANSIT")}
-                      >
-                        <Truck className="w-3 h-3 mr-1" />
-                        In Transit
-                      </Button>
-                    )}
-                    {order.status !== "ARRIVED" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateStatus("ARRIVED")}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Arrived
-                      </Button>
-                    )}
-                    {order.status !== "DELIVERED" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateStatus("DELIVERED")}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Delivered
-                      </Button>
-                    )}
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => router.push(`/dashboard/client-order-tracker/${order.id}/edit`)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Order
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => window.print()}
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Print Details
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => copyToClipboard(order.shippingMark, "Shipping mark")}
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copy Shipping Mark
-                </Button>
-                
-                <Button
-                  variant="destructive"
-                  className="w-full justify-start"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Order
-                </Button>
-              </CardContent>
-            </Card>
+                <div className="flex gap-3">
+                    <Button onClick={handleSave} disabled={saving} size="lg" className="bg-blue-600 hover:bg-blue-700 shadow-md">
+                        {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
+                        Save Sheet
+                    </Button>
+                </div>
+            </div>
 
-            {/* Additional Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Created By:</span>
-                    <span>{order.createdBy?.name || "System"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Created On:</span>
-                    <span>{formatDateDisplay(order.createdAt)}</span>
-                  </div>
-                  {order.updatedAt && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Updated:</span>
-                      <span>{formatDateDisplay(order.updatedAt)}</span>
+            {/* Summary Card */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Value</p>
+                        <p className="text-2xl font-bold text-slate-900 mt-1">${totalValue.toLocaleString()}</p>
                     </div>
-                  )}
+                    <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                        <DollarSign className="w-5 h-5" />
+                    </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Outstanding Balance</p>
+                        <p className="text-2xl font-bold text-red-600 mt-1">${totalBalance.toLocaleString()}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                        <Info className="w-5 h-5" />
+                    </div>
+                </div>
+                 <div className="bg-blue-600 p-6 rounded-2xl shadow-sm border border-blue-500 flex items-center justify-between text-white">
+                    <div>
+                        <p className="text-xs font-bold text-blue-200 uppercase tracking-wider">Orders Count</p>
+                        <p className="text-2xl font-bold mt-1">{rows.length}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white">
+                        <Package className="w-5 h-5" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Order Cards List */}
+            <div className="space-y-6">
+                {rows.map((row, i) => (
+                    <div key={row._key} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group transition-all hover:shadow-md">
+                        {/* Card Header */}
+                        <div className="bg-slate-50 border-b border-slate-100 p-4 flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                                <span className="h-8 w-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-bold text-sm">
+                                    {i + 1}
+                                </span>
+                                <h3 className="font-semibold text-slate-700">
+                                    {row.product || 'New Order'}
+                                    {row.shippingMark && <span className="ml-2 font-normal text-slate-500 text-sm">({row.shippingMark})</span>}
+                                </h3>
+                             </div>
+                             <Button variant="ghost" size="sm" onClick={() => handleDeleteRow(i)} className="text-slate-400 hover:text-red-600 hover:bg-red-50">
+                                <Trash2 className="w-4 h-4" />
+                             </Button>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-x-8 gap-y-6">
+                            
+                            {/* Section 1: Identification */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-2 tracking-wider flex items-center gap-2">
+                                    <Package className="w-3 h-3" /> Identification
+                                </h4>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-600">Shipping Mark *</label>
+                                    <input 
+                                        className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        placeholder="e.g. SMK-123"
+                                        value={row.shippingMark}
+                                        onChange={e => handleChange(i, 'shippingMark', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-600">Supplier Name</label>
+                                    <input 
+                                        className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        placeholder="e.g. Global Traders"
+                                        value={row.supplier}
+                                        onChange={e => handleChange(i, 'supplier', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-600">Product Name *</label>
+                                    <input 
+                                        className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        placeholder="e.g. Widget X"
+                                        value={row.product}
+                                        onChange={e => handleChange(i, 'product', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Section 2: Logistics */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-2 tracking-wider flex items-center gap-2">
+                                    <Truck className="w-3 h-3" /> Logistics
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Mode</label>
+                                        <select 
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            value={row.shippingMode}
+                                            onChange={e => handleChange(i, 'shippingMode', e.target.value)}
+                                        >
+                                            <option value="">Select</option>
+                                            <option value="AIR">Air</option>
+                                            <option value="SEA">Sea</option>
+                                            <option value="ROAD">Road</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Status</label>
+                                        <select 
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            value={row.status}
+                                            onChange={e => handleChange(i, 'status', e.target.value)}
+                                        >
+                                            <option value="PENDING">Pending</option>
+                                            <option value="LOADED">Loaded</option>
+                                            <option value="IN_TRANSIT">In Transit</option>
+                                            <option value="ARRIVED">Arrived</option>
+                                            <option value="DELIVERED">Delivered</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-600">Shipping Code</label>
+                                    <input 
+                                        className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        placeholder="e.g. SHIP-001"
+                                        value={row.shippingCode}
+                                        onChange={e => handleChange(i, 'shippingCode', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-600">LR No.</label>
+                                    <input 
+                                        className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        placeholder="e.g. LR-9988"
+                                        value={row.lrNo}
+                                        onChange={e => handleChange(i, 'lrNo', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Section 3: Dates */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-2 tracking-wider flex items-center gap-2">
+                                    <Calendar className="w-3 h-3" /> Key Dates
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Order Date</label>
+                                        <input 
+                                            type="date"
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs transition-all"
+                                            value={row.orderDate ? new Date(row.orderDate).toISOString().split('T')[0] : ''}
+                                            onChange={e => handleChange(i, 'orderDate', new Date(e.target.value))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Loading Date</label>
+                                        <input 
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            placeholder="DD-MM-YYYY"
+                                            value={row.loadingDate}
+                                            onChange={e => handleChange(i, 'loadingDate', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Arrival (Exp)</label>
+                                        <input 
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            placeholder="DD-MM-YYYY"
+                                            value={row.arrivalDate}
+                                            onChange={e => handleChange(i, 'arrivalDate', e.target.value)}
+                                        />
+                                    </div>
+                                     <div>
+                                        <label className="text-xs font-semibold text-slate-600">Delivery</label>
+                                        <input 
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            placeholder="DD-MM-YYYY"
+                                            value={row.deliveryDate}
+                                            onChange={e => handleChange(i, 'deliveryDate', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                             {/* Section 4: Financials */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-2 tracking-wider flex items-center gap-2">
+                                    <DollarSign className="w-3 h-3" /> Financials
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Qty</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            value={row.quantity}
+                                            onChange={e => handleChange(i, 'quantity', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-600">Cartons</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                            value={row.ctn}
+                                            onChange={e => handleChange(i, 'ctn', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-500">Total Amount ($)</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-900"
+                                            value={row.totalAmount}
+                                            onChange={e => handleChange(i, 'totalAmount', e.target.value)}
+                                        />
+                                    </div>
+                                     <div>
+                                        <label className="text-xs font-semibold text-slate-500">Deposit ($)</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            value={row.deposit}
+                                            onChange={e => handleChange(i, 'deposit', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+                                        <span className="text-xs font-bold text-slate-600">Balance:</span>
+                                        <span className={`text-sm font-bold ${row.balanceAmount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            ${(row.balanceAmount||0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Add Button */}
+            <button 
+                onClick={handleAddRow}
+                className="w-full py-5 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
+            >
+                <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100">
+                    <Plus className="w-6 h-6" />
+                </div>
+                <span className="font-semibold">Add Another Order</span>
+            </button>
         </div>
-      </div>
     </div>
   );
 }

@@ -31,6 +31,11 @@ const ahmedabadPettyCashRoutes = require("./expenses/ahmedabad/ahmedabad-petty-c
 const usersRoutes = require("./users/users.routes");
 const taskRoutes = require("./tasks/tasks.routes");
 const clientOrderTracker = require("./client-order-tracker/order-tracker.routes");
+const dashboardRoutes = require('./dashboard/dashboard.routes');
+const profileRoutes = require('./profile/profile.routes');
+const backupRoutes = require('./backup/backup.routes');
+
+// Add this to your routes
 
 // Mount routes
 router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
@@ -51,5 +56,8 @@ router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
 router.use("/users", usersRoutes);
 router.use("/tasks", taskRoutes);
 router.use("/client-order-tracker", clientOrderTracker);
+router.use("/dashboard", dashboardRoutes);
+router.use("/profile", profileRoutes);
+router.use("/backups", backupRoutes);
 
 module.exports = router;

@@ -319,6 +319,57 @@ const orderTrackerController = {
         message: 'Failed to bulk update orders'
       });
     }
+  },
+
+  // Create Sheet
+  createSheet: async (req, res) => {
+     try {
+        const result = await orderTrackerService.createSheet(req.body, req.user.id);
+        res.status(201).json({ success: true, data: result });
+     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+     }
+  },
+
+  // Get All Sheets
+  getAllSheets: async (req, res) => {
+     try {
+        const result = await orderTrackerService.getAllSheets();
+        res.json({ success: true, data: result });
+     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+     }
+  },
+
+  // Get Single Sheet
+  getSheetById: async (req, res) => {
+     try {
+        const result = await orderTrackerService.getSheetById(req.params.id);
+        res.json({ success: true, data: result });
+     } catch (error) {
+        res.status(404).json({ success: false, message: error.message });
+     }
+  },
+
+  // Update Sheet Orders
+  updateSheetOrders: async (req, res) => {
+     try {
+        const result = await orderTrackerService.updateSheetOrders(req.params.id, req.body.orders, req.user.id);
+        res.json({ success: true, data: result, message: "Sheet saved successfully" });
+     } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Failed to save sheet" });
+     }
+  },
+
+  // Delete Sheet
+  deleteSheet: async (req, res) => {
+     try {
+        await orderTrackerService.deleteSheet(req.params.id);
+        res.json({ success: true, message: "Sheet deleted" });
+     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+     }
   }
 };
 

@@ -40,6 +40,26 @@ router.use(authMiddleware.authenticate);
 
 // ========== ORDER TRACKER ROUTES ==========
 
+// ========== ORDER SHEET ROUTES (NEW) ==========
+
+// List Sheets
+router.get('/sheets', orderTrackerController.getAllSheets);
+
+// Create Sheet
+router.post('/sheets', orderTrackerController.createSheet);
+
+// Get Single Sheet
+router.get('/sheets/:id', orderTrackerController.getSheetById);
+
+// Update Sheet Orders (Bulk)
+router.post('/sheets/:id/orders', orderTrackerController.updateSheetOrders);
+
+// Delete Sheet
+router.delete('/sheets/:id', orderTrackerController.deleteSheet);
+
+
+// ========== ORDER TRACKER ROUTES (LEGACY/INDIVIDUAL) ==========
+
 // Get all orders
 router.get('/',
   validateQuery(orderTrackerValidation.getOrders),

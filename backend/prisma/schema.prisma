@@ -1488,6 +1488,10 @@ model OrderTracker {
   status       ShippingStatus @default(PENDING)
   lrNo         String?
 
+  // Sheet grouping
+  sheetId String?
+  sheet   OrderSheet? @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
   // Dates
   orderDate    DateTime? // DATE column
   paymentDate  String? // 25-09-25, 11-10-28, etc.
@@ -1515,4 +1519,24 @@ model OrderTracker {
   @@index([shippingCode])
   @@index([status])
   @@index([createdAt])
+  @@index([sheetId])
+}
+
+model OrderSheet {
+  id     String @id @default(cuid())
+  name   String @unique // e.g. "January 2025 Orders"
+  month  String?
+  status String @default("ACTIVE") // ACTIVE, ARCHIVED
+
+  // Totals
+  totalOrders Int   @default(0)
+  totalAmount Float @default(0)
+
+  orders OrderTracker[]
+
+  // Audit
+  createdBy Int?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

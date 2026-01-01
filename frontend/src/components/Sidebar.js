@@ -22,6 +22,9 @@ import {
   LogOut,
   Package,
   Loader2,
+  DatabaseBackup,
+  ListTodo,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -138,10 +141,17 @@ const ALL_MENU_ITEMS = [
   },
   {
     key: "my-tasks",
-    label: "My Task",
-    icon: CheckSquare,
+    label: "My Tasks",
+    icon: ListTodo,
     path: "/dashboard/my-tasks",
     moduleKey: "MY_TASK",
+  },
+  {
+    key: "backups",
+    label: "System Backups",
+    icon: DatabaseBackup,
+    path: "/dashboard/backups",
+    moduleKey: "BACKUPS",
   },
 ];
 
@@ -579,24 +589,34 @@ export default function SidebarAdvanced({
         <UserSkeleton isOpen={open} />
       ) : (
         <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
-          <div
-            className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold border ${
-              roleColor(currentUser.role).border
-            } ${roleColor(currentUser.role).bg} ${roleColor(currentUser.role).text}`}
+          <button
+            onClick={() => navTo("/dashboard/profile")}
+            className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors group"
           >
-            {currentUser.name?.[0]?.toUpperCase() || "U"}
-          </div>
-
-          {open && (
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-slate-900 truncate">
-                {currentUser.name}
-              </div>
-              <div className="text-xs text-slate-500 truncate capitalize">
-                {currentUser.role?.toLowerCase().replace('_', ' ')}
-              </div>
+            <div
+              className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-semibold border ${
+                roleColor(currentUser.role).border
+              } ${roleColor(currentUser.role).bg} ${
+                roleColor(currentUser.role).text
+              }`}
+            >
+              {currentUser.name?.[0]?.toUpperCase() || "U"}
             </div>
-          )}
+
+            {open && (
+              <div className="flex-1 min-w-0 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-slate-700 truncate group-hover:text-slate-900">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-xs text-slate-500 truncate capitalize">
+                    {currentUser.role?.toLowerCase().replace("_", " ")}
+                  </div>
+                </div>
+                <Settings className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+          </button>
 
           <button
             onClick={handleLogout}

@@ -368,6 +368,118 @@ class OrderTrackerService {
       message: `${result.count} orders updated successfully`
     };
   }
+  async createSheet(data, userId) {
+    const sheet = await prisma.orderSheet.create({
+      data: {
+        name: data.name,
+        month: data.month, // Assuming you might want to store month separately or just use name
+        createdBy: userId, 
+        updatedBy: String(userId) 
+      }
+    });
+    return sheet;
+  }
+
+  // Get All Sheets
+  async getAllSheets() {
+    const sheets = await prisma.orderSheet.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: { orders: true }
+        }
+      }
+    });
+
+    // Calculate totals dynamically if not relying on stored fields
+    const enrichedSheets = await Promise.all(sheets.map(async (sheet) => {
+       const aggregations = await prisma.orderTracker.aggregate({
+         where: { sheetId: sheet.id },
+         _sum: { totalAmount: true }
+       });
+       return {
+         ...sheet,
+         totalAmount: aggregations._sum.totalAmount || 0
+       };
+    }));
+
+    return enrichedSheets;
+  }
+
+  // Get Sheet by ID with Orders
+  async getSheetById(id) {
+    const sheet = await prisma.orderSheet.findUnique({
+      where: { id },
+      include: {
+        orders: {
+          orderBy: { createdAt: 'asc' } // Keep entry order
+        }
+      }
+    });
+
+    if (!sheet) throw new Error("Sheet not found");
+    return sheet;
+  }
+
+  // Update Sheet Orders (Bulk Save)
+  async updateSheetOrders(sheetId, ordersData, userId) {
+      // Transaction to ensure data integrity
+      return await prisma.$transaction(async (tx) => {
+         // 1. Process updates and creations
+         for (const order of ordersData) {
+            if (order.id && !order.id.startsWith('temp_')) {
+               // Update existing
+               await tx.orderTracker.update({
+                  where: { id: order.id },
+                  data: {
+                    ...order,
+                    sheetId,
+                    updatedById: userId,
+                    // Remove transient frontend fields
+                    id: undefined, createdBy: undefined, updatedBy: undefined 
+                  }
+               });
+            } else {
+               // Create new
+               // Remove temp ID
+               const { id, ...createData } = order;
+               await tx.orderTracker.create({
+                  data: {
+                     ...createData,
+                     sheetId,
+                     createdById: userId,
+                     updatedById: userId
+                  }
+               });
+            }
+         }
+
+         // 2. Update Sheet Totals
+         const aggregations = await tx.orderTracker.aggregate({
+            where: { sheetId },
+            _count: { id: true },
+            _sum: { totalAmount: true }
+         });
+
+         const updatedSheet = await tx.orderSheet.update({
+            where: { id: sheetId },
+            data: {
+               totalOrders: aggregations._count.id,
+               totalAmount: aggregations._sum.totalAmount || 0,
+               updatedBy: String(userId) // Ensure string format matches schema expectations if changed
+            }
+         });
+
+         return updatedSheet;
+      });
+  }
+
+  // Delete Sheet
+  async deleteSheet(id) {
+    return await prisma.orderSheet.delete({
+      where: { id }
+    });
+  }
 }
 
 module.exports = new OrderTrackerService();
