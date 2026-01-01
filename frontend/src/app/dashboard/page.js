@@ -38,7 +38,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { Toaster } from "sonner";
+
 import API from "@/lib/api"; // Your API helper
 
 // --- Constants ---
@@ -276,8 +276,6 @@ export default function AdvancedDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-6 space-y-6 pb-20">
-      <Toaster position="top-right" />
-
       {/* --- Top Bar: Greeting & Context --- */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
         <div>
@@ -378,9 +376,7 @@ export default function AdvancedDashboard() {
               )}
               <span
                 className={`font-semibold ${
-                  quickStats.tasksChange >= 0
-                    ? "text-blue-600"
-                    : "text-red-600"
+                  quickStats.tasksChange >= 0 ? "text-blue-600" : "text-red-600"
                 }`}
               >
                 {Math.abs(quickStats.tasksChange)}%
@@ -456,133 +452,123 @@ export default function AdvancedDashboard() {
 
       {/* --- Section: My Workspace (My Tasks & Efficiency) --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* My Assigned Tasks - Premium Redesign */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-200">
-                <CheckCircle2 className="w-5 h-5" />
-              </span>
-              My Priority Tasks
-            </h3>
-            <button
-              onClick={() => router.push("/dashboard/my-tasks")}
-              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
-            >
-              View Board <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
+        {/* My Assigned Tasks - Standard SaaS Design */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+                My Priority Tasks
+              </h3>
+              <button
+                onClick={() => router.push("/dashboard/my-tasks")}
+                className="text-xs font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+              >
+                View All Tasks
+              </button>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {dashboardData.myAssignedTasks?.length > 0 ? (
-              dashboardData.myAssignedTasks.slice(0, 4).map((task) => (
-                <div
-                  key={task.id}
-                  className="group relative bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between mb-3">
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dashboardData.myAssignedTasks?.length > 0 ? (
+                dashboardData.myAssignedTasks.slice(0, 4).map((task) => (
+                  <div
+                    key={task.id}
+                    className="group bg-slate-50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex justify-between items-start mb-2">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
                           task.priority === "HIGH"
-                            ? "bg-rose-50 text-rose-600 ring-1 ring-rose-100"
-                            : "bg-slate-50 text-slate-600 ring-1 ring-slate-100"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-slate-200 text-slate-600"
                         }`}
                       >
                         {task.priority || "NORMAL"}
                       </span>
-                      <div className="flex items-center gap-1 text-slate-400 text-xs font-medium">
-                        <Clock className="w-3.5 h-3.5" />
-                        {task.dueDate}
-                      </div>
+                      <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {task.dueDate}
+                      </span>
                     </div>
-                    <h4 className="text-base font-bold text-slate-800 leading-snug group-hover:text-indigo-600 transition-colors mb-2">
-                       {task.title}
+                    <h4 className="text-sm font-bold text-slate-800 mb-1 group-hover:text-blue-700 transition-colors line-clamp-1">
+                      {task.title}
                     </h4>
-                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                      {task.description || "No additional details provided for this task."}
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 h-8">
+                      {task.description || "No description provided."}
                     </p>
+                    <button className="w-full py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
+                      Mark Complete
+                    </button>
                   </div>
-
-                  <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                     <span className="text-xs font-semibold text-slate-400 group-hover:text-indigo-500 transition-colors">
-                        #TASK-{task.id}
-                     </span>
-                     <button 
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all transform hover:scale-105 active:scale-95"
-                     >
-                        Mark Done
-                     </button>
-                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 py-10 text-center text-slate-400">
+                  <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                  <p>No pending tasks assigned to you.</p>
                 </div>
-              ))
-            ) : (
-                <div className="col-span-2 bg-white rounded-2xl border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                        <CheckCircle2 className="w-8 h-8 text-slate-300" />
-                    </div>
-                    <h4 className="text-slate-900 font-semibold">All Caught Up!</h4>
-                    <p className="text-slate-500 text-sm mt-1 max-w-xs">You have zero pending tasks. Enjoy your day or pick up something new.</p>
-                </div>
-            )}
-            
-            {/* Add New Task Placeholder Card */}
-             {dashboardData.myAssignedTasks?.length > 0 && (
-                <button 
-                    onClick={() => router.push("/dashboard/tasks")}
-                    className="group flex flex-col items-center justify-center p-5 rounded-2xl border border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-300"
-                >
-                    <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-indigo-100 text-slate-400 group-hover:text-indigo-600 flex items-center justify-center transition-colors mb-2">
-                        <Plus className="w-5 h-5" />
-                    </div>
-                    <span className="text-sm font-semibold text-slate-600 group-hover:text-indigo-700">View All Tasks</span>
-                </button>
-             )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* System Efficiency Widget */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-10 -mt-10 z-0"></div>
-          <div className="relative z-10 text-center w-full">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-6">
-              System Efficiency
+        {/* Quick Launchpad & System Status - Useful Info */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-full">
+          <div className="mb-6">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Target className="w-4 h-4" /> Quick Actions
             </h3>
-            <div className="relative w-48 h-48 mx-auto">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Done", value: 85 },
-                      { name: "Remaining", value: 15 },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    startAngle={180}
-                    endAngle={0}
-                    paddingAngle={0}
-                    dataKey="value"
-                  >
-                    <Cell fill="#6366f1" />
-                    <Cell fill="#e2e8f0" />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/3 text-center">
-                <span className="text-4xl font-bold text-slate-900 block">
-                  85%
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() =>
+                  router.push("/dashboard/container-summary/create")
+                }
+                className="p-3 bg-blue-50 text-blue-700 rounded-xl font-semibold text-xs flex flex-col items-center gap-2 hover:bg-blue-100 hover:scale-105 transition-all border border-blue-100"
+              >
+                <Package className="w-6 h-6" />
+                New Container
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/client-order-tracker")}
+                className="p-3 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs flex flex-col items-center gap-2 hover:bg-indigo-100 hover:scale-105 transition-all border border-indigo-100"
+              >
+                <Briefcase className="w-6 h-6" />
+                Client Orders
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-auto pt-6 border-t border-slate-100">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Activity className="w-4 h-4" /> System Health
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm group cursor-help">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  Database
                 </span>
-                <span className="text-xs text-slate-500 font-medium">
-                  Optimized
+                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
+                  Connected
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  Backups
+                </span>
+                <span className="text-slate-700 font-medium text-xs">
+                  Auto-Daily Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  Storage
+                </span>
+                <span className="text-slate-700 font-medium text-xs">
+                  45% Used
                 </span>
               </div>
             </div>
-            <p className="text-sm text-slate-600 mt-[-40px]">
-              Operations are running smoothly. System load is within optimal
-              range.
-            </p>
           </div>
         </div>
       </div>
@@ -590,51 +576,52 @@ export default function AdvancedDashboard() {
       {/* --- Section 1: High Priority Alerts (Arrivals) --- */}
       {containerStats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Urgent Arrivals */}
-          <div className="md:col-span-2 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg shadow-indigo-100 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-              <Ship className="w-32 h-32" />
+          {/* Urgent Arrivals - Standard SaaS Design */}
+          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
+            {/* Background decorative icon */}
+            <div className="absolute -right-6 -top-6 text-slate-50 opacity-50">
+              <Ship className="w-40 h-40" />
             </div>
-            <div className="relative z-10 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="bg-white/20 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm">
-                    Logistics Alert
-                  </span>
-                  <span className="text-indigo-200 text-xs flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> ETA Updates
-                  </span>
+
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                  <Ship className="w-5 h-5" />
                 </div>
-                <h2 className="text-3xl font-bold mb-1">
-                  {containerStats.arrivingSoon} Containers
-                </h2>
-                <p className="text-indigo-100 text-sm">
-                  Arriving within the next 48 hours
-                </p>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">
+                    Urgent Logistics
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Containers requiring immediate attention
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-6 flex gap-4">
-                <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 flex-1 border border-white/10">
-                  <div className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">
-                    This Week
-                  </div>
-                  <div className="text-xl font-bold">
-                    {containerStats.arrivingThisWeek}{" "}
-                    <span className="text-xs font-normal opacity-70">
-                      Expected
-                    </span>
-                  </div>
+              <div className="grid grid-cols-3 gap-4 mt-6">
+                <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <p className="text-xs font-semibold text-indigo-500 uppercase">
+                    Arriving &lt; 48h
+                  </p>
+                  <p className="text-2xl font-bold text-indigo-700 mt-1">
+                    {containerStats.arrivingSoon}
+                  </p>
                 </div>
-                <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 flex-1 border border-white/10">
-                  <div className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">
+                    This Week
+                  </p>
+                  <p className="text-2xl font-bold text-slate-700 mt-1">
+                    {containerStats.arrivingThisWeek}
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">
                     In Transit
-                  </div>
-                  <div className="text-xl font-bold">
-                    {containerStats.activeContainers}{" "}
-                    <span className="text-xs font-normal opacity-70">
-                      Active
-                    </span>
-                  </div>
+                  </p>
+                  <p className="text-2xl font-bold text-slate-700 mt-1">
+                    {containerStats.activeContainers}
+                  </p>
                 </div>
               </div>
             </div>

@@ -427,25 +427,34 @@ class OrderTrackerService {
       return await prisma.$transaction(async (tx) => {
          // 1. Process updates and creations
          for (const order of ordersData) {
-            if (order.id && !order.id.startsWith('temp_')) {
+            // Sanitize data: remove frontend keys and system fields
+            const { 
+                id, 
+                _key, 
+                isNew, 
+                createdAt, 
+                updatedAt, 
+                createdBy, 
+                updatedBy, 
+                sheetId: _, 
+                ...dbData 
+            } = order;
+
+            if (id && !String(id).startsWith('temp_')) {
                // Update existing
                await tx.orderTracker.update({
-                  where: { id: order.id },
+                  where: { id: id },
                   data: {
-                    ...order,
-                    sheetId,
-                    updatedById: userId,
-                    // Remove transient frontend fields
-                    id: undefined, createdBy: undefined, updatedBy: undefined 
+                    ...dbData,
+                    sheetId, 
+                    updatedById: userId
                   }
                });
             } else {
                // Create new
-               // Remove temp ID
-               const { id, ...createData } = order;
                await tx.orderTracker.create({
                   data: {
-                     ...createData,
+                     ...dbData,
                      sheetId,
                      createdById: userId,
                      updatedById: userId

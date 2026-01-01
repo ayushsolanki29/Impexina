@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Toaster, toast } from "sonner";
+import {  toast } from "sonner";
 import {
   Save,
   X,
@@ -462,7 +462,7 @@ export default function ContainerSummaryEditor() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6">
-      <Toaster position="top-right" richColors />
+    
 
       <div className="max-w-7xl mx-auto">
         {/* Header */}

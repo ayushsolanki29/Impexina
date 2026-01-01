@@ -223,16 +223,16 @@ export default function UserManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50/50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-slate-900">
                 User Management
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-slate-600 mt-1">
                 Manage system users, roles, and permissions
               </p>
             </div>
@@ -240,14 +240,14 @@ export default function UserManagement() {
               <Button
                 variant="outline"
                 onClick={() => router.push("/dashboard/users/permissions")}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 border-slate-200 hover:bg-slate-50"
               >
                 <Shield className="w-4 h-4" />
                 Permissions
               </Button>
               <Button
                 onClick={() => router.push("/dashboard/users/create")}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700"
               >
                 <Plus className="w-4 h-4" />
                 Add New User
@@ -257,101 +257,99 @@ export default function UserManagement() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Total Users</p>
-                    <p className="text-2xl font-bold">{pagination.total}</p>
-                  </div>
-                  <Users className="w-8 h-8 text-blue-500" />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Total Users</p>
+                  <p className="text-2xl font-bold text-slate-900">{pagination.total}</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Active Users</p>
-                    <p className="text-2xl font-bold">
-                      {users.filter((u) => u.isActive).length}
-                    </p>
-                  </div>
-                  <CheckCircle className="w-8 h-8 text-green-500" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Admins</p>
-                    <p className="text-2xl font-bold">
-                      {users.filter((u) => u.role === "ADMIN").length}
-                    </p>
-                  </div>
-                  <Shield className="w-8 h-8 text-purple-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Active Users</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {users.filter((u) => u.isActive).length}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">New Joiners</p>
-                    <p className="text-2xl font-bold">
-                      {users.filter((u) => u.role === "NEW_JOINNER").length}
-                    </p>
-                  </div>
-                  <User className="w-8 h-8 text-amber-500" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-white" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Admins</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {users.filter((u) => u.role === "ADMIN").length}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">New Joiners</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {users.filter((u) => u.role === "NEW_JOINNER").length}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
+                  <User className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="Search by name, username, or email..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search by name, username, or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                />
               </div>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Roles</SelectItem>
-                  <SelectItem value="ADMIN">Administrator</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="NEW_JOINNER">New Joiner</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
-          </CardContent>
-        </Card>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="border-slate-200">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Roles</SelectItem>
+                <SelectItem value="ADMIN">Administrator</SelectItem>
+                <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                <SelectItem value="NEW_JOINNER">New Joiner</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="border-slate-200">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* User Table */}
-        <Card>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
@@ -529,7 +527,7 @@ export default function UserManagement() {
             {/* Pagination */}
             {!loading && users.length > 0 && <PaginationControls />}
           </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );

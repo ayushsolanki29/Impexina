@@ -14,8 +14,17 @@ const authService = {
         const { token, user } = res.data.data;
         setAuthCookies(token, user);
 
-        toast.success("Login successful", {
-          description: `Welcome back, ${user.name}`,
+        // Get time-based greeting
+        const hour = new Date().getHours();
+        let greeting = "Good Evening";
+        if (hour < 12) {
+          greeting = "Good Morning";
+        } else if (hour < 17) {
+          greeting = "Good Afternoon";
+        }
+
+        toast.success(`${greeting}, ${user.name}!`, {
+          description: "Welcome back to your workspace",
         });
       }
 
@@ -33,6 +42,7 @@ const authService = {
       };
     }
   },
+
 
   /* ===============================
      CURRENT USER

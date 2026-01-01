@@ -264,16 +264,16 @@ export default function TaskManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50/50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-slate-900">
                 Task Management
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-slate-600 mt-1">
                 Create, assign, and track tasks for employees
               </p>
             </div>
@@ -281,14 +281,14 @@ export default function TaskManagement() {
               <Button
                 variant="outline"
                 onClick={() => router.push("/dashboard/tasks/stats")}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 border-slate-200 hover:bg-slate-50"
               >
                 <BarChart3 className="w-4 h-4" />
                 Advanced Stats
               </Button>
               <Button
                 onClick={() => router.push("/dashboard/tasks/create")}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700"
               >
                 <Plus className="w-4 h-4" />
                 Create New Task
@@ -296,95 +296,57 @@ export default function TaskManagement() {
             </div>
           </div>
 
-          {/* Stats Cards */}
+          {/* Stats Cards - Consolidated to 4 main cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Total Tasks</p>
-                    <p className="text-2xl font-bold">{stats.totalTasks}</p>
-                  </div>
-                  <CheckSquare className="w-8 h-8 text-blue-500" />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Total Tasks</p>
+                  <p className="text-2xl font-bold text-slate-900">{stats.totalTasks}</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Pending Tasks</p>
-                    <p className="text-2xl font-bold">{stats.pendingTasks}</p>
-                  </div>
-                  <Clock className="w-8 h-8 text-amber-500" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <CheckSquare className="w-6 h-6 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Completed</p>
-                    <p className="text-2xl font-bold">{stats.completedTasks}</p>
-                  </div>
-                  <CheckCheck className="w-8 h-8 text-green-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Pending Tasks</p>
+                  <p className="text-2xl font-bold text-slate-900">{stats.pendingTasks}</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Overdue</p>
-                    <p className="text-2xl font-bold">{stats.overdueTasks}</p>
-                  </div>
-                  <AlertCircle className="w-8 h-8 text-red-500" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Frequency Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Daily Tasks</p>
-                    <p className="text-2xl font-bold">{stats.dailyTasks}</p>
-                  </div>
-                  <CalendarDays className="w-8 h-8 text-blue-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Completed</p>
+                  <p className="text-2xl font-bold text-slate-900">{stats.completedTasks}</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Weekly Tasks</p>
-                    <p className="text-2xl font-bold">{stats.weeklyTasks}</p>
-                  </div>
-                  <Calendar className="w-8 h-8 text-purple-500" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                  <CheckCheck className="w-6 h-6 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Monthly Tasks</p>
-                    <p className="text-2xl font-bold">{stats.monthlyTasks}</p>
-                  </div>
-                  <CalendarDays className="w-8 h-8 text-indigo-500" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">Overdue</p>
+                  <p className="text-2xl font-bold text-slate-900">{stats.overdueTasks}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-2">
                 <div className="relative">
@@ -434,11 +396,10 @@ export default function TaskManagement() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
         {/* Task Table */}
-        <Card>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
@@ -606,7 +567,7 @@ export default function TaskManagement() {
             {/* Pagination */}
             {!loading && tasks.length > 0 && <PaginationControls />}
           </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );

@@ -42,6 +42,9 @@ async function main() {
     { key: "USER_MANAGEMENT", name: "User Management" },
     { key: "TASK_MANAGEMENT", name: "Task Management" },
     { key: "MY_TASK", name: "My Tasks" },
+    { key: "BACKUPS", name: "System Backups" },
+    { key: "PROFILE", name: "PROFILE" },
+
   ];
 
   for (const mod of modules) {

@@ -152,8 +152,20 @@ class DashboardService {
           assigneeId: userId,
           status: { not: 'COMPLETED' }
         },
-        orderBy: { items: { deadlineDay: 'asc' }, createdAt: 'desc' }, // Sort by deadline if available
-        take: 5
+        orderBy: [
+          { deadlineDay: 'asc' },
+          { createdAt: 'desc' }
+        ],
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          status: true,
+          deadlineDay: true,
+          frequency: true,
+          createdAt: true
+        }
       }) : Promise.resolve([])
     ]);
     
@@ -162,9 +174,11 @@ class DashboardService {
       myAssignedTasks: myAssignedTasks?.map(t => ({
         id: t.id,
         title: t.title,
+        description: t.description,
         status: t.status,
-        priority: t.deadlineDay ? 'HIGH' : 'MEDIUM',
-        dueDate: t.deadlineDay ? `Day ${t.deadlineDay}` : 'Flexible'
+        priority: t.deadlineDay && t.deadlineDay <= 5 ? 'HIGH' : 'NORMAL',
+        dueDate: t.deadlineDay ? `Day ${t.deadlineDay}` : (t.frequency === 'AS_PER_REQUIREMENT' ? 'As Required' : 'Flexible'),
+        frequency: t.frequency
       })),
       summary: {
         totalOrders,

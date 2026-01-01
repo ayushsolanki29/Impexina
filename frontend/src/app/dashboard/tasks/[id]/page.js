@@ -70,8 +70,22 @@ export default function TaskDetails() {
         loadTask();
       }
     } catch (error) {
-      console.error("Error marking task complete:", error);
-      toast.error(error.message || "Failed to mark task as complete");
+      console.error("Full error object:", error);
+      console.error("Error response:", error.response);
+      console.error("Error response data:", error.response?.data);
+      
+      // Extract the error message with priority
+      let errorMessage = "Failed to mark task as complete";
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 403) {
+        errorMessage = "Permission denied: You can only mark your own tasks as complete.";
+      } else if (error.message && !error.message.includes("status code")) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -83,8 +97,22 @@ export default function TaskDetails() {
         router.push("/dashboard/tasks");
       }
     } catch (error) {
-      console.error("Error deleting task:", error);
-      toast.error(error.message || "Failed to delete task");
+      console.error("Full error object:", error);
+      console.error("Error response:", error.response);
+      console.error("Error response data:", error.response?.data);
+      
+      // Extract the error message with priority
+      let errorMessage = "Failed to delete task";
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 403) {
+        errorMessage = "Permission denied: You do not have permission to delete this task.";
+      } else if (error.message && !error.message.includes("status code")) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -330,8 +358,8 @@ export default function TaskDetails() {
                       <User className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <p className="font-medium">{task.assignee.name}</p>
-                      <p className="text-sm text-gray-500">@{task.assignee.username}</p>
+                      <p className="font-medium">{task.assignee?.name || "Unassigned"}</p>
+                      <p className="text-sm text-gray-500">{task.assignee?.username ? `@${task.assignee.username}` : ""}</p>
                     </div>
                   </div>
                 </div>
@@ -343,8 +371,8 @@ export default function TaskDetails() {
                       <User className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <p className="font-medium">{task.assignedBy.name}</p>
-                      <p className="text-sm text-gray-500">@{task.assignedBy.username}</p>
+                      <p className="font-medium">{task.assignedBy?.name || "Unknown"}</p>
+                      <p className="text-sm text-gray-500">{task.assignedBy?.username ? `@${task.assignedBy.username}` : ""}</p>
                     </div>
                   </div>
                 </div>
@@ -380,7 +408,7 @@ export default function TaskDetails() {
                     {task.frequency === "DAILY" && <CalendarDays className="w-4 h-4 text-blue-500" />}
                     {task.frequency === "WEEKLY" && <Calendar className="w-4 h-4 text-purple-500" />}
                     {task.frequency === "MONTHLY" && <CalendarDays className="w-4 h-4 text-indigo-500" />}
-                    <span className="capitalize">{task.frequency.toLowerCase().replace("_", " ")}</span>
+                    <span className="capitalize">{task.frequency ? task.frequency.toLowerCase().replace("_", " ") : "Not Specified"}</span>
                   </div>
                 </div>
               </CardContent>

@@ -754,8 +754,8 @@ export default function PermissionsManagement() {
 
       {/* Edit Permissions Dialog - Improved for better visibility */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[85vh] md:max-h-[90vh] overflow-hidden p-4 md:p-6">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b">
             <DialogTitle className="text-lg md:text-xl">Edit Permissions</DialogTitle>
             <DialogDescription className="text-sm md:text-base">
               Manage permissions for {selectedUser?.name} (@
@@ -763,9 +763,9 @@ export default function PermissionsManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-row gap-4 md:gap-6 overflow-hidden">
+          <div className="flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto px-4 md:px-6 py-4 flex-1 min-h-0">
             {/* User Info */}
-            <Card className="border shadow-sm">
+            <Card className="border shadow-sm lg:w-80 flex-shrink-0">
               <CardContent className="p-4 md:p-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
                   <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -790,7 +790,7 @@ export default function PermissionsManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-1 gap-3">
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <p className="text-xs text-gray-500 mb-1">Current Permissions</p>
                     <p className="font-bold text-lg">{userPermissions.length}</p>
@@ -814,7 +814,7 @@ export default function PermissionsManagement() {
             </Card>
 
             {/* Permissions Selection */}
-            <div className="flex flex-col gap-3 flex-1 overflow-scroll-hidden">
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <h3 className="font-bold text-base md:text-lg">Select Permissions</h3>
                 <div className="flex gap-2">
@@ -839,7 +839,7 @@ export default function PermissionsManagement() {
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 min-h-[300px] max-h-[400px] pr-2 md:pr-4">
+              <ScrollArea className="flex-1 h-[250px] md:h-[300px] lg:h-[400px] pr-2 md:pr-4">
                 <div className="space-y-2">
                   {modules.map((module) => (
                     <div
@@ -893,7 +893,7 @@ export default function PermissionsManagement() {
             </div>
           </div>
 
-          <DialogFooter className="pt-4 border-t">
+          <DialogFooter className="px-4 md:px-6 py-4 border-t">
             <Button
               variant="outline"
               onClick={() => setIsDialogOpen(false)}

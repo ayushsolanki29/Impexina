@@ -194,11 +194,19 @@ const userController = {
         }
       });
 
-      // Assign permissions if provided
-      if (permissions && permissions.length > 0) {
+      // Define default permissions that every user should have
+      const defaultPermissionKeys = ['DASHBOARD', 'MY_TASK', 'PROFILE'];
+      
+      // Combine default permissions with any additional permissions provided
+      const allPermissionKeys = permissions && permissions.length > 0 
+        ? [...new Set([...defaultPermissionKeys, ...permissions])] // Remove duplicates
+        : defaultPermissionKeys;
+
+      // Assign permissions
+      if (allPermissionKeys.length > 0) {
         const modules = await prisma.module.findMany({
           where: {
-            key: { in: permissions }
+            key: { in: allPermissionKeys }
           }
         });
 
@@ -214,7 +222,7 @@ const userController = {
 
       res.status(201).json({
         success: true,
-        message: 'User created successfully',
+        message: 'User created successfully with default permissions',
         data: user
       });
     } catch (error) {

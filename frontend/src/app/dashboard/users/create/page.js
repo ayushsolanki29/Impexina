@@ -36,7 +36,11 @@ export default function CreateUser() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [modules, setModules] = useState([]);
-  const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [selectedPermissions, setSelectedPermissions] = useState([
+    "DASHBOARD",
+    "MY_TASK",
+    "PROFILE",
+  ]);
 
   const [formData, setFormData] = useState({
     name: "",
