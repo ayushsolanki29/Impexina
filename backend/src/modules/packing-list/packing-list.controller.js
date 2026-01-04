@@ -32,6 +32,12 @@ const packingListController = {
 
       res.status(200).json(result);
     } catch (error) {
+      if (error.message === "Packing list not found") {
+        return res.status(200).json({
+          success: true,
+          data: null,
+        });
+      }
       res.status(404).json({
         success: false,
         message: error.message,
@@ -171,6 +177,12 @@ const packingListController = {
         data: activity,
       });
     } catch (error) {
+      if (error.message === "Packing list not found") {
+        return res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      }
       res.status(500).json({
         success: false,
         message: error.message,
@@ -194,6 +206,12 @@ const packingListController = {
         data: activities,
       });
     } catch (error) {
+      if (error.message === "Packing list not found") {
+        return res.status(200).json({
+          success: true,
+          data: [],
+        });
+      }
       res.status(500).json({
         success: false,
         message: error.message,
