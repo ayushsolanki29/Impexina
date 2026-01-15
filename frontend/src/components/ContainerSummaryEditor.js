@@ -36,6 +36,10 @@ const EMPTY_CONTAINER = {
   containerNo: "",
   sims: "",
   status: "Loaded",
+  invoiceNo: "",
+  invoiceDate: "",
+  location: "",
+  deliveryDate: "",
 };
 
 export default function ContainerSummaryEditor() {
@@ -54,6 +58,8 @@ export default function ContainerSummaryEditor() {
 
   const [containers, setContainers] = useState([]);
   const [error, setError] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(null); // { containerIndex, suggestionIndex }
 
   // Load data for edit mode
   useEffect(() => {
@@ -90,6 +96,10 @@ export default function ContainerSummaryEditor() {
               containerNo: container.containerNoField || "",
               sims: container.sims || "",
               status: container.status || "Loaded",
+              invoiceNo: container.invoiceNo || "",
+              invoiceDate: container.invoiceDate ? new Date(container.invoiceDate).toISOString().split("T")[0] : "",
+              location: container.location || "",
+              deliveryDate: container.deliveryDate ? new Date(container.deliveryDate).toISOString().split("T")[0] : "",
               // Calculated fields for display
               inr: container.inr || 0,
               duty: container.duty || 0,
@@ -206,6 +216,74 @@ export default function ContainerSummaryEditor() {
     };
 
     setContainers(newContainers);
+
+    // Trigger search if container code changes
+    if (field === 'containerCode') {
+        const valueStr = value.toString();
+        if (valueStr.length > 1) {
+            handleSearch(valueStr, index);
+        } else {
+            setSuggestions([]);
+            setActiveSuggestionIndex(null);
+        }
+    }
+  };
+
+  const handleSearch = async (query, containerIndex) => {
+      try {
+          const response = await API.get(`/bifurcation/containers/suggestions?search=${query}`);
+          if (response.data.success) {
+               setSuggestions(response.data.data.map(item => ({...item, _containerIndex: containerIndex})));
+               setActiveSuggestionIndex({ containerIndex, suggestionIndex: 0 }); 
+          }
+      } catch (error) {
+          console.error("Search error:", error);
+      }
+  };
+
+  const handleKeyDown = (e, index) => {
+      if (suggestions.length === 0 || activeSuggestionIndex?.containerIndex !== index) return;
+
+      if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setActiveSuggestionIndex(prev => ({
+              ...prev,
+              suggestionIndex: Math.min(prev.suggestionIndex + 1, suggestions.length - 1)
+          }));
+      } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setActiveSuggestionIndex(prev => ({
+              ...prev,
+              suggestionIndex: Math.max(prev.suggestionIndex - 1, 0)
+          }));
+      } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeSuggestionIndex.suggestionIndex >= 0) {
+              selectSuggestion(suggestions[activeSuggestionIndex.suggestionIndex], index);
+          }
+      } else if (e.key === 'Escape') {
+          setSuggestions([]);
+          setActiveSuggestionIndex(null);
+      }
+  };
+
+  const selectSuggestion = (suggestion, containerIndex) => {
+      const newContainers = [...containers];
+      const selected = newContainers[containerIndex];
+      
+      newContainers[containerIndex] = {
+          ...selected,
+          containerCode: suggestion.containerCode,
+          ctn: suggestion.ctn || selected.ctn,
+          loadingDate: suggestion.loadingDate ? suggestion.loadingDate.split('T')[0] : selected.loadingDate,
+          shippingLine: suggestion.shippingLine || selected.shippingLine,
+          invoiceNo: suggestion.invoiceNo || selected.invoiceNo,
+          location: suggestion.shippingLocation || selected.location,
+      };
+      
+      setContainers(newContainers);
+      setSuggestions([]);
+      setActiveSuggestionIndex(null);
   };
 
   // Get calculated values for a container
@@ -284,6 +362,10 @@ export default function ContainerSummaryEditor() {
           bl: container.bl || "",
           containerNo: container.containerNo || "",
           sims: container.sims || "",
+          invoiceNo: container.invoiceNo || "",
+          invoiceDate: container.invoiceDate || null,
+          location: container.location || "",
+          deliveryDate: container.deliveryDate || null,
         })),
       };
 
@@ -345,6 +427,10 @@ export default function ContainerSummaryEditor() {
           "CTN",
           "LOADING DATE",
           "ETA",
+          "INVOICE NO",
+          "INVOICE DATE",
+          "LOCATION",
+          "DELIVERY DATE",
           "DOLLAR",
           "DOLLAR RATE",
           "INR",
@@ -370,6 +456,10 @@ export default function ContainerSummaryEditor() {
             container.ctn,
             container.loadingDate || "",
             container.eta || "",
+            container.invoiceNo || "",
+            container.invoiceDate || "",
+            container.location || "",
+            container.deliveryDate || "",
             container.dollar,
             container.dollarRate,
             calculated.inr,
@@ -685,17 +775,48 @@ export default function ContainerSummaryEditor() {
                         <label className="block text-sm text-gray-600 mb-1">
                           Container Code *
                         </label>
-                        <input
-                          type="text"
-                          value={container.containerCode}
-                          onChange={(e) =>
-                            handleContainerChange(index, "containerCode", e.target.value)
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                          placeholder="e.g., IMPAK-10"
-                          disabled={saving}
-                          required
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={container.containerCode}
+                            onChange={(e) =>
+                              handleContainerChange(index, "containerCode", e.target.value)
+                            }
+                            onKeyDown={(e) => handleKeyDown(e, index)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                            placeholder="e.g., IMPAK-10"
+                            disabled={saving}
+                            required
+                          />
+                          {/* Suggestions Dropdown */}
+                          {suggestions.length > 0 && activeSuggestionIndex?.containerIndex === index && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto overflow-x-hidden">
+                              {suggestions.map((suggestion, sIndex) => (
+                                <button
+                                  key={sIndex}
+                                  type="button"
+                                  onClick={() => selectSuggestion(suggestion, index)}
+                                  className={`w-full text-left px-4 py-3 hover:bg-blue-50 flex flex-col gap-0.5 transition-colors border-b border-slate-50 last:border-0 ${
+                                    activeSuggestionIndex.suggestionIndex === sIndex ? "bg-blue-50" : ""
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-900">{suggestion.containerCode}</span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded uppercase">Match</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-slate-500">
+                                    <span className="flex items-center gap-1"><Package className="w-3 h-3" /> {suggestion.ctn} CTN</span>
+                                    {suggestion.shippingLocation && (
+                                      <span className="flex items-center gap-1 font-medium text-slate-600 uppercase">
+                                        • {suggestion.shippingLocation}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm text-gray-600 mb-1">
@@ -774,6 +895,21 @@ export default function ContainerSummaryEditor() {
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                           placeholder="e.g., KMTC"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Location / Port
+                        </label>
+                        <input
+                          type="text"
+                          value={container.location}
+                          onChange={(e) =>
+                            handleContainerChange(index, "location", e.target.value)
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          placeholder="e.g. Mundra"
                           disabled={saving}
                         />
                       </div>
@@ -887,6 +1023,51 @@ export default function ContainerSummaryEditor() {
 
                   {/* Additional Fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Invoice No
+                      </label>
+                      <input
+                        type="text"
+                        value={container.invoiceNo}
+                        onChange={(e) =>
+                          handleContainerChange(index, "invoiceNo", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        placeholder="e.g. INV-001"
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Invoice Date
+                      </label>
+                      <input
+                        type="date"
+                        value={container.invoiceDate}
+                        onChange={(e) =>
+                          handleContainerChange(index, "invoiceDate", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Delivery Date
+                      </label>
+                      <input
+                        type="date"
+                        value={container.deliveryDate}
+                        onChange={(e) =>
+                          handleContainerChange(index, "deliveryDate", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">
                         BL No

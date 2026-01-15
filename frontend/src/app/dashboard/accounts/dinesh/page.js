@@ -137,10 +137,10 @@ export default function DineshbhaiSheetsPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <FolderOpen className="w-6 h-6 text-emerald-600" />
-                Dineshbhai Sheets
+                Dineshbhai Ledger
               </h1>
               <p className="text-sm text-slate-600 mt-1">
-                Manage Dineshbhai booking ledgers and payment sheets
+                Manage central logistics booking ledgers and supplier payment tracking.
               </p>
             </div>
             <button
@@ -297,10 +297,10 @@ export default function DineshbhaiSheetsPage() {
           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-slate-900">
-              No sheets found
+              Dineshbhai Ledger
             </h3>
             <p className="text-slate-500 text-sm mb-4">
-              Create your first Dineshbhai sheet to get started
+              Create your first logistics sheet to get started
             </p>
             <button
               onClick={handleCreateSheet}

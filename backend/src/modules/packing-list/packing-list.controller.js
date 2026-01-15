@@ -1,247 +1,98 @@
 const packingListService = require("./packing-list.service");
+const companyMasterService = require("./company-master.service");
 
 const packingListController = {
-  // Initialize packing list from bifurcation
-  initializeFromBifurcation: async (req, res) => {
+  // --- Packing List Endpoints ---
+
+  getAll: async (req, res) => {
     try {
-      const { containerCode } = req.params;
-      const { companyMasterId } = req.body;
+      const result = await packingListService.getAllContainers(req.query);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  getByContainerId: async (req, res) => {
+    try {
+      const { containerId } = req.params;
+      const result = await packingListService.getPackingListByContainer(containerId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(404).json({ success: false, message: error.message });
+    }
+  },
+
+  createOrUpdate: async (req, res) => {
+    try {
+      const { containerId } = req.params;
       const userId = req.user.id;
-
-      const result = await packingListService.initializeFromBifurcation(
-        containerCode,
-        companyMasterId,
-        userId
-      );
-
-      res.status(200).json(result);
+      const result = await packingListService.createOrUpdate(containerId, req.body, userId);
+      res.json({ success: true, data: result });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
 
-  // Get packing list
-  getPackingList: async (req, res) => {
+  importLoadingItems: async (req, res) => {
     try {
-      const { containerCode } = req.params;
-
-      const result = await packingListService.getPackingList(containerCode);
-
-      res.status(200).json(result);
+      const { containerId } = req.params;
+      const items = await packingListService.importFromLoadingSheets(containerId);
+      res.json({ success: true, data: items });
     } catch (error) {
-      if (error.message === "Packing list not found") {
-        return res.status(200).json({
-          success: true,
-          data: null,
-        });
-      }
-      res.status(404).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // Update packing list
-  updatePackingList: async (req, res) => {
+  delete: async (req, res) => {
     try {
-      const { containerCode } = req.params;
-      const data = req.body;
-      const userId = req.user.id;
-
-      const result = await packingListService.updatePackingList(
-        containerCode,
-        data,
-        userId
-      );
-
-      res.status(200).json(result);
+      const { id } = req.params;
+      await packingListService.delete(id);
+      res.json({ success: true, message: "Packing list deleted" });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
 
-  // Update items
-  updateItems: async (req, res) => {
+  // --- Company Master (Templates) Endpoints ---
+
+  getTemplates: async (req, res) => {
     try {
-      const { containerCode } = req.params;
-      const { items } = req.body;
-      const userId = req.user.id;
-
-      const result = await packingListService.updateItems(
-        containerCode,
-        items,
-        userId
-      );
-
-      res.status(200).json(result);
+      const templates = await companyMasterService.getAll();
+      res.json({ success: true, data: templates });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // Get company masters
-  getCompanyMasters: async (req, res) => {
+  getTemplateSuggestions: async (req, res) => {
     try {
-      const result = await packingListService.getCompanyMasters();
-
-      res.status(200).json(result);
+      const { search = "" } = req.query;
+      const templates = await companyMasterService.getSuggestions(search);
+      res.json({ success: true, data: templates });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // Update company master
-  updateCompanyMaster: async (req, res) => {
+  upsertTemplate: async (req, res) => {
     try {
-      const { companyId } = req.params;
-      const data = req.body;
-      const userId = req.user.id;
-
-      const result = await packingListService.updateCompanyMaster(
-        companyId,
-        data,
-        userId
-      );
-
-      res.status(200).json(result);
+      const template = await companyMasterService.upsert(req.body);
+      res.json({ success: true, data: template });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
 
-  // Mark as printed
-  markAsPrinted: async (req, res) => {
+  deleteTemplate: async (req, res) => {
     try {
-      const { containerCode } = req.params;
-      const userId = req.user.id;
-
-      const result = await packingListService.markAsPrinted(
-        containerCode,
-        userId
-      );
-
-      res.status(200).json(result);
+      const { id } = req.params;
+      await companyMasterService.delete(id);
+      res.json({ success: true, message: "Template deleted" });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      res.status(400).json({ success: false, message: error.message });
     }
-  },
-
-  // Log activity
-  logActivity: async (req, res) => {
-    try {
-      const { containerCode } = req.params;
-      const { type, field, oldValue, newValue, note } = req.body;
-      const userId = req.user.id;
-
-      const packingList = await packingListService.getPackingList(containerCode);
-      
-      if (!packingList.data) {
-        return res.status(404).json({
-          success: false,
-          message: "Packing list not found",
-        });
-      }
-
-      const activity = await packingListService.logActivity(
-        packingList.data.id,
-        userId,
-        type,
-        field,
-        oldValue,
-        newValue,
-        note
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Activity logged successfully",
-        data: activity,
-      });
-    } catch (error) {
-      if (error.message === "Packing list not found") {
-        return res.status(404).json({
-          success: false,
-          message: error.message,
-        });
-      }
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  },
-
-  // Get activities
-  getActivities: async (req, res) => {
-    try {
-      const { containerCode } = req.params;
-      const { limit = 50 } = req.query;
-
-      const activities = await packingListService.getActivities(
-        containerCode,
-        parseInt(limit)
-      );
-
-      res.status(200).json({
-        success: true,
-        data: activities,
-      });
-    } catch (error) {
-      if (error.message === "Packing list not found") {
-        return res.status(200).json({
-          success: true,
-          data: [],
-        });
-      }
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  },
-
-  // Get all packing lists
-  getAllPackingLists: async (req, res) => {
-    try {
-      const { page = 1, limit = 10, search = "", status = "" } = req.query;
-
-      const result = await packingListService.getAllPackingLists({
-        page: parseInt(page),
-        limit: parseInt(limit),
-        search,
-        status: status || undefined,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  },
+  }
 };
 
 module.exports = packingListController;

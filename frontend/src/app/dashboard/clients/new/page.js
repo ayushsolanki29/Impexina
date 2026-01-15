@@ -1,5 +1,7 @@
-import ClientFormPage from "../_components/ClientForm";
+"use client";
+import React from "react";
+import ClientForm from "../_components/ClientForm";
 
 export default function NewClientPage() {
-  return <ClientFormPage />;
+  return <ClientForm mode="create" />;
 }

@@ -1,284 +1,673 @@
 "use client";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import { Plus, Download, RefreshCw } from "lucide-react";
-import api from "@/lib/api";
 
-// Import reusable components
-import ContainerCard from "../loading/_components/containers/ContainerCard";
-import FiltersPanel from "../loading/_components/containers/FiltersPanel";
-import PaginationFooter from "../loading/_components/containers/PaginationFooter";
-import EmptyState from "../loading/_components/containers/EmptyState";
-import ResultsHeader from "../loading/_components/containers/ResultsHeader";
-import LoadingSkeleton from "../loading/_components/containers/LoadingSkeleton";
+import React, { useState, useEffect, useCallback } from 'react';
+import API from '@/lib/api';
+import { toast } from 'sonner';
+import { 
+    Loader2, RefreshCw, ChevronLeft, ChevronRight, 
+    Search, Calendar, ChevronDown, ChevronUp, ExternalLink,
+    Truck, FileText, Package, Waves, MapPin, X, Printer,
+    Download, Settings, Info, Briefcase
+} from 'lucide-react';
+import Link from 'next/link';
 
-function ContainersContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+// Preview Modal Component
+// Preview Modal Component
+const WarehousePreviewModal = ({ isOpen, onClose, data }) => {
+    if (!isOpen) return null;
 
-  // State
-  const [containers, setContainers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [updatingStatus, setUpdatingStatus] = useState({});
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 12,
-    total: 0,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
-
-  // Filter states
-  const [filters, setFilters] = useState({
-    search: searchParams.get("search") || "",
-    origin: searchParams.get("origin") || "",
-    status: searchParams.get("status") || "CONFIRMED",
-    dateFrom: searchParams.get("dateFrom") || "",
-    dateTo: searchParams.get("dateTo") || "",
-  });
-
-  // Update URL when filters change
-  useEffect(() => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) params.set(key, value);
-    });
-    const queryString = params.toString();
-    const newUrl = queryString
-      ? `/dashboard/warehouse?${queryString}`
-      : "/dashboard/warehouse";
-    window.history.replaceState(null, "", newUrl);
-  }, [filters]);
-
-  // Fetch containers
-  const fetchContainers = async (page = 1, reset = false) => {
-    try {
-      setLoading(true);
-      const params = {
-        page,
-        limit: 12,
-        ...filters,
-      };
-
-      // Remove empty filters
-      Object.keys(params).forEach((key) => {
-        if (params[key] === "") delete params[key];
-      });
-
-      const response = await api.get("/loading/containers", { params });
-
-      if (response.data.success) {
-        if (reset) {
-          setContainers(response.data.data.containers);
-        } else {
-          setContainers((prev) => [...prev, ...response.data.data.containers]);
+    // First group by container, then by client
+    const groupedData = {};
+    data.forEach(item => {
+        const cCode = item.containerCode;
+        const client = item.clientName || '';
+        if (!groupedData[cCode]) {
+            groupedData[cCode] = {
+                itemsByClient: {},
+                totalCbm: item.containerTotalCbm || 0,
+                totalWt: item.containerTotalWt || 0,
+                totalCtn: 0,
+                loadingDate: item.loadingDate
+            };
         }
-        setPagination(response.data.data.pagination);
-      } else {
-        toast.error(response.data.message || "Failed to load containers");
-      }
-    } catch (error) {
-      console.error("Error fetching containers:", error);
-      toast.error("Failed to load containers");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    fetchContainers(1, true);
-  }, [filters]);
-
-  // Load more
-  const loadMore = () => {
-    if (pagination.hasNextPage) {
-      fetchContainers(pagination.page + 1);
-    }
-  };
-
-  // Handle filter change
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setContainers([]);
-  };
-
-  // Update container status
-  const handleStatusUpdate = async (containerCode, newStatus) => {
-    try {
-      setUpdatingStatus((prev) => ({ ...prev, [containerCode]: true }));
-
-      const response = await api.patch(
-        `/loading/containers/${containerCode}/status`,
-        {
-          status: newStatus,
+        if (!groupedData[cCode].itemsByClient[client]) {
+            groupedData[cCode].itemsByClient[client] = [];
         }
-      );
-
-      if (response.data.success) {
-        toast.success(`Status updated to ${newStatus}`);
-        // Refresh the container list
-        fetchContainers(pagination.page, true);
-      } else {
-        toast.error(response.data.message || "Failed to update status");
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
-      toast.error(error.response?.data?.message || "Failed to update status");
-    } finally {
-      setUpdatingStatus((prev) => ({ ...prev, [containerCode]: false }));
-    }
-  };
-
-  // Export to CSV
-  const handleExport = async () => {
-    try {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.set(key, value);
-      });
-
-      const exportUrl = `/api/loading/containers/export/csv?${params.toString()}`;
-      const link = document.createElement("a");
-      link.href = exportUrl;
-      link.download = `containers_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success("Export started. Check your downloads.");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export");
-    }
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      search: "",
-      origin: "",
-      status: "",
-      dateFrom: "",
-      dateTo: "",
+        groupedData[cCode].itemsByClient[client].push(item);
+        groupedData[cCode].totalCtn += item.ctn;
     });
-  };
 
-  // Navigation
-  const goToContainer = (containerCode) => {
-    router.push(`/dashboard/warehouse/${encodeURIComponent(containerCode)}`);
-  };
-
-  // Get unique origins from current containers
-  const uniqueOrigins = useMemo(() => {
-    const origins = new Set();
-    containers.forEach((container) => {
-      if (container.origin) origins.add(container.origin);
-    });
-    return Array.from(origins).sort();
-  }, [containers]);
-
-  const hasFilters = Object.values(filters).some((f) => f);
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 md:p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          {/* Header */}
-          <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
-            <div className="flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-      Warehouse Containers
-              </h1>
-              <p className="text-sm text-gray-600">
-                Select a container to manage  warehouse.{" "}
-                {pagination.total}{" "}
-                {pagination.total === 1 ? "container" : "containers"} available.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleExport}
-                disabled={containers.length === 0}
-                className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="w-4 h-4" /> Export CSV
-              </button>
-
-              <button
-                onClick={() => fetchContainers(1, true)}
-                className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50"
-              >
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
-            </div>
-          </header>
-          {/* Main Container */}
-          <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
-            {/* Filters */}
-            <FiltersPanel
-              filters={filters}
-              uniqueOrigins={uniqueOrigins}
-              onFilterChange={handleFilterChange}
-              onClearFilters={clearFilters}
-              hideStatusFilter={true} // ADD THIS FLAG
-            />
-
-            {/* Results Header */}
-            <ResultsHeader
-              count={containers.length}
-              total={pagination.total}
-              hasFilters={hasFilters}
-            />
-
-            {/* Containers List */}
-            <div>
-              {loading && containers.length === 0 ? (
-                <LoadingSkeleton count={6} />
-              ) : containers.length === 0 ? (
-                <EmptyState hasFilters={hasFilters} />
-              ) : (
-                <div>
-                  {containers.map((container) => (
-                    <ContainerCard
-                      key={container.containerCode}
-                      container={container}
-                      onViewDetails={goToContainer}
-                      onStatusUpdate={handleStatusUpdate}
-                      updatingStatus={updatingStatus}
-                    />
-                  ))}
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-[1400px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
+                {/* Header */}
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-white print:hidden">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800">Warehouse Plan Preview</h2>
+                        <p className="text-xs text-slate-500 font-medium">Professional Logistics Report View</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => window.print()} 
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
+                        >
+                            <Printer className="w-4 h-4" />
+                            Print Report
+                        </button>
+                        <button 
+                            onClick={onClose}
+                            className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
-              )}
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-8 bg-slate-100 print:bg-white print:p-0">
+                    <div className="print-area space-y-8 max-w-[1100px] mx-auto bg-white p-12 shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-4 min-h-[1000px]">
+                        
+                        {/* Document Header */}
+                        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
+                            <div>
+                                <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Warehouse Plan</h1>
+                                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Confidential Logistics Document</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="inline-block bg-slate-100 px-3 py-1 rounded">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date Generated</p>
+                                    <p className="text-sm font-bold text-slate-800">{new Date().toLocaleDateString('en-GB')}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {Object.entries(groupedData).map(([cCode, container]) => (
+                            <div key={cCode} className="mb-10 last:mb-0 break-inside-avoid">
+                                {/* Container Header */}
+                                <div className="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded border border-slate-200">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-slate-900 text-white px-3 py-1 rounded text-sm font-bold">
+                                            {cCode}
+                                        </div>
+                                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                            Loading: {container.loadingDate ? new Date(container.loadingDate).toLocaleDateString() : '-'}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-6 text-xs font-bold">
+                                        <div>
+                                            <span className="text-slate-400 uppercase mr-1">T. Ctn:</span>
+                                            <span className="text-slate-800">{container.totalCtn}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 uppercase mr-1">T. CBM:</span>
+                                            <span className="text-slate-800">{container.totalCbm?.toFixed(3)}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 uppercase mr-1">T. WT:</span>
+                                            <span className="text-slate-800">{container.totalWt?.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <table className="w-full border-collapse text-[10px]">
+                                    <thead>
+                                        <tr className="bg-slate-100 text-slate-600 font-bold text-left border-y border-slate-300 uppercase tracking-wide">
+                                            <th className="px-3 py-2 w-12 text-center">#</th>
+                                            <th className="px-3 py-2">Mark</th>
+                                            <th className="px-3 py-2 text-center">CTN</th>
+                                            <th className="px-3 py-2">Product</th>
+                                            <th className="px-3 py-2 text-center text-blue-600">Transporter</th>
+                                            <th className="px-3 py-2 text-right">CBM</th>
+                                            <th className="px-3 py-2 text-right">Weight</th>
+                                            <th className="px-3 py-2 text-center">Loading</th>
+                                            <th className="px-3 py-2 text-center">Delivery</th>
+                                            <th className="px-3 py-2 text-center">Inv #</th>
+                                            <th className="px-3 py-2 text-right">GST</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {Object.entries(container.itemsByClient).map(([clientName, items], groupIdx) => (
+                                            <React.Fragment key={clientName}>
+                                                {/* Spacer between groups */}
+                                                {groupIdx > 0 && (
+                                                    <tr className="h-4 border-none">
+                                                        <td colSpan="11"></td>
+                                                    </tr>
+                                                )}
+
+                                                {/* Client Selection Header */}
+                                                {clientName && (
+                                                    <tr className="bg-yellow-50/50 print:bg-slate-50 border-t border-slate-200">
+                                                        <td colSpan="11" className="px-3 py-2 border-l-4 border-yellow-400">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="font-bold text-slate-700 text-xs">{clientName}</span>
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                                    {items.length} Items
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                
+                                                {items.map((item, idx) => (
+                                                    <tr key={idx} className={`hover:bg-slate-50/50 transition-colors ${clientName && idx === items.length - 1 ? 'border-b border-slate-200' : ''}`}>
+                                                        <td className="px-3 py-2 text-center text-slate-400 font-medium">{idx + 1}</td>
+                                                        <td className="px-3 py-2 font-bold text-slate-700">{item.mark}</td>
+                                                        <td className="px-3 py-2 text-center font-bold text-slate-700">{item.ctn}</td>
+                                                        <td className="px-3 py-2 text-slate-600 font-medium truncate max-w-[150px]">{item.product}</td>
+                                                        <td className="px-3 py-2 text-center text-blue-600 font-semibold text-[9px] truncate max-w-[100px]">{item.transporter || '-'}</td>
+                                                        <td className="px-3 py-2 text-right font-medium text-slate-600">{item.totalCbm?.toFixed(3)}</td>
+                                                        <td className="px-3 py-2 text-right font-medium text-slate-600">{item.totalWt?.toFixed(0)}</td>
+                                                        <td className="px-3 py-2 text-center text-slate-500">
+                                                            {item.loadingDate ? new Date(item.loadingDate).toLocaleDateString('en-GB') : '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center text-slate-500">
+                                                            {item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString('en-GB') : '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center font-bold text-slate-600">{item.invoiceNo || '-'}</td>
+                                                        <td className="px-3 py-2 text-right font-medium text-slate-600">
+                                                            {item.gstAmount ? `₹${item.gstAmount}` : '-'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="px-8 py-3 bg-white border-t text-[10px] text-slate-400 flex justify-between items-center print:hidden">
+                    <span className="font-bold uppercase tracking-widest">Impexina Logistics Cloud</span>
+                    <span className="font-medium italic">Confidential Document</span>
+                </div>
             </div>
-
-            {/* Footer */}
-            {containers.length > 0 && (
-              <PaginationFooter
-                pagination={pagination}
-                containers={containers}
-                loading={loading}
-                onLoadMore={loadMore}
-                onPreviousPage={() =>
-                  fetchContainers(pagination.page - 1, true)
-                }
-              />
-            )}
-          </div>
         </div>
-      </div>
-    </div>
-  );
-}
+    );
+};
 
-export default function ContainersOverviewPage() {
-  return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <ContainersContent />
-    </Suspense>
-  );
+// Suggestion Editable Cell Component
+const SuggestionEditableCell = ({ value, onSave, suggestions = [] }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentValue, setCurrentValue] = useState(value || '');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    useEffect(() => {
+        setCurrentValue(value || '');
+    }, [value]);
+
+    const filteredSuggestions = suggestions.filter(s => 
+        s.toLowerCase().includes(currentValue.toLowerCase())
+    );
+
+    const handleBlur = () => {
+        setTimeout(() => {
+            setIsEditing(false);
+            setShowSuggestions(false);
+            if (currentValue !== (value || '')) {
+                onSave(currentValue);
+            }
+        }, 200);
+    };
+
+    if (isEditing) {
+        return (
+            <div className="relative w-full">
+                <input
+                    type="text"
+                    className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none bg-white font-medium text-slate-700 focus:border-blue-500"
+                    value={currentValue}
+                    onChange={(e) => {
+                        setCurrentValue(e.target.value);
+                        setShowSuggestions(true);
+                    }}
+                    onBlur={handleBlur}
+                    onFocus={() => setShowSuggestions(true)}
+                    autoFocus
+                />
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-100 rounded shadow-sm max-h-32 overflow-y-auto py-1">
+                        {filteredSuggestions.map((s, idx) => (
+                            <div
+                                key={idx}
+                                className="px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50 cursor-pointer font-medium"
+                                onClick={() => {
+                                    setCurrentValue(s);
+                                    onSave(s);
+                                    setIsEditing(false);
+                                    setShowSuggestions(false);
+                                }}
+                            >
+                                {s}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div 
+            onClick={() => setIsEditing(true)}
+            className="w-full h-full min-h-[28px] cursor-pointer hover:bg-slate-50 transition-colors flex items-center px-1 rounded gap-2 group"
+        >
+            <span className={`truncate text-xs ${value ? 'text-blue-600 font-semibold' : 'text-slate-300 italic'}`}>
+                {value || 'Add Transporter'}
+            </span>
+            <Search className="w-2.5 h-2.5 text-slate-300 opacity-0 group-hover:opacity-100" />
+        </div>
+    );
+};
+
+// Enhanced editable cell component
+const EditableCell = ({ value, type = "text", onSave, tabIndex }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentValue, setCurrentValue] = useState(value);
+    
+    useEffect(() => {
+        setCurrentValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        if (currentValue !== value) {
+            onSave(currentValue);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+        }
+    };
+
+    if (isEditing) {
+        return (
+            <input
+                type={type}
+                className="w-full px-2 py-1 text-sm border-2 border-blue-500 rounded-md outline-none bg-white shadow-sm font-medium"
+                value={currentValue}
+                onChange={(e) => setCurrentValue(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                tabIndex={tabIndex}
+            />
+        );
+    }
+
+    return (
+        <div 
+            onClick={() => setIsEditing(true)}
+            className="w-full h-full min-h-[32px] cursor-pointer hover:bg-white/80 transition-colors flex items-center px-1 rounded hover:shadow-sm"
+            tabIndex={tabIndex}
+            onFocus={() => setIsEditing(true)}
+        >
+            {value ? (
+                <span className="truncate font-medium text-slate-700">
+                    {type === 'date' ? new Date(value).toLocaleDateString() : value}
+                </span>
+            ) : (
+                <span className="text-slate-300 italic text-xs">Click to edit</span>
+            )}
+        </div>
+    );
+};
+
+
+export default function WarehouseModule() {
+    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState([]);
+    const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
+    const [transporters, setTransporters] = useState([]);
+    const [previewContainerCode, setPreviewContainerCode] = useState(null);
+    
+    // UI State
+    const [expandedContainers, setExpandedContainers] = useState({});
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+    // Grouping helper
+    const groupByContainer = (list) => {
+        const groups = {};
+        list.forEach(item => {
+            if (!groups[item.containerCode]) {
+                groups[item.containerCode] = [];
+            }
+            groups[item.containerCode].push(item);
+        });
+        return groups;
+    };
+
+    const fetchTransporters = async () => {
+        try {
+            const response = await API.get('/warehouse/transporters');
+            if (response.data.success) {
+                setTransporters(response.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch transporters", error);
+        }
+    };
+
+    const fetchData = useCallback(async (page = 1) => {
+        try {
+            setLoading(true);
+            const params = new URLSearchParams({
+                page,
+                limit: 10,
+                search: searchTerm,
+                dateFrom: dateRange.from,
+                dateTo: dateRange.to
+            });
+            const response = await API.get(`/warehouse?${params.toString()}`);
+            if (response.data.success) {
+                setData(response.data.data);
+                setPagination(response.data.pagination);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to load warehouse data");
+        } finally {
+            setLoading(false);
+        }
+    }, [searchTerm, dateRange]);
+
+    const handleUpdate = async (sheetId, field, value) => {
+        const oldData = [...data];
+        const newData = data.map(item => {
+            if (item.id === sheetId) {
+                return { ...item, [field]: value };
+            }
+            return item;
+        });
+        setData(newData);
+
+        try {
+            const payload = { transporter: value };
+            await API.post(`/warehouse/${sheetId}`, payload);
+            toast.success("Transporter updated");
+        } catch (error) {
+            toast.error("Failed to save transporter");
+            setData(oldData);
+        }
+    };
+
+    const toggleContainer = (code) => {
+        setExpandedContainers(prev => ({
+            ...prev,
+            [code]: !prev[code]
+        }));
+    };
+
+    useEffect(() => {
+        fetchData();
+        fetchTransporters();
+    }, [searchTerm, dateRange.from, dateRange.to]);
+
+    const groupedData = groupByContainer(data);
+    const containerCodes = Object.keys(groupedData).sort();
+
+    return (
+        <div className="p-4 bg-white min-h-screen font-sans antialiased text-slate-800">
+             <div className="max-w-[1600px] mx-auto">
+                <WarehousePreviewModal 
+                    isOpen={!!previewContainerCode} 
+                    onClose={() => setPreviewContainerCode(null)} 
+                    data={previewContainerCode ? groupedData[previewContainerCode] || [] : []} 
+                />
+
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b pb-6">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Warehouse Plan</h1>
+                            <span className="text-[10px] text-slate-400 font-bold border rounded px-1.5 py-0.5 uppercase">
+                                {data.length} Marks
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Logistics & Delivery Schedules</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+
+                        <button 
+                            onClick={() => fetchData(pagination.page)}
+                            className="flex items-center gap-1.5 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors font-medium text-xs whitespace-nowrap"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                            Sync Data
+                        </button>
+                    </div>
+                </div>
+
+                {/* Filters Section */}
+                <div className="flex flex-col md:flex-row gap-3 mb-6 items-center">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input 
+                            type="text"
+                            placeholder="Search container or cargo mark..."
+                            className="w-full pl-9 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all text-sm"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div className="flex items-center gap-2 bg-slate-50/50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <input 
+                            type="date" 
+                            className="bg-transparent text-xs font-medium text-slate-600 outline-none"
+                            value={dateRange.from}
+                            onChange={(e) => setDateRange(prev => ({...prev, from: e.target.value}))}
+                        />
+                        <span className="text-slate-300 text-[10px] uppercase font-bold px-1">to</span>
+                        <input 
+                            type="date" 
+                            className="bg-transparent text-xs font-medium text-slate-600 outline-none"
+                            value={dateRange.to}
+                            onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
+                        />
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="space-y-4 min-h-[400px]">
+                    {loading && data.length === 0 ? (
+                        <div className="flex h-64 items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+                        </div>
+                    ) : (
+                        <>
+                            {containerCodes.map(code => {
+                                 const items = groupedData[code];
+                                 const totalCtn = items.reduce((sum, i) => sum + i.ctn, 0);
+                                 const isExpanded = expandedContainers[code] !== false;
+
+                                return (
+                                    <div key={code} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                        {/* Container Header */}
+                                        <div 
+                                            className="px-6 py-5 flex flex-col md:flex-row justify-between items-start md:items-center cursor-pointer hover:bg-slate-50 transition-colors border-b border-transparent hover:border-slate-100"
+                                            onClick={() => toggleContainer(code)}
+                                        >
+                                            <div className="flex items-center gap-8 mb-4 md:mb-0">
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Container</div>
+                                                    <h2 className="text-xl font-black text-slate-800 tracking-tight">{code}</h2>
+                                                </div>
+                                                <div className="hidden md:block w-px h-8 bg-slate-200"></div>
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Loading Date</div>
+                                                    <p className="text-sm font-bold text-blue-600">
+                                                        {items[0].loadingDate ? new Date(items[0].loadingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="hidden md:block w-px h-8 bg-slate-200"></div>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPreviewContainerCode(code);
+                                                    }}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors group"
+                                                >
+                                                    <Printer className="w-4 h-4" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Print</span>
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-8 md:gap-12 w-full md:w-auto justify-between md:justify-end">
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total CTN</p>
+                                                    <p className="text-lg font-black text-slate-800">{totalCtn}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total CBM</p>
+                                                    <p className="text-lg font-black text-slate-800">{items[0].containerTotalCbm?.toFixed(3)}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total WT</p>
+                                                    <p className="text-lg font-black text-slate-800">{items[0].containerTotalWt?.toFixed(2)}</p>
+                                                </div>
+                                                <div className="pl-4">
+                                                    {isExpanded ? <ChevronUp className="w-5 h-5 text-blue-500" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {isExpanded && (
+                                            <div className="overflow-x-auto border-t">
+                                                <table className="w-full text-xs">
+                                                    <thead>
+                                                        <tr className="bg-white text-slate-400 text-left uppercase text-[10px] font-bold tracking-widest border-b">
+                                                            <th className="px-5 py-3 w-10 text-center">#</th>
+                                                            <th className="px-5 py-3">Shipping Mark</th>
+                                                            <th className="px-5 py-3 text-center">CTN</th>
+                                                            <th className="px-5 py-3">Product Detail</th>
+                                                            <th className="px-5 py-3 text-right">CBM</th>
+                                                            <th className="px-5 py-3 text-right">WT</th>
+                                                            <th className="px-5 py-3">From</th>
+                                                            <th className="px-5 py-3">To</th>
+                                                            <th className="px-5 py-3 text-blue-600">Transporter</th>
+                                                            <th className="px-5 py-3 text-right">Delivery</th>
+                                                            <th className="px-5 py-3 text-right">Inv No</th>
+                                                            <th className="px-5 py-3 text-right">GST Amt</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {(() => {
+                                                            const groups = {};
+                                                            items.forEach(it => {
+                                                                const c = it.clientName || '';
+                                                                if (!groups[c]) groups[c] = [];
+                                                                groups[c].push(it);
+                                                            });
+
+                                                            const groupEntries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+
+                                                            return groupEntries.map(([client, clientItems], gIdx) => (
+                                                                <React.Fragment key={client || 'none'}>
+                                                                    {client && (
+                                                                        <tr className="bg-blue-50/50">
+                                                                            <td colSpan="12" className="px-5 py-2">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                                                    <span className="text-[11px] font-bold text-slate-500">Client:</span>
+                                                                                    <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">{client}</span>
+                                                                                    <span className="text-[10px] text-slate-400 font-medium ml-2">({clientItems.length} marks)</span>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                    {clientItems.map((item, iIdx) => (
+                                                                        <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-none">
+                                                                            <td className="px-5 py-4 text-center text-blue-300 font-bold text-xs">{item.mark?.substring(0, 3) || '0.1'}</td>
+                                                                            <td className="px-5 py-4 font-bold text-slate-800 text-xs w-[180px] leading-relaxed">{item.mark}</td>
+                                                                            <td className="px-5 py-4 text-center font-black text-blue-600 text-xs">{item.ctn}</td>
+                                                                            <td className="px-5 py-4 text-slate-600 text-xs font-semibold uppercase max-w-[200px] truncate">{item.product}</td>
+                                                                            
+                                                                            <td className="px-5 py-4 text-right">
+                                                                                <span className="font-bold text-green-500 text-xs">{item.totalCbm.toFixed(3)}</span>
+                                                                            </td>
+                                                                            <td className="px-5 py-4 text-right">
+                                                                                <span className="font-bold text-orange-500 text-xs">{item.totalWt.toFixed(2)}</span>
+                                                                            </td>
+                                                                            
+                                                                            <td className="px-5 py-4 text-xs font-bold text-slate-700">{item.from}</td>
+                                                                            <td className="px-5 py-4 text-xs font-bold text-slate-700">{item.to}</td>
+
+                                                                            <td className="px-5 py-4">
+                                                                                <SuggestionEditableCell 
+                                                                                    value={item.transporter} 
+                                                                                    onSave={(val) => {
+                                                                                        handleUpdate(item.id, 'transporter', val);
+                                                                                        fetchTransporters();
+                                                                                    }} 
+                                                                                    suggestions={transporters}
+                                                                                />
+                                                                            </td>
+
+                                                                            <td className="px-5 py-4 text-right text-xs font-bold text-slate-600">
+                                                                                {item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString() : '-'}
+                                                                            </td>
+
+                                                                            <td className="px-5 py-4 text-right text-xs font-bold text-slate-700">
+                                                                                {item.invoiceNo || '-'}
+                                                                            </td>
+
+                                                                            <td className="px-5 py-4 text-right">
+                                                                                <span className="text-xs font-bold text-slate-400">₹ {item.gstAmount || '0'}</span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </React.Fragment>
+                                                            ));
+                                                        })()}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            
+                            {containerCodes.length === 0 && (
+                                <div className="p-12 text-center border border-dashed rounded-xl">
+                                    <Truck className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                    <p className="text-slate-400 text-sm font-medium">No results found</p>
+                                </div>
+                            )}
+
+                            {/* Pagination */}
+                            {pagination.totalPages > 1 && (
+                                <div className="flex justify-between items-center bg-white px-5 py-3 rounded-lg border border-slate-200 shadow-sm mt-4">
+                                    <button
+                                        onClick={() => fetchData(pagination.page - 1)}
+                                        disabled={pagination.page <= 1}
+                                        className="p-1.5 border rounded disabled:opacity-20 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest uppercase">
+                                        Page {pagination.page} / {pagination.totalPages}
+                                    </div>
+                                    <button
+                                        onClick={() => fetchData(pagination.page + 1)}
+                                        disabled={pagination.page >= pagination.totalPages}
+                                        className="p-1.5 border rounded disabled:opacity-20 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+             </div>
+        </div>
+    );
 }

@@ -2,13 +2,13 @@
 import './globals.css';
 import { Toaster } from "sonner";
 export const metadata = {
-  title: 'IGPL — Impexina ERP',
+  title: 'Bennet Tradding - Import Logistics & Sales Management System',
   description: 'Import Logistics & Sales Management System',
   // manifest file
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'IGPL — Impexina ERP',
+    title: 'Bennet Tradding - Import Logistics & Sales Management System',
   },
 
 

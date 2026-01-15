@@ -59,16 +59,23 @@ export default function DavidSheetsList() {
     }
   };
 
-  const createNewSheet = async () => {
+  const createNewSheet = async (partner = "David") => {
     try {
+      const monthNames = [
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+      ];
+      const now = new Date();
+      const sheetName = `${partner.toUpperCase()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
       const response = await API.post("/accounts/david/", {
-        name: `New David Sheet ${new Date().toLocaleDateString()}`,
-        description: "",
-        tags: ["forex", "ledger"],
+        name: sheetName,
+        description: `Monthly ledger for ${partner}`,
+        tags: ["forex", "ledger", partner.toLowerCase()],
       });
 
       if (response.data.success) {
-        toast.success("New sheet created");
+        toast.success(`${partner}'s sheet created`);
         router.push(`/dashboard/accounts/david/${response.data.data.id}`);
       }
     } catch (error) {
@@ -193,18 +200,50 @@ export default function DavidSheetsList() {
                 <ArrowLeft className="w-5 h-5" /> Back to Accounts
               </button>
               <h1 className="text-3xl font-bold text-slate-900">
-                David Forex Sheets
+                Partner Ledgers Hub
               </h1>
               <p className="text-slate-600 mt-2">
-                Manage your forex ledger sheets for David Impex
+                Manage monthly forex ledger sheets for all partners
               </p>
             </div>
+          </div>
+
+          {/* Partner Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+            {/* David's Card */}
             <button
-              onClick={createNewSheet}
-              className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-md transition-all hover:shadow-lg"
+              onClick={() => createNewSheet("David")}
+              className="group relative bg-white p-8 rounded-3xl border-2 border-slate-100 hover:border-blue-400 transition-all duration-300 hover:shadow-xl text-left"
             >
-              <Plus className="w-5 h-5" />
-              New Sheet
+              <div className="mb-6 p-3 bg-blue-100 text-blue-600 rounded-xl w-fit group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">David's Sheet</h3>
+              <p className="text-slate-500">New monthly partner ledger.</p>
+            </button>
+
+            {/* Manoj's Card */}
+            <button
+              onClick={() => createNewSheet("Manoj")}
+              className="group relative bg-white p-8 rounded-3xl border-2 border-slate-100 hover:border-emerald-400 transition-all duration-300 hover:shadow-xl text-left"
+            >
+              <div className="mb-6 p-3 bg-emerald-100 text-emerald-600 rounded-xl w-fit group-hover:bg-emerald-600 group-hover:text-white transition-colors duration-300">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">Manoj's Sheet</h3>
+              <p className="text-slate-500">New monthly partner ledger.</p>
+            </button>
+
+            {/* Akash's Card */}
+            <button
+              onClick={() => createNewSheet("Akash")}
+              className="group relative bg-white p-8 rounded-3xl border-2 border-slate-100 hover:border-amber-400 transition-all duration-300 hover:shadow-xl text-left"
+            >
+              <div className="mb-6 p-3 bg-amber-100 text-amber-600 rounded-xl w-fit group-hover:bg-amber-600 group-hover:text-white transition-colors duration-300">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">Akash's Sheet</h3>
+              <p className="text-slate-500">New monthly partner ledger.</p>
             </button>
           </div>
         </div>
@@ -276,178 +315,160 @@ export default function DavidSheetsList() {
         </div>
 
         {/* Sheets Grid/Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="space-y-8">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <span className="ml-3 text-slate-600">Loading sheets...</span>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-16 flex flex-col items-center justify-center">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+              <span className="text-slate-600 font-medium">Loading your sheets...</span>
             </div>
           ) : sheets.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 text-center py-16">
               <Folder className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-900 mb-2">
-                No sheets found
-              </h3>
-              <p className="text-slate-600 mb-6">
-                {search
-                  ? "Try a different search term"
-                  : "Create your first forex sheet"}
-              </p>
-              <button
-                onClick={createNewSheet}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Create New Sheet
-              </button>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">No sheets found</h3>
+              <p className="text-slate-600 mb-6">Create your first forex sheet above</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="text-left p-4">
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedSheets.length === sheets.length &&
-                          sheets.length > 0
-                        }
-                        onChange={handleSelectAll}
-                        className="rounded border-slate-300"
-                      />
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      Sheet Name
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      Entries
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      RMB Balance
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      USD Balance
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      Status
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      Last Updated
-                    </th>
-                    <th className="text-left p-4 font-semibold text-slate-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sheets.map((sheet) => (
-                    <tr
-                      key={sheet.id}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="p-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedSheets.includes(sheet.id)}
-                          onChange={() => handleSelectSheet(sheet.id)}
-                          className="rounded border-slate-300"
-                        />
-                      </td>
-                      <td className="p-4">
-                        <div
-                          className="font-medium text-slate-900 hover:text-blue-600 cursor-pointer"
-                          onClick={() =>
-                            router.push(`/dashboard/accounts/david/${sheet.id}`)
-                          }
-                        >
-                          {sheet.name}
-                        </div>
-                        {sheet.description && (
-                          <div className="text-sm text-slate-500 mt-1">
-                            {sheet.description}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1">
-                          <FileText className="w-4 h-4 text-slate-400" />
-                          <span className="font-medium">
-                            {sheet.summary?.entryCount || 0}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="font-mono font-medium">
-                          ¥{formatCurrency(sheet.summary?.netRMB || 0)}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="font-mono font-medium">
-                          ${formatCurrency(sheet.summary?.netUSD || 0)}
-                        </div>
-                      </td>
-                      <td className="p-4">{getStatusBadge(sheet.status)}</td>
-                      <td className="p-4 text-sm text-slate-600">
-                        {new Date(sheet.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/accounts/david/${sheet.id}`
-                              )
-                            }
-                            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                            title="Open"
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => duplicateSheet(sheet.id, sheet.name)}
-                            className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                            title="Duplicate"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => exportSheet(sheet.id, sheet.name)}
-                            className="p-2 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg"
-                            title="Export"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              archiveSheet(
-                                sheet.id,
-                                sheet.status !== "ARCHIVED"
-                              )
-                            }
-                            className="p-2 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg"
-                            title={
-                              sheet.status === "ARCHIVED"
-                                ? "Restore"
-                                : "Archive"
-                            }
-                          >
-                            {sheet.status === "ARCHIVED" ? (
-                              <Share2 className="w-4 h-4" />
-                            ) : (
-                              <Archive className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            <>
+              {[
+                { label: "David Sheets", icon: "D", color: "blue", prefix: "DAVID" },
+                { label: "Manoj Sheets", icon: "M", color: "emerald", prefix: "MANOJ" },
+                { label: "Akash Sheets", icon: "A", color: "amber", prefix: "AKASH" },
+                { label: "Other Ledgers", icon: "O", color: "slate", prefix: null }
+              ].map((group) => {
+                const groupSheets = group.prefix 
+                  ? sheets.filter(s => s.name.toUpperCase().startsWith(group.prefix))
+                  : sheets.filter(s => 
+                      !s.name.toUpperCase().startsWith("DAVID") && 
+                      !s.name.toUpperCase().startsWith("MANOJ") && 
+                      !s.name.toUpperCase().startsWith("AKASH")
+                    );
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+                if (groupSheets.length === 0) return null;
+
+                return (
+                  <div key={group.label} className="space-y-4">
+                    <div className="flex items-center gap-3 px-1">
+                      <div className={`w-8 h-8 rounded-lg bg-${group.color}-100 text-${group.color}-600 flex items-center justify-center font-bold text-sm`}>
+                        {group.icon}
+                      </div>
+                      <h2 className="text-xl font-bold text-slate-800">{group.label}</h2>
+                      <span className="text-sm font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {groupSheets.length}
+                      </span>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="text-left p-4">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSheets.length === sheets.length && sheets.length > 0}
+                                  onChange={handleSelectAll}
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              </th>
+                              <th className="text-left p-4 font-semibold text-slate-700">Sheet Name</th>
+                              <th className="text-left p-4 font-semibold text-slate-700">Entries</th>
+                              <th className="text-left p-4 font-semibold text-slate-700">RMB Balance</th>
+                              <th className="text-left p-4 font-semibold text-slate-700">USD Balance</th>
+                              <th className="text-left p-4 font-semibold text-slate-700">Status</th>
+                              <th className="text-left p-4 font-semibold text-slate-700 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {groupSheets.map((sheet) => (
+                              <tr key={sheet.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="p-4">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedSheets.includes(sheet.id)}
+                                    onChange={() => handleSelectSheet(sheet.id)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                </td>
+                                <td className="p-4">
+                                  <div
+                                    className="font-semibold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors"
+                                    onClick={() => router.push(`/dashboard/accounts/david/${sheet.id}`)}
+                                  >
+                                    {sheet.name}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      {new Date(sheet.updatedAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                    <span className="font-medium text-slate-700">
+                                      {sheet.summary?.entryCount || 0}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-mono font-bold text-slate-900">
+                                    ¥{formatCurrency(sheet.summary?.netRMB || 0)}
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-mono font-bold text-slate-900">
+                                    ${formatCurrency(sheet.summary?.netUSD || 0)}
+                                  </div>
+                                </td>
+                                <td className="p-4">{getStatusBadge(sheet.status)}</td>
+                                <td className="p-4">
+                                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => router.push(`/dashboard/accounts/david/${sheet.id}`)}
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="Open"
+                                    >
+                                      <ChevronRight className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => duplicateSheet(sheet.id, sheet.name)}
+                                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                      title="Duplicate"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => exportSheet(sheet.id, sheet.name)}
+                                      className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                      title="Export"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => archiveSheet(sheet.id, sheet.status !== "ARCHIVED")}
+                                      className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                      title={sheet.status === "ARCHIVED" ? "Restore" : "Archive"}
+                                    >
+                                      {sheet.status === "ARCHIVED" ? <Share2 className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
             <div className="border-t border-slate-200 p-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-slate-600">
@@ -476,7 +497,6 @@ export default function DavidSheetsList() {
               </div>
             </div>
           )}
-        </div>
 
         {/* Quick Stats */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -97,17 +97,8 @@ class DashboardService {
       this.getMonthlyOrderStats(),
       this.getMonthlyTaskStats(),
       
-      // Container stats
       prisma.container.count(),
-      prisma.container.count({ 
-        where: { 
-          loadingSheets: {
-            some: {
-              status: { in: ['IN_TRANSIT', 'IN_PORT', 'IN_SEA', 'ARRIVED'] }
-            }
-          }
-        }
-      }),
+      Promise.resolve(0), // Placeholder for active containers
       
       // Financial stats (from order tracker)
       prisma.orderTracker.aggregate({
@@ -611,25 +602,15 @@ class DashboardService {
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     
     const [recentActivities, activeUsers, pendingJobs] = await Promise.all([
-      // Recent activities
-      prisma.$queryRaw`
-        SELECT 
-          COUNT(*) as count,
-          EXTRACT(HOUR FROM "createdAt") as hour
-        FROM "LoadingActivity"
-        WHERE "createdAt" >= ${oneHourAgo}
-        GROUP BY EXTRACT(HOUR FROM "createdAt")
-        ORDER BY hour DESC
-        LIMIT 6
-      `,
+      // Recent activities - Placeholder
+      Promise.resolve([]),
       
       // Active users (users with activity in last 24 hours)
       prisma.user.count({
         where: {
           OR: [
             { createdTasks: { some: { createdAt: { gte: oneHourAgo } } } },
-            { createdOrders: { some: { createdAt: { gte: oneHourAgo } } } },
-            { loadingActivities: { some: { createdAt: { gte: oneHourAgo } } } }
+            { createdOrders: { some: { createdAt: { gte: oneHourAgo } } } }
           ]
         }
       }),

@@ -1,284 +1,171 @@
 "use client";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import { Plus, Download, RefreshCw } from "lucide-react";
-import api from "@/lib/api";
 
-// Import reusable components
-import ContainerCard from "../loading/_components/containers/ContainerCard";
-import FiltersPanel from "../loading/_components/containers/FiltersPanel";
-import PaginationFooter from "../loading/_components/containers/PaginationFooter";
-import EmptyState from "../loading/_components/containers/EmptyState";
-import ResultsHeader from "../loading/_components/containers/ResultsHeader";
-import LoadingSkeleton from "../loading/_components/containers/LoadingSkeleton";
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  Package, Search, Calendar, MapPin, Loader2, 
+  ChevronRight, ArrowRight, CheckCircle2, Circle
+} from 'lucide-react';
+import API from '@/lib/api';
+import { toast } from 'sonner';
 
-function ContainersContent() {
+export default function PackingListDashboard() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  // State
   const [containers, setContainers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [updatingStatus, setUpdatingStatus] = useState({});
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 12,
-    total: 0,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
+  const [search, setSearch] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, totalPages: 1 });
 
-  // Filter states
-  const [filters, setFilters] = useState({
-    search: searchParams.get("search") || "",
-    origin: searchParams.get("origin") || "",
-    status: searchParams.get("status") || "CONFIRMED",
-    dateFrom: searchParams.get("dateFrom") || "",
-    dateTo: searchParams.get("dateTo") || "",
-  });
-
-  // Update URL when filters change
   useEffect(() => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) params.set(key, value);
-    });
-    const queryString = params.toString();
-    const newUrl = queryString
-      ? `/dashboard/packing?${queryString}`
-      : "/dashboard/packing";
-    window.history.replaceState(null, "", newUrl);
-  }, [filters]);
+    fetchContainers();
+  }, [pagination.page, search]);
 
-  // Fetch containers
-  const fetchContainers = async (page = 1, reset = false) => {
+  const fetchContainers = async () => {
     try {
       setLoading(true);
-      const params = {
-        page,
-        limit: 12,
-        ...filters,
-      };
-
-      // Remove empty filters
-      Object.keys(params).forEach((key) => {
-        if (params[key] === "") delete params[key];
+      const params = new URLSearchParams({
+        page: pagination.page,
+        limit: pagination.limit,
+        search
       });
-
-      const response = await api.get("/loading/containers", { params });
-
+      const response = await API.get(`/packing-list?${params.toString()}`);
       if (response.data.success) {
-        if (reset) {
-          setContainers(response.data.data.containers);
-        } else {
-          setContainers((prev) => [...prev, ...response.data.data.containers]);
-        }
-        setPagination(response.data.data.pagination);
-      } else {
-        toast.error(response.data.message || "Failed to load containers");
+        setContainers(response.data.data);
+        setPagination(response.data.pagination);
       }
     } catch (error) {
-      console.error("Error fetching containers:", error);
-      toast.error("Failed to load containers");
+      console.error('Error fetching containers:', error);
+      toast.error('Failed to load containers');
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial load
-  useEffect(() => {
-    fetchContainers(1, true);
-  }, [filters]);
-
-  // Load more
-  const loadMore = () => {
-    if (pagination.hasNextPage) {
-      fetchContainers(pagination.page + 1);
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'CONFIRMED': return 'bg-green-100 text-green-700 border-green-200';
+      case 'PRINTED': return 'bg-blue-100 text-blue-700 border-blue-200';
+      default: return 'bg-amber-100 text-amber-700 border-amber-200';
     }
   };
-
-  // Handle filter change
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setContainers([]);
-  };
-
-  // Update container status
-  const handleStatusUpdate = async (containerCode, newStatus) => {
-    try {
-      setUpdatingStatus((prev) => ({ ...prev, [containerCode]: true }));
-
-      const response = await api.patch(
-        `/loading/containers/${containerCode}/status`,
-        {
-          status: newStatus,
-        }
-      );
-
-      if (response.data.success) {
-        toast.success(`Status updated to ${newStatus}`);
-        // Refresh the container list
-        fetchContainers(pagination.page, true);
-      } else {
-        toast.error(response.data.message || "Failed to update status");
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
-      toast.error(error.response?.data?.message || "Failed to update status");
-    } finally {
-      setUpdatingStatus((prev) => ({ ...prev, [containerCode]: false }));
-    }
-  };
-
-  // Export to CSV
-  const handleExport = async () => {
-    try {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.set(key, value);
-      });
-
-      const exportUrl = `/api/loading/containers/export/csv?${params.toString()}`;
-      const link = document.createElement("a");
-      link.href = exportUrl;
-      link.download = `containers_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success("Export started. Check your downloads.");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export");
-    }
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      search: "",
-      origin: "",
-      status: "",
-      dateFrom: "",
-      dateTo: "",
-    });
-  };
-
-  // Navigation
-  const goToContainer = (containerCode) => {
-    router.push(`/dashboard/packing/${encodeURIComponent(containerCode)}`);
-  };
-
-  // Get unique origins from current containers
-  const uniqueOrigins = useMemo(() => {
-    const origins = new Set();
-    containers.forEach((container) => {
-      if (container.origin) origins.add(container.origin);
-    });
-    return Array.from(origins).sort();
-  }, [containers]);
-
-  const hasFilters = Object.values(filters).some((f) => f);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 md:p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          {/* Header */}
-          <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
-            <div className="flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                Packing List
-              </h1>
-              <p className="text-sm text-gray-600">
-                Manage and track all packing containers. Currently, there are{" "}
-                {pagination.total}{" "}
-                {pagination.total === 1 ? "container" : "containers"} available.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleExport}
-                disabled={containers.length === 0}
-                className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="w-4 h-4" /> Export CSV
-              </button>
-
-              <button
-                onClick={() => fetchContainers(1, true)}
-                className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50"
-              >
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
-            </div>
-          </header>
-          {/* Main Container */}
-          <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
-            {/* Filters */}
-            <FiltersPanel
-              filters={filters}
-              uniqueOrigins={uniqueOrigins}
-              onFilterChange={handleFilterChange}
-              onClearFilters={clearFilters}
-              hideStatusFilter={true} // ADD THIS FLAG
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Packing List</h1>
+            <p className="text-slate-500 mt-1">Manage and generate packing lists for your containers</p>
+          </div>
+          
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search container code or origin..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none text-slate-700"
             />
-
-            {/* Results Header */}
-            <ResultsHeader
-              count={containers.length}
-              total={pagination.total}
-              hasFilters={hasFilters}
-            />
-
-            {/* Containers List */}
-            <div>
-              {loading && containers.length === 0 ? (
-                <LoadingSkeleton count={6} />
-              ) : containers.length === 0 ? (
-                <EmptyState hasFilters={hasFilters} />
-              ) : (
-                <div>
-                  {containers.map((container) => (
-                    <ContainerCard
-                      key={container.containerCode}
-                      container={container}
-                      onViewDetails={goToContainer}
-                      onStatusUpdate={handleStatusUpdate}
-                      updatingStatus={updatingStatus}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            {containers.length > 0 && (
-              <PaginationFooter
-                pagination={pagination}
-                containers={containers}
-                loading={loading}
-                onLoadMore={loadMore}
-                onPreviousPage={() =>
-                  fetchContainers(pagination.page - 1, true)
-                }
-              />
-            )}
           </div>
         </div>
+
+        {/* Containers Grid */}
+        {loading && containers.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-48 bg-white rounded-2xl border border-slate-200 animate-pulse shadow-sm"></div>
+            ))}
+          </div>
+        ) : containers.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Package className="w-8 h-8 text-slate-300" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">No containers found</h3>
+            <p className="text-slate-500">Try adjusting your search filters</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {containers.map((container) => (
+              <div 
+                key={container.id}
+                onClick={() => router.push(`/dashboard/packing/${container.id}`)}
+                className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer overflow-hidden flex flex-col"
+              >
+                <div className="p-5 flex-1">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">
+                      <Package className="w-6 h-6" />
+                    </div>
+                    {container.packingList ? (
+                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadge(container.packingList.status)}`}>
+                        {container.packingList.status}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-slate-100 text-slate-500 border-slate-200">
+                        PENDING
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">{container.containerCode}</h3>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <MapPin className="w-4 h-4 text-slate-400" />
+                      <span className="font-medium">{container.origin}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Calendar className="w-4 h-4 text-slate-400" />
+                      <span>{new Date(container.loadingDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between group-hover:bg-blue-50 group-hover:border-blue-100 transition-all">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    {container.packingList ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <span className="font-bold text-slate-700">{container.packingList.invNo}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Circle className="w-4 h-4 text-slate-300" />
+                        <span>Ready for setup</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="p-1.5 bg-white rounded-lg border border-slate-200 group-hover:text-blue-600 group-hover:border-blue-200 shadow-sm transition-all">
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="mt-12 flex justify-center gap-2">
+            {[...Array(pagination.totalPages)].map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setPagination(prev => ({ ...prev, page: i + 1 }))}
+                className={`w-10 h-10 rounded-xl font-bold transition-all ${
+                  pagination.page === i + 1 
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-export default function ContainersOverviewPage() {
-  return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <ContainersContent />
-    </Suspense>
   );
 }

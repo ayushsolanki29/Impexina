@@ -36,23 +36,23 @@ export default function AccountsHub() {
   const MODULES = [
     {
       title: "Client Ledgers",
-      desc: "Standard client accounting (Kaushik, Charu, etc.)",
+      desc: "Comprehensive multi-client accounting and records.",
       path: "/dashboard/accounts/clients",
       icon: Users,
       color: "bg-blue-50 text-blue-600",
       border: "border-blue-200 hover:border-blue-400",
     },
     {
-      title: "Dinesh Bhai",
-      desc: "Supplier bookings, rates, and payment tracking.",
+      title: "Dineshbhai Ledger",
+      desc: "Track shipping bookings, freight costs, and supplier payments.",
       path: "/dashboard/accounts/dinesh",
       icon: TrendingUp,
       color: "bg-emerald-50 text-emerald-600",
       border: "border-emerald-200 hover:border-emerald-400",
     },
     {
-      title: "David Impex",
-      desc: "Multi-currency ledgers (RMB / USD) and internal accounts.",
+      title: "Partner Ledgers Hub",
+      desc: "Consolidated partner-level multi-currency account management.",
       path: "/dashboard/accounts/david",
       icon: Globe,
       color: "bg-amber-50 text-amber-600",
@@ -140,7 +140,7 @@ export default function AccountsHub() {
             {/* Footer */}
             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
               <p className="text-xs text-gray-400">
-                IGPL Accounts • Secure Access
+                Impexina Accounts • Secure Access
               </p>
             </div>
           </div>
@@ -162,14 +162,14 @@ export default function AccountsHub() {
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="w-5 h-5 text-green-600" />
                 <span className="text-sm font-medium text-green-600">
-                  Session Active
+                  Secure Access Active
                 </span>
               </div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Accounts Overview
+                Accounting Control Hub
               </h1>
               <p className="text-gray-500 mt-1">
-                Select a module to manage finances
+                Centralized access to all client and partner financial ledgers.
               </p>
             </div>
             
@@ -225,7 +225,7 @@ export default function AccountsHub() {
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-200">
           <p className="text-center text-sm text-gray-400">
-            IGPL Financial Management • 2025
+            Impexina Financial Management • 2025
           </p>
         </div>
       </div>

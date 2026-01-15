@@ -602,6 +602,14 @@ export default function ViewContainerSummary() {
                             {container.shippingLine || "-"}
                           </div>
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Location / Port
+                          </label>
+                          <div className="px-3 py-2 bg-gray-50 rounded border border-gray-200 text-gray-900">
+                            {container.location || "-"}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Dates */}
@@ -628,6 +636,14 @@ export default function ViewContainerSummary() {
                           </label>
                           <div className="px-3 py-2 bg-gray-50 rounded border border-gray-200 text-gray-900">
                             {container.bl || "-"}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Invoice No
+                          </label>
+                          <div className="px-3 py-2 bg-gray-50 rounded border border-gray-200 text-gray-900">
+                            {container.invoiceNo || "-"}
                           </div>
                         </div>
                       </div>
@@ -706,7 +722,23 @@ export default function ViewContainerSummary() {
                     </div>
 
                     {/* Additional Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Invoice Date
+                        </label>
+                        <div className="px-3 py-2 bg-gray-50 rounded border border-gray-200 text-gray-900">
+                          {formatDate(container.invoiceDate) || "-"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Delivery Date
+                        </label>
+                        <div className="px-3 py-2 bg-gray-50 rounded border border-gray-200 text-gray-900">
+                          {formatDate(container.deliveryDate) || "-"}
+                        </div>
+                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">
                           Container No

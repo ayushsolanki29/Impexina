@@ -27,6 +27,10 @@ const EMPTY_CONTAINER = {
   containerNo: "",
   sims: "",
   status: "Loaded",
+  invoiceNo: "",
+  invoiceDate: "",
+  location: "",
+  deliveryDate: "",
 };
 
 export default function CreateContainerSummary() {
@@ -42,6 +46,8 @@ export default function CreateContainerSummary() {
   });
 
   const [containers, setContainers] = useState([{ ...EMPTY_CONTAINER }]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(null); // { containerIndex, suggestionIndex }
 
   // --- Initialization ---
   useEffect(() => {
@@ -126,6 +132,75 @@ export default function CreateContainerSummary() {
     };
 
     setContainers(newContainers);
+
+    // Trigger search if container code changes
+    if (field === 'containerCode') {
+        const valueStr = value.toString();
+        if (valueStr.length > 1) {
+            handleSearch(valueStr, index);
+        } else {
+            setSuggestions([]);
+            setActiveSuggestionIndex(null);
+        }
+    }
+  };
+
+  const handleSearch = async (query, containerIndex) => {
+      try {
+          const response = await API.get(`/bifurcation/containers/suggestions?search=${query}`);
+          if (response.data.success) {
+               setSuggestions(response.data.data.map(item => ({...item, _containerIndex: containerIndex})));
+               setActiveSuggestionIndex({ containerIndex, suggestionIndex: 0 }); 
+          }
+      } catch (error) {
+          console.error("Search error:", error);
+      }
+  };
+
+  const handleKeyDown = (e, index) => {
+      if (suggestions.length === 0 || activeSuggestionIndex?.containerIndex !== index) return;
+
+      if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setActiveSuggestionIndex(prev => ({
+              ...prev,
+              suggestionIndex: Math.min(prev.suggestionIndex + 1, suggestions.length - 1)
+          }));
+      } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setActiveSuggestionIndex(prev => ({
+              ...prev,
+              suggestionIndex: Math.max(prev.suggestionIndex - 1, 0)
+          }));
+      } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeSuggestionIndex.suggestionIndex >= 0) {
+              selectSuggestion(suggestions[activeSuggestionIndex.suggestionIndex], index);
+          }
+      } else if (e.key === 'Escape') {
+          setSuggestions([]);
+          setActiveSuggestionIndex(null);
+      }
+  };
+
+  const selectSuggestion = (suggestion, containerIndex) => {
+      const newContainers = [...containers];
+      const selected = newContainers[containerIndex];
+      
+      newContainers[containerIndex] = {
+          ...selected,
+          containerCode: suggestion.containerCode,
+          ctn: suggestion.ctn || selected.ctn,
+          loadingDate: suggestion.loadingDate ? suggestion.loadingDate.split('T')[0] : selected.loadingDate,
+          shippingLine: suggestion.shippingLine || selected.shippingLine,
+          invoiceNo: suggestion.invoiceNo || selected.invoiceNo,
+          location: suggestion.shippingLocation || selected.location,
+          // You could also map invoiceDate/deliveryDate if they are in suggestion
+      };
+      
+      setContainers(newContainers);
+      setSuggestions([]);
+      setActiveSuggestionIndex(null);
   };
 
   const addContainer = () => {
@@ -191,6 +266,10 @@ export default function CreateContainerSummary() {
           bl: container.bl || "",
           containerNo: container.containerNo || "",
           sims: container.sims || "",
+          invoiceNo: container.invoiceNo || "",
+          invoiceDate: container.invoiceDate || null,
+          location: container.location || "",
+          deliveryDate: container.deliveryDate || null,
         })),
       };
 
@@ -438,21 +517,53 @@ export default function CreateContainerSummary() {
                       <label className="text-xs font-medium text-slate-600">
                         Container Code *
                       </label>
-                      <input
-                        type="text"
-                        value={container.containerCode}
-                        onChange={(e) =>
-                          handleContainerChange(
-                            index,
-                            "containerCode",
-                            e.target.value
-                          )
-                        }
-                        className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                        placeholder="IMPAK-10"
-                        disabled={saving}
-                        required
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={container.containerCode}
+                          onChange={(e) =>
+                            handleContainerChange(
+                              index,
+                              "containerCode",
+                              e.target.value
+                            )
+                          }
+                          onKeyDown={(e) => handleKeyDown(e, index)}
+                          className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                          placeholder="IMPAK-10"
+                          disabled={saving}
+                          required
+                        />
+                        {/* Suggestions Dropdown */}
+                        {suggestions.length > 0 && activeSuggestionIndex?.containerIndex === index && (
+                          <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-2xl mt-1 max-h-60 overflow-y-auto left-0 top-full">
+                              {suggestions.map((suggestion, sIdx) => (
+                                  <div 
+                                      key={sIdx}
+                                      onClick={() => selectSuggestion(suggestion, index)}
+                                      onMouseEnter={() => setActiveSuggestionIndex({ containerIndex: index, suggestionIndex: sIdx })}
+                                      className={`px-4 py-2 cursor-pointer border-b border-slate-50 last:border-0 transition-colors ${
+                                          activeSuggestionIndex.suggestionIndex === sIdx ? 'bg-blue-600 text-white' : 'hover:bg-blue-50'
+                                      }`}
+                                  >
+                                      <div className="flex justify-between items-center text-xs">
+                                          <span className={`font-bold ${activeSuggestionIndex.suggestionIndex === sIdx ? 'text-white' : 'text-slate-700'}`}>
+                                              {suggestion.containerCode}
+                                          </span>
+                                          <span className={`${activeSuggestionIndex.suggestionIndex === sIdx ? 'text-blue-100' : 'text-slate-400'}`}>
+                                              {suggestion.loadingDate?.split('T')[0]}
+                                          </span>
+                                      </div>
+                                      <div className={`text-[10px] mt-0.5 flex gap-2 ${activeSuggestionIndex.suggestionIndex === sIdx ? 'text-blue-50' : 'text-slate-500'}`}>
+                                          <span>CTN: {suggestion.ctn}</span>
+                                          {suggestion.invoiceNo && <span>• Inv: {suggestion.invoiceNo}</span>}
+                                          {suggestion.shippingLocation && <span>• Loc: {suggestion.shippingLocation}</span>}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-600">
@@ -555,15 +666,74 @@ export default function CreateContainerSummary() {
                         ETA
                       </label>
                       <input
-                        type="text"
+                        type="date"
                         value={container.eta}
                         onChange={(e) =>
                           handleContainerChange(index, "eta", e.target.value)
                         }
                         className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                        placeholder="Approx. arrival date"
                         disabled={saving}
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">
+                        Invoice No.
+                      </label>
+                      <input
+                        type="text"
+                        value={container.invoiceNo}
+                        onChange={(e) =>
+                          handleContainerChange(index, "invoiceNo", e.target.value)
+                        }
+                        className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        placeholder="e.g. INV-001"
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">
+                        Location / Port
+                      </label>
+                      <input
+                        type="text"
+                        value={container.location}
+                        onChange={(e) =>
+                          handleContainerChange(index, "location", e.target.value)
+                        }
+                        className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        placeholder="e.g. Mundra"
+                        disabled={saving}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Invoice Date
+                        </label>
+                        <input
+                          type="date"
+                          value={container.invoiceDate}
+                          onChange={(e) =>
+                            handleContainerChange(index, "invoiceDate", e.target.value)
+                          }
+                          className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Delivery Date
+                        </label>
+                        <input
+                          type="date"
+                          value={container.deliveryDate}
+                          onChange={(e) =>
+                            handleContainerChange(index, "deliveryDate", e.target.value)
+                          }
+                          className="w-full mt-1 p-2 border border-slate-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                          disabled={saving}
+                        />
+                      </div>
                     </div>
                   </div>
 

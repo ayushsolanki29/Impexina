@@ -89,6 +89,11 @@ const containerSummaryService = {
                 bl: container.bl || "",
                 containerNoField: container.containerNo || "",
                 sims: container.sims || "",
+                // New Fields
+                invoiceNo: container.invoiceNo || "",
+                invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
+                location: container.location || "",
+                deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
               };
             }),
           },
@@ -373,6 +378,11 @@ const containerSummaryService = {
               bl: container.bl || "",
               containerNoField: container.containerNo || "",
               sims: container.sims || "",
+              // New Fields
+              invoiceNo: container.invoiceNo || "",
+              invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
+              location: container.location || "",
+              deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
             };
           }),
         });

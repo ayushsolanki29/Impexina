@@ -76,6 +76,7 @@ const ALL_MENU_ITEMS = [
     path: "/dashboard/invoice",
     moduleKey: "INVOICE",
   },
+
   {
     key: "containers",
     label: "Containers",
@@ -97,7 +98,7 @@ const ALL_MENU_ITEMS = [
       },
     ],
   },
-  {
+     {
     key: "warehouse",
     label: "Warehouse Plan",
     icon: Warehouse,
@@ -400,7 +401,7 @@ export default function SidebarAdvanced({
             open ? "w-44 h-14" : "w-14 h-14"
           }`}>
             <Image
-              src="/LOGO.jpeg"
+              src="/logo.png"
               alt="Logo"
               width={open ? 170 : 48}
               height={48}
@@ -542,7 +543,7 @@ export default function SidebarAdvanced({
         )}
 
         {/* Quick Actions - Only show if user has permission */}
-        {hasPermission('loading_sheet') || hasPermission('invoice') ? (
+        {hasPermission('invoice') ? (
           <div className="mt-6 px-4">
             {open && (
               <div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
@@ -550,23 +551,6 @@ export default function SidebarAdvanced({
               </div>
             )}
             <div className="flex gap-2 flex-col">
-              {hasPermission('loading_sheet') && (
-                <Button
-                  onClick={() => navTo("/dashboard/loading/new")}
-                  className="w-full bg-slate-900 text-white hover:bg-slate-800"
-                  size="sm"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-1" />
-                      {open && "New Loading Sheet"}
-                    </>
-                  )}
-                </Button>
-              )}
               {hasPermission('invoice') && (
                 <Button
                   onClick={() => navTo("/dashboard/invoice/new")}

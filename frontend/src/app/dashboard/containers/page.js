@@ -556,26 +556,42 @@ export default function ContainerDashboard() {
 
             {/* Status Overview Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Status Distribution</p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                      <span className="text-xs text-gray-600">Loaded: {stats.loadedCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-sky-500"></div>
-                      <span className="text-xs text-gray-600">In Sea: {stats.inseaCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-violet-500"></div>
-                      <span className="text-xs text-gray-600">Delivered: {stats.deliveredCount}</span>
-                    </div>
-                  </div>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-600 truncate">Status Distribution</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalContainers}</p>
                 </div>
-                <div className="p-3 bg-amber-50 rounded-lg">
-                  <BarChart className="w-6 h-6 text-amber-600" />
+                <div className="p-3 bg-amber-50 rounded-lg flex-shrink-0">
+                  <BarChart3 className="w-6 h-6 text-amber-600" />
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                    <span className="text-xs text-gray-600 group-hover:text-emerald-700 transition-colors font-medium">Loaded</span>
+                  </div>
+                  <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 min-w-[24px] text-center">
+                    {stats.loadedCount}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.4)]"></div>
+                    <span className="text-xs text-gray-600 group-hover:text-sky-700 transition-colors font-medium">In Sea</span>
+                  </div>
+                  <span className="text-[11px] font-bold bg-sky-50 text-sky-700 px-2 py-0.5 rounded-md border border-sky-100 min-w-[24px] text-center">
+                    {stats.inseaCount}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.4)]"></div>
+                    <span className="text-xs text-gray-600 group-hover:text-violet-700 transition-colors font-medium">Delivered</span>
+                  </div>
+                  <span className="text-[11px] font-bold bg-violet-50 text-violet-700 px-2 py-0.5 rounded-md border border-violet-100 min-w-[24px] text-center">
+                    {stats.deliveredCount}
+                  </span>
                 </div>
               </div>
             </div>

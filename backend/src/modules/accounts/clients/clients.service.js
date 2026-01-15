@@ -1,711 +1,267 @@
 const { prisma } = require("../../../database/prisma");
 
-const accountsService = {
-  // Get all clients
+const AccountClientsService = {
+  // Get all clients (Fetch from CRM Clients)
   getAllClients: async ({ page = 1, limit = 20, search = "", location = "" }) => {
-    try {
-      const skip = (page - 1) * limit;
-      
-      const where = {
-        isActive: true
-      };
-      
-      if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-      
-      if (location) {
-        where.location = { contains: location, mode: 'insensitive' };
-      }
-      
-      const [clients, total] = await Promise.all([
-        prisma.accountClient.findMany({
-          where,
-          skip,
-          take: parseInt(limit),
-          include: {
-            containers: {
-              select: {
-                containerCode: true,
-                mark: true,
-              },
-              take: 3,
-            },
-            _count: {
-              select: { transactions: true },
-            },
-          },
-          orderBy: [
-            { balance: 'desc' },
-            { updatedAt: 'desc' },
-          ],
-        }),
-        prisma.accountClient.count({ where }),
-      ]);
-      
-      const totalPages = Math.ceil(total / limit);
-      
-      return {
-        clients,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
-      };
-    } catch (error) {
-      console.error("Error getting clients:", error);
-      throw error;
+    const skip = (page - 1) * limit;
+    
+    // Build where clause for CRM Client
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { companyName: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
+      ];
     }
-  },
-  
-  // Get client by ID
-  getClientById: async (clientId) => {
-    try {
-      const client = await prisma.accountClient.findUnique({
-        where: { id: clientId },
-        include: {
-          containers: {
-            orderBy: { createdAt: 'desc' },
-          },
-          transactions: {
-            orderBy: { transactionDate: 'desc' },
-            take: 100,
-          },
-        },
-      });
-      
-      if (!client) {
-        throw new Error("Client not found");
-      }
-      
-      return client;
-    } catch (error) {
-      console.error("Error getting client:", error);
-      throw error;
-    }
-  },
-  
-  // Create new client - FIXED
-  createClient: async (clientData, userId) => {
-    try {
-      const { name, location, phone, email, gst, pan } = clientData;
-      
-      // Check if client already exists
-      const existingClient = await prisma.accountClient.findFirst({
-        where: {
-          name,
-          location,
-        },
-      });
-      
-      if (existingClient) {
-        throw new Error("Client with same name and location already exists");
-      }
-      
-      const client = await prisma.accountClient.create({
-        data: {
-          name,
-          location: location || null,
-          phone: phone || null,
-          email: email || null,
-          gst: gst || null,
-          pan: pan || null,
-          lastActive: new Date(),
-          createdBy: userId.toString(), // Store as string
-        },
-      });
-      
-      return client;
-    } catch (error) {
-      console.error("Error creating client:", error);
-      throw error;
-    }
-  },
-  
-  // Update client - FIXED
-  updateClient: async (clientId, clientData, userId) => {
-    try {
-      const client = await prisma.accountClient.update({
-        where: { id: clientId },
-        data: {
-          ...clientData,
-          updatedBy: userId.toString(), // Store as string
-          updatedAt: new Date(),
-        },
-      });
-      
-      return client;
-    } catch (error) {
-      console.error("Error updating client:", error);
-      throw error;
-    }
-  },
-  
-  // Delete client (soft delete)
-  deleteClient: async (clientId, userId) => {
-    try {
-      // Check if client has transactions
-      const transactionCount = await prisma.clientTransaction.count({
-        where: { clientId },
-      });
-      
-      if (transactionCount > 0) {
-        // Soft delete
-        const client = await prisma.accountClient.update({
-          where: { id: clientId },
-          data: {
-            isActive: false,
-            updatedBy: userId.toString(),
-            updatedAt: new Date(),
-          },
-        });
-        
-        return {
-          message: "Client deactivated (has transactions)",
-          client,
-        };
-      } else {
-        // Hard delete
-        await prisma.accountClient.delete({
-          where: { id: clientId },
-        });
-        
-        return {
-          message: "Client deleted successfully",
-        };
-      }
-    } catch (error) {
-      console.error("Error deleting client:", error);
-      throw error;
-    }
-  },
-  
-  // Get client ledger with transactions
-  getClientLedger: async (clientId, { startDate, endDate, page = 1, limit = 50 }) => {
-    try {
-      const skip = (page - 1) * limit;
-      
-      const where = {
-        clientId,
-      };
-      
-      if (startDate && endDate) {
-        where.transactionDate = {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        };
-      }
-      
-      const [transactions, total, client] = await Promise.all([
-        prisma.clientTransaction.findMany({
-          where,
-          skip,
-          take: parseInt(limit),
-          orderBy: [
-            { transactionDate: 'desc' },
-            { createdAt: 'desc' },
-          ],
-        }),
-        prisma.clientTransaction.count({ where }),
-        prisma.accountClient.findUnique({
-          where: { id: clientId },
-          select: {
+    
+    // Fetch clients
+    const [clients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        select: {
             id: true,
             name: true,
-            location: true,
-            balance: true,
-            totalExpense: true,
-            totalPaid: true,
-          },
-        }),
-      ]);
-      
-      // Calculate running balance
-      let runningBalance = 0;
-      const transactionsWithBalance = transactions.map(t => {
-        runningBalance += (t.amount - t.paid);
-        return {
-          ...t,
-          runningBalance,
-        };
-      }).reverse();
-      
-      const totalPages = Math.ceil(total / limit);
-      
-      return {
-        client,
-        transactions: transactionsWithBalance,
-        summary: {
-          totalTransactions: total,
-          totalExpense: client.totalExpense,
-          totalPaid: client.totalPaid,
-          balance: client.balance,
+            companyName: true,
+            city: true,
+            phone: true,
+            email: true,
+            // Calculate balance on the fly or fetched if stored on Client? 
+            // For now, we'll fetch transactions to sum them up or use a calculated field if we added one (we didn't add balance to Client yet, let's compute or assume 0 for list view optimization)
         },
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
-      };
-    } catch (error) {
-      console.error("Error getting ledger:", error);
-      throw error;
-    }
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.client.count({ where }),
+    ]);
+
+    return {
+      clients,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
-  
-  // Add transaction to client ledger - FIXED
-  addTransaction: async (clientId, transactionData, userId) => {
-    try {
-      const {
-        transactionDate,
-        containerCode,
-        containerMark,
-        particulars,
-        billingType,
-        quantity,
-        rate,
-        amount,
-        paid,
-        paymentMode,
-        paymentDate,
-        paymentRef,
-        fromAccount,
-        toAccount,
-        notes,
-        type = 'EXPENSE',
-      } = transactionData;
-      
-      // Calculate balance
-      const balance = amount - (paid || 0);
-      
-      // Start transaction
-      const result = await prisma.$transaction(async (prisma) => {
-        // Create transaction
-        const transaction = await prisma.clientTransaction.create({
-          data: {
-            clientId,
-            transactionDate: new Date(transactionDate),
-            containerCode: containerCode || null,
-            containerMark: containerMark || null,
-            particulars,
-            billingType: billingType || 'flat',
-            quantity: quantity ? parseFloat(quantity) : null,
-            rate: rate ? parseFloat(rate) : null,
-            amount: parseFloat(amount),
-            paid: paid ? parseFloat(paid) : 0,
-            balance,
-            paymentMode: paymentMode || null,
-            paymentDate: paymentDate ? new Date(paymentDate) : null,
-            paymentRef: paymentRef || null,
-            fromAccount: fromAccount || 'Main',
-            toAccount: toAccount || 'Client',
-            type,
-            notes: notes || null,
-            createdBy: userId.toString(), // Store as string
-          },
-        });
-        
-        // Update client balance
-        const client = await prisma.accountClient.findUnique({
-          where: { id: clientId },
-        });
-        
-        let newTotalExpense = client.totalExpense;
-        let newTotalPaid = client.totalPaid;
-        
-        if (type === 'EXPENSE') {
-          newTotalExpense += parseFloat(amount);
-        } else if (type === 'PAYMENT') {
-          newTotalPaid += parseFloat(amount);
+
+  // Get single client ledger
+  getClientLedger: async (clientId, containerCode, sheetName) => {
+    const where = { clientId };
+    if (containerCode) where.containerCode = containerCode;
+    if (sheetName) where.sheetName = sheetName;
+
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      include: {
+        transactions: {
+          where,
+          orderBy: { transactionDate: 'desc' }
         }
-        
-        const newBalance = newTotalExpense - newTotalPaid;
-        
-        await prisma.accountClient.update({
-          where: { id: clientId },
-          data: {
-            totalExpense: newTotalExpense,
-            totalPaid: newTotalPaid,
-            balance: newBalance,
-            lastActive: new Date(),
-            updatedBy: userId.toString(), // Store as string
-            updatedAt: new Date(),
-          },
-        });
-        
-        return transaction;
-      });
-      
-      return result;
-    } catch (error) {
-      console.error("Error adding transaction:", error);
-      throw error;
-    }
-  },
-  
-  // Update transaction - FIXED
-  updateTransaction: async (transactionId, transactionData, userId) => {
-    try {
-      const transaction = await prisma.$transaction(async (prisma) => {
-        // Get old transaction
-        const oldTransaction = await prisma.clientTransaction.findUnique({
-          where: { id: transactionId },
-        });
-        
-        if (!oldTransaction) {
-          throw new Error("Transaction not found");
-        }
-        
-        // Update transaction
-        const updatedTransaction = await prisma.clientTransaction.update({
-          where: { id: transactionId },
-          data: {
-            ...transactionData,
-            updatedBy: userId.toString(), // Store as string
-            updatedAt: new Date(),
-          },
-        });
-        
-        // Recalculate client balance
-        const client = await prisma.accountClient.findUnique({
-          where: { id: oldTransaction.clientId },
-        });
-        
-        const allTransactions = await prisma.clientTransaction.findMany({
-          where: { clientId: oldTransaction.clientId },
-        });
-        
-        const newTotalExpense = allTransactions
-          .filter(t => t.type === 'EXPENSE')
-          .reduce((sum, t) => sum + t.amount, 0);
-        
-        const newTotalPaid = allTransactions
-          .reduce((sum, t) => sum + (t.paid || 0), 0);
-        
-        const newBalance = newTotalExpense - newTotalPaid;
-        
-        await prisma.accountClient.update({
-          where: { id: oldTransaction.clientId },
-          data: {
-            totalExpense: newTotalExpense,
-            totalPaid: newTotalPaid,
-            balance: newBalance,
-            updatedAt: new Date(),
-          },
-        });
-        
-        return updatedTransaction;
-      });
-      
-      return transaction;
-    } catch (error) {
-      console.error("Error updating transaction:", error);
-      throw error;
-    }
-  },
-  
-  // Delete transaction
-  deleteTransaction: async (transactionId, userId) => {
-    try {
-      const result = await prisma.$transaction(async (prisma) => {
-        // Get transaction
-        const transaction = await prisma.clientTransaction.findUnique({
-          where: { id: transactionId },
-        });
-        
-        if (!transaction) {
-          throw new Error("Transaction not found");
-        }
-        
-        const clientId = transaction.clientId;
-        
-        // Delete transaction
-        await prisma.clientTransaction.delete({
-          where: { id: transactionId },
-        });
-        
-        // Recalculate client balance
-        const allTransactions = await prisma.clientTransaction.findMany({
-          where: { clientId },
-        });
-        
-        const newTotalExpense = allTransactions
-          .filter(t => t.type === 'EXPENSE')
-          .reduce((sum, t) => sum + t.amount, 0);
-        
-        const newTotalPaid = allTransactions
-          .reduce((sum, t) => sum + (t.paid || 0), 0);
-        
-        const newBalance = newTotalExpense - newTotalPaid;
-        
-        await prisma.accountClient.update({
-          where: { id: clientId },
-          data: {
-            totalExpense: newTotalExpense,
-            totalPaid: newTotalPaid,
-            balance: newBalance,
-            updatedAt: new Date(),
-          },
-        });
-        
-        return {
-          message: "Transaction deleted successfully",
-        };
-      });
-      
-      return result;
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
-      throw error;
-    }
-  },
-  
-  // Get container suggestions from bifurcation
-  getContainerSuggestions: async (search = "", limit = 10) => {
-    try {
-      const suggestions = await prisma.bifurcationContainer.findMany({
-        where: {
-          OR: [
-            { containerCode: { contains: search, mode: 'insensitive' } },
-            { origin: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          containerCode: true,
-          origin: true,
-          loadingDate: true,
-          totalCBM: true,
-          totalWeight: true,
-          clients: {
-            select: {
-              clientName: true,
-              items: {
-                select: {
-                  particular: true,
-                  cbm: true,
-                  weight: true,
-                },
-                distinct: ['particular'],
-                take: 5,
-              },
-            },
-            take: 5,
-          },
-        },
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' },
-      });
-      
-      return suggestions;
-    } catch (error) {
-      console.error("Error getting container suggestions:", error);
-      throw error;
-    }
-  },
-  
-  // Get client's linked containers
-  getClientContainers: async (clientId) => {
-    try {
-      const containers = await prisma.clientContainerLink.findMany({
-        where: { clientId },
-        orderBy: { createdAt: 'desc' },
-      });
-      
-      return containers;
-    } catch (error) {
-      console.error("Error getting client containers:", error);
-      throw error;
-    }
-  },
-  
-  // Link container to client
-  linkContainerToClient: async (clientId, containerData, userId) => {
-    try {
-      const { containerCode, mark, totalCBM, totalWeight, ctn, product, deliveryDate, invNo, gstInv } = containerData;
-      
-      // Check if already linked
-      const existingLink = await prisma.clientContainerLink.findFirst({
-        where: {
-          clientId,
-          containerCode,
-          mark,
-        },
-      });
-      
-      if (existingLink) {
-        throw new Error("Container already linked to this client");
       }
-      
-      const link = await prisma.clientContainerLink.create({
-        data: {
-          clientId,
-          containerCode,
-          mark: mark || containerCode,
-          totalCBM: parseFloat(totalCBM) || 0,
-          totalWeight: parseFloat(totalWeight) || 0,
-          ctn: parseInt(ctn) || 0,
-          product: product || null,
-          deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-          invNo: invNo || null,
-          gstInv: gstInv || null,
-        },
-      });
-      
-      return link;
-    } catch (error) {
-      console.error("Error linking container:", error);
-      throw error;
-    }
+    });
+
+    if (!client) return null;
+
+    // Fetch all unique sheet names and container codes for the client
+    const allTxns = await prisma.clientTransaction.findMany({
+        where: { clientId },
+        select: { sheetName: true, containerCode: true },
+        distinct: ['sheetName', 'containerCode']
+    });
+
+    const sheets = new Set();
+    allTxns.forEach(t => {
+        if (t.sheetName) sheets.add(t.sheetName);
+        if (t.containerCode) sheets.add(t.containerCode);
+    });
+
+    return {
+        ...client,
+        availableSheets: Array.from(sheets).sort()
+    };
+
+    if (!client) throw new Error("Client not found");
+
+    // Calculate totals
+    const totalExpense = client.transactions
+      .filter(t => t.type === 'EXPENSE')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalPaid = client.transactions
+      .filter(t => t.type === 'PAYMENT')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      ...client,
+      totalExpense,
+      totalPaid,
+      balance: totalExpense - totalPaid
+    };
   },
-  
-  // Unlink container from client
-  unlinkContainerFromClient: async (linkId, userId) => {
-    try {
-      await prisma.clientContainerLink.delete({
-        where: { id: linkId },
-      });
-      
-      return {
-        message: "Container unlinked successfully",
-      };
-    } catch (error) {
-      console.error("Error unlinking container:", error);
-      throw error;
-    }
+
+  // Add transaction
+  addTransaction: async (clientId, data) => {
+    // Validate client exists
+    const client = await prisma.client.findUnique({
+      where: { id: clientId }
+    });
+    if (!client) throw new Error("Client not found");
+
+    // Clean data (remove isNew, id if temp)
+    const { isNew, id, ...cleanData } = data;
+
+    return prisma.clientTransaction.create({
+      data: {
+        clientId,
+        ...cleanData,
+        // Ensure numeric fields are floats
+        amount: parseFloat(cleanData.amount || 0),
+        paid: parseFloat(cleanData.paid || 0),
+        balance: parseFloat(cleanData.amount || 0) - parseFloat(cleanData.paid || 0),
+        quantity: cleanData.quantity ? parseFloat(cleanData.quantity) : undefined,
+        rate: cleanData.rate ? parseFloat(cleanData.rate) : undefined,
+        transactionDate: new Date(cleanData.transactionDate),
+        deliveryDate: cleanData.deliveryDate ? new Date(cleanData.deliveryDate) : undefined,
+        paymentDate: cleanData.paymentDate ? new Date(cleanData.paymentDate) : undefined,
+        billingType: cleanData.billingType || 'FLAT', // Default billing type
+        sheetName: cleanData.sheetName ? cleanData.sheetName.toUpperCase() : undefined,
+        paymentMode: cleanData.paymentMode ? cleanData.paymentMode : undefined, // Handle empty string
+        containerCode: cleanData.containerCode ? cleanData.containerCode : undefined
+      }
+    });
   },
-  
-  // Get dashboard statistics
-  getDashboardStats: async () => {
-    try {
-      const [
-        totalClients,
-        activeClients,
-        totalReceivables,
-        recentTransactions,
-        topClients,
-      ] = await Promise.all([
-        prisma.accountClient.count({ where: { isActive: true } }),
-        prisma.accountClient.count({
-          where: {
-            isActive: true,
-            lastActive: {
-              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+
+  // Update transaction
+  updateTransaction: async (id, data) => {
+     // Prepare data
+     const { isNew, id: _id, ...updateData } = data; // Remove isNew and id from payload
+     
+     if (data.amount || data.paid) {
+         // Recalculate balance if amount/paid changes
+         // This is complex without current state, simplified:
+         // Ideally front-end sends full payload or we allow partials. 
+         // For Excel view, usually specific fields update.
+         if (data.amount) updateData.amount = parseFloat(data.amount);
+         if (data.paid) updateData.paid = parseFloat(data.paid);
+         if (data.quantity) updateData.quantity = parseFloat(data.quantity);
+         if (data.rate) updateData.rate = parseFloat(data.rate);
+         if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
+         if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
+         if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
+     }
+     
+     // Clean up enums/optional fields
+     if (updateData.paymentMode === "") updateData.paymentMode = null;
+     if (updateData.containerCode === "") updateData.containerCode = null;
+     if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
+
+     return prisma.clientTransaction.update({
+        where: { id },
+        data: updateData
+     });
+  },
+
+  // Delete transaction
+  deleteTransaction: async (id) => {
+    return prisma.clientTransaction.delete({
+      where: { id }
+    });
+  },
+
+    // Get Suggestion for Containers
+    getContainerSuggestions: async (query) => {
+        if (!query) return [];
+        
+        const suggestions = await prisma.clientTransaction.findMany({
+            where: {
+                containerCode: {
+                    contains: query,
+                    mode: 'insensitive'
+                }
             },
-          },
-        }),
-        prisma.accountClient.aggregate({
-          where: { isActive: true },
-          _sum: { balance: true },
-        }),
-        prisma.clientTransaction.count({
-          where: {
-            transactionDate: {
-              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-            },
-          },
-        }),
-        prisma.accountClient.findMany({
-          where: { isActive: true },
-          orderBy: { balance: 'desc' },
-          take: 5,
-          select: {
-            name: true,
-            location: true,
-            balance: true,
-            lastActive: true,
-          },
-        }),
-      ]);
-      
-      return {
-        totalClients,
-        activeClients,
-        totalReceivables: totalReceivables._sum.balance || 0,
-        recentTransactions,
-        topClients,
-      };
-    } catch (error) {
-      console.error("Error getting dashboard stats:", error);
-      throw error;
-    }
-  },
-  
-  // Search clients and containers
-  searchSuggestions: async (search = "", limit = 10) => {
-    try {
-      // Search clients
-      const clients = await prisma.accountClient.findMany({
-        where: {
-          isActive: true,
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { location: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          location: true,
-          phone: true,
-          balance: true,
-        },
-        take: parseInt(limit),
-      });
-      
-      // Search containers from bifurcation
-      const containers = await prisma.bifurcationContainer.findMany({
-        where: {
-          containerCode: { contains: search, mode: 'insensitive' },
-        },
-        select: {
-          containerCode: true,
-          origin: true,
-          loadingDate: true,
-          clients: {
+            distinct: ['containerCode'],
+            select: { containerCode: true },
+            take: 5
+        });
+
+        return suggestions.map(s => s.containerCode).filter(Boolean);
+    },
+
+    // Get All Containers (for Selection)
+    getClientContainers: async (clientId) => {
+        // Fetch from Master Container table
+        const containers = await prisma.container.findMany({
+            orderBy: { createdAt: 'desc' },
             select: {
-              clientName: true,
-              items: {
-                select: {
-                  particular: true,
-                },
-                distinct: ['particular'],
-                take: 3,
-              },
+                id: true,
+                containerCode: true,
+                origin: true,
+                loadingDate: true,
+                createdAt: true
+            }
+        });
+
+        // Fetch all transactions for this client to find linked sheet names
+        const transactions = await prisma.clientTransaction.findMany({
+            where: { clientId },
+            select: {
+                containerCode: true,
+                sheetName: true
+            }
+        });
+
+        // Map containerCode to sheetName
+        const containerToSheet = {};
+        transactions.forEach(t => {
+            if (t.containerCode && t.sheetName && !containerToSheet[t.containerCode]) {
+                containerToSheet[t.containerCode] = t.sheetName;
+            }
+        });
+
+        // Enforce CAPS on blank sheets and containers
+        const blankSheets = await prisma.clientTransaction.findMany({
+            where: {
+                clientId,
+                containerCode: null,
+                sheetName: { not: null }
             },
-          },
-        },
-        take: parseInt(limit / 2),
-      });
-      
-      return {
-        clients,
-        containers: containers.map(container => ({
-          containerCode: container.containerCode,
-          origin: container.origin,
-          loadingDate: container.loadingDate,
-          clients: container.clients.map(client => ({
-            name: client.clientName,
-            items: client.items.map(item => item.particular),
-          })),
-        })),
-      };
-    } catch (error) {
-      console.error("Error searching suggestions:", error);
-      throw error;
+            distinct: ['sheetName'],
+            select: {
+                sheetName: true,
+                createdAt: true
+            }
+        });
+        
+        return {
+            containers: containers.map(c => ({
+                ...c,
+                sheetName: containerToSheet[c.containerCode] || null
+            })),
+            blankSheets: blankSheets.map(s => ({
+                id: s.sheetName,
+                sheetName: s.sheetName.toUpperCase(),
+                createdAt: s.createdAt
+            }))
+        };
+    },
+
+    // Rename sheet
+    renameSheet: async (clientId, oldSheetName, newSheetName) => {
+        if (!newSheetName) throw new Error("New sheet name is required");
+        
+        return prisma.clientTransaction.updateMany({
+            where: {
+                clientId,
+                sheetName: oldSheetName
+            },
+            data: {
+                sheetName: newSheetName.toUpperCase()
+            }
+        });
     }
-  },
 };
 
-module.exports = accountsService;
+module.exports = AccountClientsService;
