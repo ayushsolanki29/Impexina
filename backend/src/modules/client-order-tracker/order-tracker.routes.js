@@ -40,7 +40,15 @@ router.use(authMiddleware.authenticate);
 
 // ========== ORDER TRACKER ROUTES ==========
 
-// ========== ORDER SHEET ROUTES (NEW) ==========
+// ========== CLIENT SUGGESTIONS ROUTES ==========
+
+// Get client suggestions for autocomplete
+router.get('/clients/suggestions', orderTrackerController.getClientSuggestions);
+
+// Quick create a new client
+router.post('/clients/quick-create', orderTrackerController.createQuickClient);
+
+// ========== ORDER SHEET ROUTES ==========
 
 // List Sheets
 router.get('/sheets', orderTrackerController.getAllSheets);

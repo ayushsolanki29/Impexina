@@ -369,12 +369,28 @@ class OrderTrackerService {
     };
   }
   async createSheet(data, userId) {
+    // If clientId is provided, create sheet linked to client
+    const sheetData = {
+      name: data.name,
+      month: data.month,
+      createdBy: userId, 
+      updatedBy: String(userId)
+    };
+
+    if (data.clientId) {
+      sheetData.clientId = data.clientId;
+    }
+
     const sheet = await prisma.orderSheet.create({
-      data: {
-        name: data.name,
-        month: data.month, // Assuming you might want to store month separately or just use name
-        createdBy: userId, 
-        updatedBy: String(userId) 
+      data: sheetData,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true
+          }
+        }
       }
     });
     return sheet;
@@ -387,6 +403,13 @@ class OrderTrackerService {
       include: {
         _count: {
           select: { orders: true }
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true
+          }
         }
       }
     });
@@ -406,6 +429,50 @@ class OrderTrackerService {
     return enrichedSheets;
   }
 
+  // Get clients for suggestions
+  async getClientsForSuggestions(search = '') {
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { companyName: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const clients = await prisma.client.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        companyName: true,
+        city: true,
+        type: true
+      },
+      take: 20,
+      orderBy: { name: 'asc' }
+    });
+
+    return clients;
+  }
+
+  // Create a new client (quick create)
+  async createQuickClient(data, userId) {
+    const client = await prisma.client.create({
+      data: {
+        name: data.name,
+        companyName: data.companyName || data.name,
+        type: 'CLIENT',
+        status: 'ACTIVE'
+      },
+      select: {
+        id: true,
+        name: true,
+        companyName: true
+      }
+    });
+    return client;
+  }
+
   // Get Sheet by ID with Orders
   async getSheetById(id) {
     const sheet = await prisma.orderSheet.findUnique({
@@ -413,6 +480,13 @@ class OrderTrackerService {
       include: {
         orders: {
           orderBy: { createdAt: 'asc' } // Keep entry order
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true
+          }
         }
       }
     });

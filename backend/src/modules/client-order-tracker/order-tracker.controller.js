@@ -370,6 +370,33 @@ const orderTrackerController = {
      } catch (error) {
         res.status(500).json({ success: false, message: error.message });
      }
+  },
+
+  // Get clients for suggestions
+  getClientSuggestions: async (req, res) => {
+    try {
+      const { search = '' } = req.query;
+      const clients = await orderTrackerService.getClientsForSuggestions(search);
+      res.json({ success: true, data: clients });
+    } catch (error) {
+      console.error('Error fetching client suggestions:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch clients' });
+    }
+  },
+
+  // Quick create client
+  createQuickClient: async (req, res) => {
+    try {
+      const { name, companyName } = req.body;
+      if (!name) {
+        return res.status(400).json({ success: false, message: 'Client name is required' });
+      }
+      const client = await orderTrackerService.createQuickClient({ name, companyName }, req.user.id);
+      res.status(201).json({ success: true, data: client, message: 'Client created successfully' });
+    } catch (error) {
+      console.error('Error creating client:', error);
+      res.status(500).json({ success: false, message: error.message || 'Failed to create client' });
+    }
   }
 };
 

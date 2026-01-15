@@ -11,11 +11,12 @@ const userValidation = {
   }),
 
   updateUser: Joi.object({
-    name: Joi.string().min(2).max(100),
-    role: Joi.string().valid('ADMIN', 'EMPLOYEE', 'NEW_JOINNER'),
-    isActive: Joi.boolean(),
-    permissions: Joi.array().items(Joi.string())
-  }).min(1)
+    name: Joi.string().min(2).max(100).optional(),
+    username: Joi.string().min(3).max(50).optional(),
+    role: Joi.string().valid('ADMIN', 'EMPLOYEE', 'NEW_JOINNER').optional(),
+    isActive: Joi.boolean().optional(),
+    permissions: Joi.array().items(Joi.string()).optional()
+  })
 };
 
 module.exports = userValidation;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import API from "@/lib/api";
 import { toast } from "sonner";
 import { 
@@ -13,7 +13,9 @@ import {
   Calendar,
   Package,
   Truck,
-  DollarSign
+  DollarSign,
+  Keyboard,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -37,13 +39,7 @@ export default function OrderSheetEditor({ params }) {
     }
   }, [params]);
 
-  useEffect(() => {
-    if (unwrappedParams?.id) {
-      fetchSheet(unwrappedParams.id);
-    }
-  }, [unwrappedParams]);
-
-  const fetchSheet = async (sheetId) => {
+  const fetchSheet = useCallback(async (sheetId) => {
     setLoading(true);
     try {
       const res = await API.get(`/client-order-tracker/sheets/${sheetId}`);
@@ -62,7 +58,13 @@ export default function OrderSheetEditor({ params }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (unwrappedParams?.id) {
+      fetchSheet(unwrappedParams.id);
+    }
+  }, [unwrappedParams, fetchSheet]);
 
   const createEmptyRow = () => ({
       _key: `temp_${Date.now()}_${Math.random()}`,
@@ -87,10 +89,16 @@ export default function OrderSheetEditor({ params }) {
       isNew: true
   });
 
-  const handleAddRow = () => {
-    setRows([...rows, createEmptyRow()]);
-    toast.success("New order card added");
-  };
+  const handleAddRow = useCallback(() => {
+    setRows(prev => [...prev, createEmptyRow()]);
+    toast.success("New order added (Ctrl+Enter)");
+    // Focus the first input of the new row after render
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('[data-new-row-input]');
+      const lastInput = inputs[inputs.length - 1];
+      if (lastInput) lastInput.focus();
+    }, 100);
+  }, []);
 
   const handleChange = (index, field, value) => {
     const newRows = [...rows];
@@ -123,7 +131,7 @@ export default function OrderSheetEditor({ params }) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!unwrappedParams?.id) return;
     
     // Validation
@@ -139,16 +147,34 @@ export default function OrderSheetEditor({ params }) {
         orders: rows
       });
       if (res.data.success) {
-        toast.success("Sheet saved successfully");
-        router.push("/dashboard/client-order-tracker"); // Go back to list after save? Or stay? Let's stay and refresh.
+        toast.success("Sheet saved successfully! (Ctrl+S)");
         fetchSheet(unwrappedParams.id);
       }
     } catch (error) {
-      toast.error("Failed to save sheet");
+      toast.error(error.response?.data?.message || "Failed to save sheet");
     } finally {
       setSaving(false);
     }
-  };
+  }, [unwrappedParams, rows, fetchSheet]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+S or Cmd+S to save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+      // Ctrl+Enter or Cmd+Enter to add new row
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleAddRow();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave, handleAddRow]);
 
   if (loading || !unwrappedParams) return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -171,16 +197,36 @@ export default function OrderSheetEditor({ params }) {
                   </Button>
                   <div>
                     <h1 className="text-2xl font-bold text-slate-900">{sheet?.name}</h1>
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap">
                         <Calendar className="w-4 h-4" />
                         <span>{sheet?.month || 'General Sheet'}</span>
                         <span className="text-slate-300">|</span>
                         <span>{rows.length} Orders</span>
+                        {sheet?.client && (
+                          <>
+                            <span className="text-slate-300">|</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">
+                              <User className="w-3 h-3" />
+                              {sheet.client.name}
+                            </span>
+                          </>
+                        )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center">
+                    {/* Keyboard Hints */}
+                    <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400 mr-2">
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Ctrl+S</kbd>
+                        Save
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Ctrl+Enter</kbd>
+                        Add Order
+                      </span>
+                    </div>
                     <Button onClick={handleSave} disabled={saving} size="lg" className="bg-blue-600 hover:bg-blue-700 shadow-md">
                         {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
                         Save Sheet
@@ -219,6 +265,14 @@ export default function OrderSheetEditor({ params }) {
                 </div>
             </div>
 
+            {/* Keyboard Shortcuts Info (Mobile) */}
+            <div className="lg:hidden bg-slate-100 rounded-xl p-3 flex items-center gap-3 text-xs text-slate-600">
+              <Keyboard className="w-4 h-4 text-slate-400" />
+              <span><kbd className="px-1 bg-white rounded">Ctrl+S</kbd> Save</span>
+              <span>•</span>
+              <span><kbd className="px-1 bg-white rounded">Ctrl+Enter</kbd> Add Order</span>
+            </div>
+
             {/* Order Cards List */}
             <div className="space-y-6">
                 {rows.map((row, i) => (
@@ -250,10 +304,12 @@ export default function OrderSheetEditor({ params }) {
                                 <div>
                                     <label className="text-xs font-semibold text-slate-600">Shipping Mark *</label>
                                     <input 
+                                        data-new-row-input={row.isNew ? "true" : undefined}
                                         className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                                         placeholder="e.g. SMK-123"
                                         value={row.shippingMark}
                                         onChange={e => handleChange(i, 'shippingMark', e.target.value)}
+                                        tabIndex={0}
                                     />
                                 </div>
                                 <div>
@@ -263,6 +319,7 @@ export default function OrderSheetEditor({ params }) {
                                         placeholder="e.g. Global Traders"
                                         value={row.supplier}
                                         onChange={e => handleChange(i, 'supplier', e.target.value)}
+                                        tabIndex={0}
                                     />
                                 </div>
                                 <div>
@@ -272,6 +329,7 @@ export default function OrderSheetEditor({ params }) {
                                         placeholder="e.g. Widget X"
                                         value={row.product}
                                         onChange={e => handleChange(i, 'product', e.target.value)}
+                                        tabIndex={0}
                                     />
                                 </div>
                             </div>
@@ -288,6 +346,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                                             value={row.shippingMode}
                                             onChange={e => handleChange(i, 'shippingMode', e.target.value)}
+                                            tabIndex={0}
                                         >
                                             <option value="">Select</option>
                                             <option value="AIR">Air</option>
@@ -301,6 +360,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                                             value={row.status}
                                             onChange={e => handleChange(i, 'status', e.target.value)}
+                                            tabIndex={0}
                                         >
                                             <option value="PENDING">Pending</option>
                                             <option value="LOADED">Loaded</option>
@@ -317,6 +377,7 @@ export default function OrderSheetEditor({ params }) {
                                         placeholder="e.g. SHIP-001"
                                         value={row.shippingCode}
                                         onChange={e => handleChange(i, 'shippingCode', e.target.value)}
+                                        tabIndex={0}
                                     />
                                 </div>
                                 <div>
@@ -326,6 +387,7 @@ export default function OrderSheetEditor({ params }) {
                                         placeholder="e.g. LR-9988"
                                         value={row.lrNo}
                                         onChange={e => handleChange(i, 'lrNo', e.target.value)}
+                                        tabIndex={0}
                                     />
                                 </div>
                             </div>
@@ -343,6 +405,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs transition-all"
                                             value={row.orderDate ? new Date(row.orderDate).toISOString().split('T')[0] : ''}
                                             onChange={e => handleChange(i, 'orderDate', new Date(e.target.value))}
+                                            tabIndex={0}
                                         />
                                     </div>
                                     <div>
@@ -352,6 +415,7 @@ export default function OrderSheetEditor({ params }) {
                                             placeholder="DD-MM-YYYY"
                                             value={row.loadingDate}
                                             onChange={e => handleChange(i, 'loadingDate', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                     <div>
@@ -361,6 +425,7 @@ export default function OrderSheetEditor({ params }) {
                                             placeholder="DD-MM-YYYY"
                                             value={row.arrivalDate}
                                             onChange={e => handleChange(i, 'arrivalDate', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                      <div>
@@ -370,6 +435,7 @@ export default function OrderSheetEditor({ params }) {
                                             placeholder="DD-MM-YYYY"
                                             value={row.deliveryDate}
                                             onChange={e => handleChange(i, 'deliveryDate', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                 </div>
@@ -388,6 +454,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                                             value={row.quantity}
                                             onChange={e => handleChange(i, 'quantity', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                     <div>
@@ -397,6 +464,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                                             value={row.ctn}
                                             onChange={e => handleChange(i, 'ctn', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                 </div>
@@ -408,6 +476,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-900"
                                             value={row.totalAmount}
                                             onChange={e => handleChange(i, 'totalAmount', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                      <div>
@@ -417,6 +486,7 @@ export default function OrderSheetEditor({ params }) {
                                             className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                             value={row.deposit}
                                             onChange={e => handleChange(i, 'deposit', e.target.value)}
+                                            tabIndex={0}
                                         />
                                     </div>
                                     <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
@@ -442,7 +512,20 @@ export default function OrderSheetEditor({ params }) {
                     <Plus className="w-6 h-6" />
                 </div>
                 <span className="font-semibold">Add Another Order</span>
+                <span className="text-xs text-slate-400 mt-1">or press <kbd className="px-1.5 py-0.5 bg-slate-200 rounded">Ctrl+Enter</kbd></span>
             </button>
+
+            {/* Floating Save Button (Mobile) */}
+            <div className="fixed bottom-6 right-6 lg:hidden">
+              <Button 
+                onClick={handleSave} 
+                disabled={saving} 
+                size="lg" 
+                className="bg-blue-600 hover:bg-blue-700 shadow-xl rounded-full h-14 w-14 p-0"
+              >
+                {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+              </Button>
+            </div>
         </div>
     </div>
   );

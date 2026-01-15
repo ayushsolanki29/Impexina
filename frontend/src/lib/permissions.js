@@ -66,10 +66,14 @@ export const PERMISSION_MAP = [
   // User Management
   { path: "/dashboard/users", module: MODULES.USER_MANAGEMENT },
   
-  // Task Management
+  // Task Management - Admin only routes (require TASK_MANAGEMENT permission)
+  { path: "/dashboard/tasks/templates", module: MODULES.TASK_MANAGEMENT },
+  { path: "/dashboard/tasks/assignments", module: MODULES.TASK_MANAGEMENT },
+  { path: "/dashboard/tasks/reports", module: MODULES.TASK_MANAGEMENT },
   { path: "/dashboard/tasks", module: MODULES.TASK_MANAGEMENT },
   
-  // My Tasks
+  // My Tasks - Employee routes (require MY_TASK permission)
+  { path: "/dashboard/my-tasks/history", module: MODULES.MY_TASK },
   { path: "/dashboard/my-tasks", module: MODULES.MY_TASK },
   
   // Backups
@@ -119,11 +123,12 @@ export function getRequiredPermission(pathname) {
  * @param {string[]} userPermissions - Array of user's module keys
  * @param {string} moduleKey - Required module key
  * @param {string} userRole - User's role
+ * @param {boolean} isSuper - Whether user is Super Admin
  * @returns {boolean}
  */
-export function hasPermission(userPermissions, moduleKey, userRole) {
-  // Admin has access to everything
-  if (userRole === "ADMIN") {
+export function hasPermission(userPermissions, moduleKey, userRole, isSuper = false) {
+  // Only Super Admin has access to everything
+  if (isSuper) {
     return true;
   }
 
@@ -136,9 +141,10 @@ export function hasPermission(userPermissions, moduleKey, userRole) {
  * @param {string} pathname - Page path
  * @param {string[]} userPermissions - User's permissions
  * @param {string} userRole - User's role
+ * @param {boolean} isSuper - Whether user is Super Admin
  * @returns {{ allowed: boolean, module: string|null }}
  */
-export function canAccessPath(pathname, userPermissions, userRole) {
+export function canAccessPath(pathname, userPermissions, userRole, isSuper = false) {
   const permConfig = getRequiredPermission(pathname);
 
   // No permission config = allow access (public route)
@@ -152,6 +158,6 @@ export function canAccessPath(pathname, userPermissions, userRole) {
   }
 
   // Check permission
-  const allowed = hasPermission(userPermissions, permConfig.module, userRole);
+  const allowed = hasPermission(userPermissions, permConfig.module, userRole, isSuper);
   return { allowed, module: permConfig.module };
 }

@@ -240,7 +240,7 @@ const userController = {
   updateUser: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, role, isActive, permissions } = req.body;
+      const { name, username, role, isActive, permissions } = req.body;
 
       // Find user by publicId
       const existingUser = await prisma.user.findUnique({
@@ -262,11 +262,25 @@ const userController = {
         });
       }
 
+      // Check if new username already exists (if changed)
+      if (username && username !== existingUser.username) {
+        const usernameExists = await prisma.user.findUnique({
+          where: { username }
+        });
+        if (usernameExists) {
+          return res.status(400).json({
+            success: false,
+            message: 'Username already exists'
+          });
+        }
+      }
+
       // Update user
       const updatedUser = await prisma.user.update({
         where: { publicId: id },
         data: {
           ...(name && { name }),
+          ...(username && { username }),
           ...(role && { role: role.toUpperCase() }),
           ...(isActive !== undefined && { isActive })
         },

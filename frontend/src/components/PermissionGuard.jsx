@@ -37,8 +37,8 @@ export default function PermissionGuard({ children, requiredModule }) {
 
         const userData = userRes.data.data;
 
-        // Admin has full access
-        if (userData.role === "ADMIN") {
+        // Only Super Admin has full access
+        if (userData.isSuper) {
           setAllowed(true);
           setLoading(false);
           return;
@@ -69,7 +69,8 @@ export default function PermissionGuard({ children, requiredModule }) {
           const { allowed: pathAllowed, module } = canAccessPath(
             pathname,
             userPermissions,
-            userData.role
+            userData.role,
+            userData.isSuper
           );
 
           if (!pathAllowed) {

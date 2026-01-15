@@ -54,7 +54,7 @@ export function usePermissions() {
       setLoading(false);
 
       // Check access for current path
-      const { allowed, module } = canAccessPath(pathname, userPermissions, userData.role);
+      const { allowed, module } = canAccessPath(pathname, userPermissions, userData.role, userData.isSuper);
       
       if (!allowed) {
         router.replace(`/403?module=${module || "unknown"}`);
@@ -79,14 +79,15 @@ export function usePermissions() {
   // Check if user has a specific permission
   const hasPermission = useCallback((moduleKey) => {
     if (!user) return false;
-    if (user.role === "ADMIN") return true;
+    // Only Super Admin bypasses permission checks
+    if (user.isSuper) return true;
     return permissions.includes(moduleKey);
   }, [user, permissions]);
 
   // Check if user can access a path
   const canAccess = useCallback((path) => {
     if (!user) return false;
-    const { allowed } = canAccessPath(path, permissions, user.role);
+    const { allowed } = canAccessPath(path, permissions, user.role, user.isSuper);
     return allowed;
   }, [user, permissions]);
 

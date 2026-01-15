@@ -25,6 +25,10 @@ import {
   DatabaseBackup,
   ListTodo,
   Settings,
+  CheckCircle,
+  Clock,
+  Users,
+  Ship,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -249,18 +253,19 @@ export default function SidebarAdvanced({
   const [user, setUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState(initialPermissions);
   const [expandedMap, setExpandedMap] = useState({});
+  const [taskStats, setTaskStats] = useState({ completed: 0, pending: 0, total: 0 });
   const containerRef = useRef(null);
   const indicatorRef = useRef(null);
   const itemsRef = useRef({});
 
   // Filter menu items based on user permissions
   const visibleMenuItems = useMemo(() => {
-    // If user has admin role, show all menu items
-    if (user?.role === 'ADMIN') {
+    // Only Super Admin gets access to all modules
+    if (user?.isSuper) {
       return ALL_MENU_ITEMS;
     }
 
-    // Filter based on permissions
+    // All other users (including regular Admin) only see permitted modules
     return ALL_MENU_ITEMS.filter(menuItem => {
       // Check if user has permission for this menu item
       const hasPermission = userPermissions.includes(menuItem.moduleKey);
@@ -313,7 +318,40 @@ export default function SidebarAdvanced({
 
   useEffect(() => {
     fetchUserData();
+    fetchTaskStats();
   }, []);
+
+  const fetchTaskStats = async () => {
+    try {
+      const res = await API.get("/tasks/my-assignments");
+      if (res.data.success) {
+        const tasks = res.data.data || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let completed = 0;
+        let pending = 0;
+        
+        tasks.forEach((task) => {
+          const isCompletedToday = task.completions?.some((c) => {
+            const completedAt = new Date(c.completedAt);
+            completedAt.setHours(0, 0, 0, 0);
+            return completedAt.getTime() === today.getTime();
+          });
+          
+          if (isCompletedToday) {
+            completed++;
+          } else {
+            pending++;
+          }
+        });
+        
+        setTaskStats({ completed, pending, total: tasks.length });
+      }
+    } catch (error) {
+      console.error("Failed to fetch task stats:", error);
+    }
+  };
 
   useEffect(() => {
     const el = itemsRef.current[activeKey];
@@ -351,8 +389,8 @@ export default function SidebarAdvanced({
             }
           } catch (permError) {
             console.error("Failed to fetch permissions:", permError);
-            // If user is admin, set all permissions
-            if (userData.role === 'ADMIN') {
+            // Only Super Admin gets all permissions as fallback
+            if (userData.isSuper) {
               setUserPermissions(ALL_MENU_ITEMS.map(item => item.moduleKey));
             }
           }
@@ -388,7 +426,8 @@ export default function SidebarAdvanced({
 
   // Helper function to check if user has specific permission
   const hasPermission = (moduleKey) => {
-    if (currentUser.role === 'ADMIN') return true;
+    // Only Super Admin bypasses permission checks
+    if (currentUser.isSuper) return true;
     return userPermissions.includes(moduleKey);
   };
 
@@ -549,30 +588,146 @@ export default function SidebarAdvanced({
           </ul>
         )}
 
-        {/* Quick Actions - Only show if user has permission */}
-        {hasPermission('invoice') ? (
-          <div className="mt-6 px-4">
-            {open && (
-              <div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
-                Quick Actions
-              </div>
-            )}
-            <div className="flex gap-2 flex-col">
-              {hasPermission('invoice') && (
+        {/* Quick Actions - Always visible for all users */}
+        <div className="mt-6 px-4">
+          {open && (
+            <div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
+              Quick Actions
+            </div>
+          )}
+          
+          {/* My Tasks Status Card - Only for non-admin users */}
+          {currentUser.role !== 'ADMIN' && (
+            <div 
+              onClick={() => navTo("/dashboard/my-tasks")}
+              className="mb-3 p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-100 cursor-pointer hover:from-indigo-100 hover:to-blue-100 transition-colors"
+            >
+              {open ? (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
+                      <ListTodo className="w-3.5 h-3.5" />
+                      My Tasks
+                    </span>
+                    <span className="text-[10px] text-indigo-500 font-medium">Today</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
+                      <div className="text-lg font-bold text-emerald-600">{taskStats.completed}</div>
+                      <div className="text-[10px] text-emerald-700">Done</div>
+                    </div>
+                    <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
+                      <div className="text-lg font-bold text-amber-600">{taskStats.pending}</div>
+                      <div className="text-[10px] text-amber-700">Pending</div>
+                    </div>
+                    <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
+                      <div className="text-lg font-bold text-slate-600">{taskStats.total}</div>
+                      <div className="text-[10px] text-slate-500">Total</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <ListTodo className="w-5 h-5 text-indigo-600 mb-1" />
+                  <span className="text-xs font-bold text-indigo-700">{taskStats.pending}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Role-based Quick Buttons */}
+          <div className="flex gap-2 flex-col">
+            {/* Super Admin: Accounts & Containers */}
+            {currentUser.isSuper && (
+              <>
                 <Button
-                  onClick={() => navTo("/dashboard/invoice/new")}
+                  onClick={() => navTo("/dashboard/accounts")}
                   variant="outline"
-                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-50"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-100"
                   size="sm"
                   disabled={isLoading}
                 >
-                  <FileSpreadsheet className="w-4 h-4 mr-1" />
-                  {open && "Create Invoice"}
+                  <Calculator className="w-4 h-4" />
+                  {open && <span className="ml-1.5">Accounts</span>}
                 </Button>
-              )}
-            </div>
+                <Button
+                  onClick={() => navTo("/dashboard/container-summary")}
+                  variant="outline"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-100"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  <Container className="w-4 h-4" />
+                  {open && <span className="ml-1.5">Containers</span>}
+                </Button>
+                <Button
+                  onClick={() => navTo("/dashboard/users")}
+                  variant="outline"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-100"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  <Users className="w-4 h-4" />
+                  {open && <span className="ml-1.5">Users</span>}
+                </Button>
+              </>
+            )}
+
+            {/* Admin (non-super): Task & User management */}
+            {currentUser.role === 'ADMIN' && !currentUser.isSuper && (
+              <>
+                <Button
+                  onClick={() => navTo("/dashboard/tasks/assignments")}
+                  variant="outline"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-100"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  {open && <span className="ml-1.5">Assign Task</span>}
+                </Button>
+                <Button
+                  onClick={() => navTo("/dashboard/users/management")}
+                  variant="outline"
+                  className="w-full border-slate-200 text-slate-700 hover:bg-slate-100"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  <UserCog className="w-4 h-4" />
+                  {open && <span className="ml-1.5">Manage Users</span>}
+                </Button>
+              </>
+            )}
+
+            {/* Employee: Quick task access */}
+            {currentUser.role === 'EMPLOYEE' && (
+              <Button
+                onClick={() => navTo("/dashboard/my-tasks")}
+                variant="outline"
+                className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                size="sm"
+                disabled={isLoading}
+              >
+                <CheckCircle className="w-4 h-4" />
+                {open && <span className="ml-1.5">Complete Tasks</span>}
+              </Button>
+            )}
+
+            {/* New Joiner: Simple task access */}
+            {currentUser.role === 'NEW_JOINNER' && (
+              <Button
+                onClick={() => navTo("/dashboard/my-tasks")}
+                variant="outline"
+                className="w-full border-slate-200 text-slate-600 hover:bg-slate-50"
+                size="sm"
+                disabled={isLoading}
+              >
+                <ListTodo className="w-4 h-4" />
+                {open && <span className="ml-1.5">View Tasks</span>}
+              </Button>
+            )}
           </div>
-        ) : null}
+        </div>
       </nav>
 
       {/* Footer - User Info */}
@@ -624,7 +779,7 @@ export default function SidebarAdvanced({
 
           <button
             onClick={handleLogout}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"
+            className="p-1.5 mr-3 rounded-md hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"
             title="Logout"
           >
             <LogOut className="w-4 h-4" />

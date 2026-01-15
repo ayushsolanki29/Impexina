@@ -42,8 +42,15 @@ model User {
   commercialInvoiceActivities CommercialInvoiceActivity[]
   summaryActivities           SummaryActivity[]
 
-  assignedTasks Task[] @relation("assignedTasks")
-  createdTasks  Task[] @relation("createdTasks")
+  // Legacy Task relations (for backward compatibility)
+  legacyAssignedTasks Task[] @relation("legacyAssignedTasks")
+  legacyCreatedTasks  Task[] @relation("legacyCreatedTasks")
+
+  // New Task Management System relations
+  createdTemplates   TaskTemplate[]   @relation("createdTemplates")
+  assignedTasks      TaskAssignment[] @relation("assignedTasks")
+  createdTasks       TaskAssignment[] @relation("createdTasks")
+  taskCompletions    TaskCompletion[] @relation("taskCompletions")
 
   clientTransactions ClientTransaction[]
 
@@ -1071,6 +1078,7 @@ model Client {
   ctnMarks      CtnMark[]
   orders        Order[]
   loadingSheets LoadingSheet[]
+  orderSheets   OrderSheet[]
 
   // Metadata
   notes  String?
@@ -1276,45 +1284,178 @@ model AhmedabadPettyCashEntry {
   @@index([particular])
 }
 
-// Add to your existing enums
-enum TaskFrequency {
-  DAILY
-  WEEKLY
-  MONTHLY
-  AS_PER_REQUIREMENT
+// =====================================================
+// ADVANCED TASK MANAGEMENT SYSTEM
+// =====================================================
+
+// Task Schedule Type - defines how a task is scheduled
+enum TaskScheduleType {
+  DAILY          // Complete once per day
+  WEEKLY         // Complete once per week  
+  MONTHLY        // Complete once per month
+  DATE_RANGE     // Complete within a specific date range
+  SPECIFIC_DATE  // Complete on a specific date only
+  AS_PER_REQUIREMENT // No fixed schedule, complete as needed
 }
 
+// Task Status
 enum TaskStatus {
   PENDING
   COMPLETED
   OVERDUE
+  CANCELLED
 }
 
-// Simple Task model
+// Task Template - Reusable task definitions
+model TaskTemplate {
+  id String @id @default(uuid())
+  
+  // Template details
+  title       String
+  description String?
+  category    String?  // e.g., "ACCOUNTING", "INVENTORY", "CLIENT FOLLOW-UP"
+  
+  // Default schedule (can be overridden during assignment)
+  defaultSchedule TaskScheduleType @default(DAILY)
+  defaultDeadlineDay Int?  // For MONTHLY: which day (1-31)
+  defaultDeadlineWeekday Int?  // For WEEKLY: which day (0-6, 0=Sunday)
+  
+  // Metadata
+  isSystemTemplate Boolean @default(false) // System templates cannot be deleted
+  isActive         Boolean @default(true)
+  
+  // Who created this template
+  createdById Int
+  createdBy   User @relation("createdTemplates", fields: [createdById], references: [id])
+  
+  // Assignments using this template
+  assignments TaskAssignment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([category])
+  @@index([isActive])
+  @@index([createdById])
+}
+
+// Task Assignment - Links a template/task to a user with specific schedule
+model TaskAssignment {
+  id String @id @default(uuid())
+  
+  // Optional template reference (for template-based tasks)
+  templateId String?
+  template   TaskTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  
+  // Task details (either from template or custom)
+  title       String
+  description String?
+  category    String?
+  
+  // Schedule configuration
+  scheduleType TaskScheduleType @default(DAILY)
+  
+  // For SPECIFIC_DATE or DATE_RANGE
+  startDate    DateTime?
+  endDate      DateTime?
+  
+  // For MONTHLY tasks
+  deadlineDay  Int?  // Which day of month (1-31)
+  
+  // For WEEKLY tasks  
+  deadlineWeekday Int?  // Which day of week (0-6, 0=Sunday)
+  
+  // Timeline description for display
+  timeline    String?  // e.g., "5TH EVERY MONTH", "DEADLINE DATE 28 IN MONTH"
+  
+  // Who this task is assigned to
+  assigneeId   Int
+  assignee     User @relation("assignedTasks", fields: [assigneeId], references: [id])
+  
+  // Who assigned this task
+  assignedById Int
+  assignedBy   User @relation("createdTasks", fields: [assignedById], references: [id])
+  
+  // Is this a self-created task by the user
+  isSelfCreated Boolean @default(false)
+  
+  // Status
+  isActive    Boolean @default(true)
+  isPaused    Boolean @default(false)  // Temporarily pause a recurring task
+  
+  // Completions for this assignment
+  completions TaskCompletion[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([assigneeId, isActive])
+  @@index([scheduleType])
+  @@index([templateId])
+  @@index([assignedById])
+}
+
+// Task Completion - Records each time a task is completed
+model TaskCompletion {
+  id String @id @default(uuid())
+  
+  // Which assignment this completion belongs to
+  assignmentId String
+  assignment   TaskAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  
+  // For which period is this completion
+  // For DAILY: the date
+  // For WEEKLY: the week start date
+  // For MONTHLY: the month start date
+  periodStart DateTime
+  periodEnd   DateTime
+  
+  // Completion details
+  completedAt   DateTime @default(now())
+  completedById Int
+  completedBy   User @relation("taskCompletions", fields: [completedById], references: [id])
+  
+  // Completion note (minimum 30 characters required)
+  completionNote String
+  
+  // Status
+  status TaskStatus @default(COMPLETED)
+  
+  // Was this completed on time?
+  isOnTime Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([assignmentId, periodStart, periodEnd])
+  @@index([assignmentId])
+  @@index([completedById])
+  @@index([periodStart, periodEnd])
+}
+
+// System constant for minimum completion note length
+// This can be configured via SystemSetting table
+// Default: TASK_COMPLETION_MIN_CHARS = 30
+
+// Legacy Task model (for backward compatibility - can be migrated)
 model Task {
   id String @id @default(uuid())
 
-  // Task details
   title       String
   description String?
 
-  // Timing
-  frequency   TaskFrequency @default(DAILY)
-  deadlineDay Int? // For monthly tasks: 8, 17, 28 etc
-  timeline    String? // e.g., "AS PER REQUIREMENT"
+  frequency   TaskScheduleType @default(DAILY)
+  deadlineDay Int?
+  timeline    String?
 
-  // Assignment
-  assigneeId   Int // User who needs to do the task
-  assignedById Int // Admin who created the task
+  assigneeId   Int
+  assignedById Int
 
-  // Status
   status      TaskStatus @default(PENDING)
   completedAt DateTime?
-  notes       String? // User can add completion notes
+  notes       String?
 
-  // Relations
-  assignee   User @relation("assignedTasks", fields: [assigneeId], references: [id])
-  assignedBy User @relation("createdTasks", fields: [assignedById], references: [id])
+  assignee   User @relation("legacyAssignedTasks", fields: [assigneeId], references: [id])
+  assignedBy User @relation("legacyCreatedTasks", fields: [assignedById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1383,9 +1524,13 @@ model OrderTracker {
 
 model OrderSheet {
   id     String  @id @default(uuid())
-  name   String  @unique // e.g. "January 2025 Orders"
+  name   String  @unique // e.g. "January 2025 Orders" or Client name based
   month  String?
   status String  @default("ACTIVE") // ACTIVE, ARCHIVED
+
+  // Client relation - sheet is based on client
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   // Totals
   totalOrders Int   @default(0)
@@ -1398,6 +1543,8 @@ model OrderSheet {
   updatedBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 model SystemSetting {

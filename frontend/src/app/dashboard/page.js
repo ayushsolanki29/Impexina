@@ -2,993 +2,1416 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  TrendingUp,
   Package,
   Clock,
   AlertCircle,
   CheckCircle2,
-  MoreHorizontal,
   Ship,
   Calendar,
   ArrowRight,
   DollarSign,
-  Activity,
   Users,
-  Briefcase,
   Box,
   Target,
   Loader2,
+  TrendingUp,
   TrendingDown,
   User,
   CheckCircle,
   AlertTriangle,
+  Bookmark,
+  Plus,
+  X,
+  Pin,
+  ListTodo,
+  BarChart3,
+  Zap,
+  Award,
+  FileText,
+  Truck,
+  Globe,
+  Shield,
+  Crown,
+  Sparkles,
+  ExternalLink,
+  Settings,
+  ClipboardList,
+  Wallet,
+  Building,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
   Legend,
 } from "recharts";
+import API from "@/lib/api";
 
-import API from "@/lib/api"; // Your API helper
+// Chart Colors
+const CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
-// --- Constants ---
-const COLORS = [
-  "#4F46E5",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#EC4899",
-];
+// ========================
+// SHARED PERSONAL TODOS COMPONENT
+// ========================
+function PersonalTodos({ userId }) {
+  const [todos, setTodos] = useState([]);
+  const [newTodo, setNewTodo] = useState("");
+  const [showInput, setShowInput] = useState(false);
 
-export default function AdvancedDashboard() {
-  const router = useRouter();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // --- Data Loading Logic ---
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
+    const saved = localStorage.getItem(`personal_todos_${userId}`);
+    if (saved) {
+      setTodos(JSON.parse(saved));
+    }
+  }, [userId]);
 
-        // Fetch all dashboard data in parallel
-        const [
-          overviewRes,
-          monthlyStatsRes,
-          quickStatsRes,
-          upcomingRes,
-          userPerformanceRes,
-        ] = await Promise.allSettled([
-          API.get("/dashboard/overview"),
-          API.get("/dashboard/monthly-stats"),
-          API.get("/dashboard/quick-stats"),
-          API.get("/dashboard/upcoming-deadlines"),
-          API.get("/dashboard/user-performance"),
-        ]);
+  const saveTodos = (newTodos) => {
+    localStorage.setItem(`personal_todos_${userId}`, JSON.stringify(newTodos));
+    setTodos(newTodos);
+  };
 
-        const data = {
-          overview:
-            overviewRes.status === "fulfilled"
-              ? overviewRes.value.data?.data
-              : null,
-          monthlyStats:
-            monthlyStatsRes.status === "fulfilled"
-              ? monthlyStatsRes.value.data?.data
-              : null,
-          quickStats:
-            quickStatsRes.status === "fulfilled"
-              ? quickStatsRes.value.data?.data
-              : null,
-          upcoming:
-            upcomingRes.status === "fulfilled"
-              ? upcomingRes.value.data?.data
-              : null,
-          userPerformance:
-            userPerformanceRes.status === "fulfilled"
-              ? userPerformanceRes.value.data?.data
-              : null,
-        };
-
-        setDashboardData(data);
-      } catch (err) {
-        console.error("Failed to fetch dashboard data:", err);
-        setError("Failed to load dashboard data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    const todo = {
+      id: Date.now(),
+      text: newTodo,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      pinned: false,
     };
+    saveTodos([todo, ...todos]);
+    setNewTodo("");
+    setShowInput(false);
+  };
 
-    fetchDashboardData();
-  }, []);
-
-  // --- Computed Metrics ---
-  const containerStats = useMemo(() => {
-    if (!dashboardData?.overview) return null;
-
-    const { orderStatus, activeContainers } = dashboardData.overview;
-    const upcomingOrders = dashboardData.upcoming?.orders || [];
-    const now = new Date();
-    const next48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    // Calculate arriving soon (next 48 hours)
-    const arrivingSoon = upcomingOrders.filter((o) => {
-      if (!o.dates?.arrival) return false;
-      const arrival = new Date(o.dates.arrival);
-      return arrival >= now && arrival <= next48Hours;
-    }).length;
-
-    // Calculate arriving this week
-    const arrivingThisWeek = upcomingOrders.filter((o) => {
-      if (!o.dates?.arrival) return false;
-      const arrival = new Date(o.dates.arrival);
-      return arrival >= now && arrival <= next7Days;
-    }).length;
-
-    // Get total value from pending payments
-    const totalValue = dashboardData.overview.summary?.pendingPayments || 0;
-
-    return {
-      arrivingSoon,
-      arrivingThisWeek,
-      totalValue,
-      activeContainers: activeContainers || 0,
-      statusCounts: {
-        Loaded: orderStatus?.loaded || 0,
-        Insea: orderStatus?.inTransit || 0,
-        Delivered: orderStatus?.delivered || 0,
-        Pending: orderStatus?.pending || 0,
-      },
-    };
-  }, [dashboardData]);
-
-  const taskStats = useMemo(() => {
-    if (!dashboardData?.overview) return null;
-
-    const { taskStatus, summary } = dashboardData.overview;
-    const total = summary?.totalTasks || 0;
-    const completed = taskStatus?.completed || 0;
-    const pending = taskStatus?.pending || 0;
-    const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
-
-    // Use usage performance data for chart
-    const employeeTaskData = (dashboardData.userPerformance || [])
-      .slice(0, 4)
-      .map((user) => ({
-        name: user.name,
-        tasks: user.tasks?.completed || 0,
-      }));
-
-    return {
-      total,
-      completed,
-      pending,
-      progress,
-      chartData: employeeTaskData,
-    };
-  }, [dashboardData]);
-
-  const financialData = useMemo(() => {
-    if (!dashboardData?.monthlyStats?.orders) return [];
-
-    // Use monthly order totals for financial data
-    return dashboardData.monthlyStats.orders.slice(-7).map((item, index) => ({
-      name: item.month?.substring(0, 3) || `Day ${index}`,
-      value: item.total || 0,
-    }));
-  }, [dashboardData]);
-
-  const recentOrders = useMemo(() => {
-    if (!dashboardData?.overview?.recentData?.orders) return [];
-
-    return dashboardData.overview.recentData.orders
-      .slice(0, 6)
-      .map((order) => ({
-        id: order.id,
-        containerCode: order.shippingMark || `ORD-${order.id}`,
-        status: order.status,
-        eta: order.arrivalDate,
-        shippingLine: order.supplier || "N/A",
-        totalDuty: order.totalAmount || 0,
-        month: new Date(order.createdAt).toLocaleDateString("en-US", {
-          month: "short",
-        }),
-      }));
-  }, [dashboardData]);
-
-  const priorityTasks = useMemo(() => {
-    if (!dashboardData?.upcoming?.tasks) return [];
-
-    return dashboardData.upcoming.tasks
-      .filter((task) => task.priority === "HIGH")
-      .slice(0, 4);
-  }, [dashboardData]);
-
-  const quickStats = useMemo(() => {
-    if (!dashboardData?.quickStats) return null;
-
-    const { orders, tasks, revenue, shipments } = dashboardData.quickStats;
-
-    return {
-      ordersToday: orders?.today || 0,
-      ordersChange: parseFloat(orders?.change || 0),
-      tasksToday: tasks?.today || 0,
-      tasksChange: parseFloat(tasks?.change || 0),
-      revenueToday: revenue?.today || 0,
-      revenueChange: parseFloat(revenue?.change || 0),
-      pendingShipments: shipments?.pending || 0,
-      completedShipments: shipments?.completed || 0,
-    };
-  }, [dashboardData]);
-
-  const userPerformance = useMemo(() => {
-    if (!dashboardData?.userPerformance) return [];
-
-    const raw = dashboardData.userPerformance;
-    const list = Array.isArray(raw) ? raw : raw?.data ?? (raw ? [raw] : []);
-
-    return list.slice(0, 5).map((user) => ({
-      name: user.name,
-      role: user.role,
-      tasksCompleted: user.tasks?.completed || 0,
-      tasksPending: user.tasks?.pending || 0,
-      completionRate: parseFloat(user.tasks?.completionRate || 0),
-      ordersCreated: user.orders?.total || 0,
-      productivityScore: parseFloat(user.productivity?.score || 0),
-    }));
-  }, [dashboardData]);
-
-  if (loading)
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-600" />
-        <p>Loading Dashboard...</p>
-      </div>
+  const toggleTodo = (id) => {
+    const updated = todos.map((t) =>
+      t.id === id ? { ...t, completed: !t.completed } : t
     );
+    saveTodos(updated);
+  };
 
-  if (error)
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400">
-        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-        <p className="text-red-600 mb-2">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          Retry
-        </button>
-      </div>
+  const togglePin = (id) => {
+    const updated = todos.map((t) =>
+      t.id === id ? { ...t, pinned: !t.pinned } : t
     );
+    updated.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    saveTodos(updated);
+  };
 
-  if (!dashboardData) return null;
+  const deleteTodo = (id) => {
+    saveTodos(todos.filter((t) => t.id !== id));
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 space-y-6 pb-20">
-      {/* --- Top Bar: Greeting & Context --- */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">
-            {(() => {
-              const hour = new Date().getHours();
-              if (hour < 12) return "Good Morning";
-              if (hour < 18) return "Good Afternoon";
-              return "Good Evening";
-            })()}
-            , {dashboardData.currentUser?.name || "Admin"}
-          </h1>
-          <p className="text-slate-500 mt-1">
-            Here's what's happening with your logistics today.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 shadow-sm flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-indigo-500" />
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+          <Bookmark className="w-4 h-4 text-amber-600" />
+          My Notes
+        </h3>
+        <button
+          onClick={() => setShowInput(true)}
+          className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="p-3">
+        {showInput && (
+          <div className="mb-3 flex gap-2">
+            <input
+              type="text"
+              value={newTodo}
+              onChange={(e) => setNewTodo(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && addTodo()}
+              placeholder="Add a note..."
+              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              autoFocus
+            />
+            <button
+              onClick={addTodo}
+              className="px-2 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700"
+            >
+              Add
+            </button>
+            <button
+              onClick={() => setShowInput(false)}
+              className="px-2 py-1.5 text-slate-500 hover:text-slate-700"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+        )}
+        {todos.length === 0 ? (
+          <div className="text-center py-4 text-slate-400">
+            <Bookmark className="w-6 h-6 mx-auto mb-1 opacity-50" />
+            <p className="text-xs">Add personal notes</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {todos.map((todo) => (
+              <div
+                key={todo.id}
+                className={`group flex items-start gap-2 p-2 rounded-lg text-sm ${
+                  todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
+                }`}
+              >
+                <button
+                  onClick={() => toggleTodo(todo.id)}
+                  className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
+                    todo.completed
+                      ? "bg-emerald-500 border-emerald-500 text-white"
+                      : "border-slate-300"
+                  }`}
+                >
+                  {todo.completed && <CheckCircle className="w-3 h-3" />}
+                </button>
+                <p className={`flex-1 text-xs ${todo.completed ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                  {todo.text}
+                </p>
+                <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                  <button
+                    onClick={() => togglePin(todo.id)}
+                    className={`p-0.5 rounded ${todo.pinned ? "text-amber-600" : "text-slate-400 hover:text-amber-600"}`}
+                  >
+                    <Pin className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => deleteTodo(todo.id)}
+                    className="p-0.5 text-slate-400 hover:text-red-600"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ========================
+// ADMIN DASHBOARD COMPONENT
+// ========================
+function AdminDashboard({ user, dashboardData }) {
+  const router = useRouter();
+  const [containerStats, setContainerStats] = useState(null);
+  const [upcomingContainers, setUpcomingContainers] = useState([]);
+  const [userTaskSummary, setUserTaskSummary] = useState([]);
+  const [loadingContainers, setLoadingContainers] = useState(true);
+
+  useEffect(() => {
+    loadContainerData();
+    loadUserTaskSummary();
+  }, []);
+
+  const loadContainerData = async () => {
+    try {
+      // Load container summaries
+      const summariesRes = await API.get("/container-summaries", { limit: 100 });
+      if (summariesRes.data.success) {
+        const summaries = summariesRes.data.data.summaries || [];
+        
+        // Get all containers from summaries
+        const allContainers = [];
+        for (const summary of summaries.slice(0, 10)) {
+          try {
+            const detailRes = await API.get(`/container-summaries/${summary.id}`);
+            if (detailRes.data.success && detailRes.data.data.containers) {
+              detailRes.data.data.containers.forEach((c) => {
+                allContainers.push({
+                  ...c,
+                  month: summary.month,
+                  summaryId: summary.id,
+                });
+              });
+            }
+          } catch (e) {
+            console.error("Error loading summary detail:", e);
+          }
+        }
+
+        // Calculate stats
+        const now = new Date();
+        const next15Days = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+        
+        const arriving15Days = allContainers.filter((c) => {
+          if (!c.arrivalDate) return false;
+          const arrival = new Date(c.arrivalDate);
+          return arrival >= now && arrival <= next15Days && c.status !== "Delivered";
+        });
+
+        const pendingDuty = allContainers.filter((c) => 
+          c.status !== "Delivered" && (c.duty > 0 || c.finalAmount > 0)
+        );
+
+        const totalDutyPending = pendingDuty.reduce((sum, c) => sum + (parseFloat(c.duty) || 0), 0);
+        const totalAmountPending = pendingDuty.reduce((sum, c) => sum + (parseFloat(c.finalAmount) || 0), 0);
+
+        setContainerStats({
+          total: allContainers.length,
+          arriving15Days: arriving15Days.length,
+          pendingDuty: pendingDuty.length,
+          totalDutyPending,
+          totalAmountPending,
+          loaded: allContainers.filter((c) => c.status === "Loaded").length,
+          insea: allContainers.filter((c) => c.status === "Insea").length,
+          delivered: allContainers.filter((c) => c.status === "Delivered").length,
+        });
+
+        setUpcomingContainers(arriving15Days.slice(0, 6).sort((a, b) => 
+          new Date(a.arrivalDate) - new Date(b.arrivalDate)
+        ));
+      }
+    } catch (error) {
+      console.error("Error loading container data:", error);
+    } finally {
+      setLoadingContainers(false);
+    }
+  };
+
+  const loadUserTaskSummary = async () => {
+    try {
+      const res = await API.get("/tasks/admin/performance");
+      if (res.data.success && res.data.data) {
+        // Handle both array and users property
+        const users = Array.isArray(res.data.data) ? res.data.data : res.data.data.users || [];
+        // Filter out users with 0 tasks assigned (e.g., Super Admin, System Admin)
+        const filteredUsers = users.filter((u) => 
+          (u.stats?.totalAssignments || 0) > 0
+        );
+        setUserTaskSummary(filteredUsers.slice(0, 5));
+      }
+    } catch (error) {
+      console.error("Error loading user task summary:", error);
+    }
+  };
+
+  const getRoleColor = () => {
+    if (user?.isSuper) return "from-slate-900 to-slate-800";
+    return "from-blue-700 to-indigo-800";
+  };
+
+  const getRoleBadge = () => {
+    if (user?.isSuper) return { label: "SUPER ADMIN", bg: "bg-slate-900", icon: Crown };
+    return { label: "ADMIN", bg: "bg-blue-700", icon: Shield };
+  };
+
+  const badge = getRoleBadge();
+  const BadgeIcon = badge.icon;
+
+  // Task stats from dashboard data
+  const taskStats = useMemo(() => {
+    if (!dashboardData?.overview?.taskStatus) return { completed: 0, pending: 0, total: 0 };
+    const { completed = 0, pending = 0 } = dashboardData.overview.taskStatus;
+    return { completed, pending, total: completed + pending };
+  }, [dashboardData]);
+
+  // Status chart data
+  const statusChartData = useMemo(() => {
+    if (!containerStats) return [];
+    return [
+      { name: "Loaded", value: containerStats.loaded, color: "#6366f1" },
+      { name: "In Sea", value: containerStats.insea, color: "#f59e0b" },
+      { name: "Delivered", value: containerStats.delivered, color: "#10b981" },
+    ].filter((d) => d.value > 0);
+  }, [containerStats]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-6 space-y-6 pb-20">
+      {/* Header with Admin Greeting */}
+      <div className={`bg-gradient-to-r ${getRoleColor()} rounded-2xl p-6 text-white relative overflow-hidden`}>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`${badge.bg} p-2 rounded-lg`}>
+              <BadgeIcon className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold tracking-wider opacity-80">{badge.label}</span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">
+            {getGreeting()}, {user?.name || "Admin"}
+          </h1>
+          <p className="text-white/70">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+          </p>
         </div>
       </div>
 
-      {/* --- Quick Stats Row (Now Top) --- */}
-      {quickStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Orders Today */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Orders Today
-                </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  {quickStats.ordersToday}
-                </p>
-              </div>
-              <div
-                className={`p-3 rounded-xl ${
-                  quickStats.ordersChange >= 0
-                    ? "bg-green-50 text-green-600"
-                    : "bg-red-50 text-red-600"
-                }`}
-              >
-                <Box className="w-6 h-6" />
-              </div>
+      {/* Critical Alerts Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-lg bg-indigo-50">
+              <Ship className="w-5 h-5 text-indigo-600" />
             </div>
-            <div className="flex items-center gap-1 mt-3 text-sm">
-              {quickStats.ordersChange >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-green-600" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-red-600" />
-              )}
-              <span
-                className={`font-semibold ${
-                  quickStats.ordersChange >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
-                }`}
+            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+              Next 15 Days
+            </span>
+          </div>
+          <div className="text-3xl font-bold text-slate-900">
+            {loadingContainers ? "..." : containerStats?.arriving15Days || 0}
+          </div>
+          <p className="text-sm text-slate-500 mt-1">Containers Arriving</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-lg bg-amber-50">
+              <DollarSign className="w-5 h-5 text-amber-600" />
+            </div>
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+              Pending
+            </span>
+          </div>
+          <div className="text-3xl font-bold text-slate-900">
+            {loadingContainers ? "..." : containerStats?.pendingDuty || 0}
+          </div>
+          <p className="text-sm text-slate-500 mt-1">Duty Payments Due</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-lg bg-amber-50">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-slate-900">
+            ₹{loadingContainers ? "..." : ((containerStats?.totalDutyPending || 0) / 100000).toFixed(1)}L
+          </div>
+          <p className="text-sm text-slate-500 mt-1">Total Duty Pending</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-slate-900">
+            {loadingContainers ? "..." : containerStats?.delivered || 0}
+          </div>
+          <p className="text-sm text-slate-500 mt-1">Delivered This Month</p>
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Upcoming Containers */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Upcoming Arrivals */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Ship className="w-5 h-5 text-indigo-600" />
+                Upcoming Arrivals (15 Days)
+              </h3>
+              <button
+                onClick={() => router.push("/dashboard/containers")}
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
               >
-                {Math.abs(quickStats.ordersChange)}%
-              </span>
-              <span className="text-slate-400 ml-1">vs yesterday</span>
+                View All <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="p-4">
+              {loadingContainers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                </div>
+              ) : upcomingContainers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <Ship className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>No containers arriving in next 15 days</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingContainers.map((container, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}/view`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Package className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{container.containerCode}</p>
+                          <p className="text-xs text-slate-500">{container.shippingLine || "N/A"}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-slate-900">
+                          {new Date(container.arrivalDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                        </p>
+                        <p className="text-xs text-amber-600">
+                          ₹{((container.duty || 0) / 1000).toFixed(1)}K duty
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Tasks Today */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Tasks Today
-                </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  {quickStats.tasksToday}
-                </p>
-              </div>
-              <div
-                className={`p-3 rounded-xl ${
-                  quickStats.tasksChange >= 0
-                    ? "bg-blue-50 text-blue-600"
-                    : "bg-red-50 text-red-600"
-                }`}
+          {/* User Task Status */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" />
+                Team Task Status
+              </h3>
+              <button
+                onClick={() => router.push("/dashboard/tasks/reports")}
+                className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
               >
-                <Target className="w-6 h-6" />
-              </div>
+                Reports <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
-            <div className="flex items-center gap-1 mt-3 text-sm">
-              {quickStats.tasksChange >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-blue-600" />
+            <div className="p-4">
+              {userTaskSummary.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>No task data available</p>
+                </div>
               ) : (
-                <TrendingDown className="w-4 h-4 text-red-600" />
+                <div className="space-y-4">
+                  {userTaskSummary.map((user, index) => (
+                    <div key={index} className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600">
+                        {user.user?.name?.charAt(0) || "U"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-medium text-slate-900 truncate">{user.user?.name}</p>
+                          <span className="text-xs text-slate-500">
+                            {user.stats?.totalCompletions || 0}/{user.stats?.totalAssignments || 0}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
+                            style={{ width: `${user.stats?.onTimeRate || 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className={`text-sm font-bold ${
+                        (user.stats?.onTimeRate || 0) >= 80 ? "text-emerald-600" : 
+                        (user.stats?.onTimeRate || 0) >= 50 ? "text-amber-600" : "text-red-600"
+                      }`}>
+                        {user.stats?.onTimeRate || 0}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
-              <span
-                className={`font-semibold ${
-                  quickStats.tasksChange >= 0 ? "text-blue-600" : "text-red-600"
-                }`}
-              >
-                {Math.abs(quickStats.tasksChange)}%
-              </span>
-              <span className="text-slate-400 ml-1">vs yesterday</span>
-            </div>
-          </div>
-
-          {/* Revenue Today */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Revenue Today
-                </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  ₹{(quickStats.revenueToday / 1000).toFixed(1)}K
-                </p>
-              </div>
-              <div
-                className={`p-3 rounded-xl ${
-                  quickStats.revenueChange >= 0
-                    ? "bg-emerald-50 text-emerald-600"
-                    : "bg-red-50 text-red-600"
-                }`}
-              >
-                <DollarSign className="w-6 h-6" />
-              </div>
-            </div>
-            <div className="flex items-center gap-1 mt-3 text-sm">
-              {quickStats.revenueChange >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-red-600" />
-              )}
-              <span
-                className={`font-semibold ${
-                  quickStats.revenueChange >= 0
-                    ? "text-emerald-600"
-                    : "text-red-600"
-                }`}
-              >
-                {Math.abs(quickStats.revenueChange)}%
-              </span>
-              <span className="text-slate-400 ml-1">vs yesterday</span>
-            </div>
-          </div>
-
-          {/* Active Shipments */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Active Shipments
-                </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  {quickStats.pendingShipments}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-orange-50 text-orange-600">
-                <Ship className="w-6 h-6" />
-              </div>
-            </div>
-            <div className="mt-3 text-sm text-slate-500 flex items-center gap-2">
-              <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                {quickStats.completedShipments} Done
-              </span>
-              <span>this month</span>
             </div>
           </div>
         </div>
-      )}
 
-      {/* --- Section: My Workspace (My Tasks & Efficiency) --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* My Assigned Tasks - Standard SaaS Design */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+        {/* Right Sidebar */}
+        <div className="space-y-6">
+          {/* Container Status Pie Chart */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              Container Status
+            </h3>
+            {statusChartData.length > 0 ? (
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusChartData}
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {statusChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-48 flex items-center justify-center text-slate-400">
+                No data available
+              </div>
+            )}
+          </div>
+
+          {/* Today's Summary */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-emerald-600" />
+              Today&apos;s Tasks
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                <span className="text-sm text-emerald-700">Completed</span>
+                <span className="text-xl font-bold text-emerald-700">{taskStats.completed}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                <span className="text-sm text-amber-700">Pending</span>
+                <span className="text-xl font-bold text-amber-700">{taskStats.pending}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
+                <span className="text-sm text-slate-600">Total</span>
+                <span className="text-xl font-bold text-slate-700">{taskStats.total}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* My Tasks Status */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-                My Priority Tasks
+                <ListTodo className="w-5 h-5 text-indigo-600" />
+                My Tasks
               </h3>
               <button
                 onClick={() => router.push("/dashboard/my-tasks")}
-                className="text-xs font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
               >
-                View All Tasks
+                View <ArrowRight className="w-3 h-3" />
               </button>
             </div>
-
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {dashboardData.myAssignedTasks?.length > 0 ? (
-                dashboardData.myAssignedTasks.slice(0, 4).map((task) => (
-                  <div
-                    key={task.id}
-                    className="group bg-slate-50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
-                          task.priority === "HIGH"
-                            ? "bg-rose-100 text-rose-700"
-                            : "bg-slate-200 text-slate-600"
-                        }`}
-                      >
-                        {task.priority || "NORMAL"}
-                      </span>
-                      <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {task.dueDate}
-                      </span>
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-800 mb-1 group-hover:text-blue-700 transition-colors line-clamp-1">
-                      {task.title}
-                    </h4>
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 h-8">
-                      {task.description || "No description provided."}
-                    </p>
-                    <button className="w-full py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
-                      Mark Complete
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-2 py-10 text-center text-slate-400">
-                  <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                  <p>No pending tasks assigned to you.</p>
-                </div>
-              )}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-emerald-50 rounded-xl">
+                <div className="text-2xl font-bold text-emerald-600">{taskStats.completed}</div>
+                <div className="text-xs text-emerald-700 font-medium">Done</div>
+              </div>
+              <div className="text-center p-3 bg-amber-50 rounded-xl">
+                <div className="text-2xl font-bold text-amber-600">{taskStats.pending}</div>
+                <div className="text-xs text-amber-700 font-medium">Pending</div>
+              </div>
+              <div className="text-center p-3 bg-slate-100 rounded-xl">
+                <div className="text-2xl font-bold text-slate-700">{taskStats.total}</div>
+                <div className="text-xs text-slate-600 font-medium">Total</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Quick Launchpad & System Status - Useful Info */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-full">
-          <div className="mb-6">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Target className="w-4 h-4" /> Quick Actions
+          {/* Quick Actions - Dynamic based on role */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-600" />
+              Quick Actions
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() =>
-                  router.push("/dashboard/container-summary/create")
-                }
-                className="p-3 bg-blue-50 text-blue-700 rounded-xl font-semibold text-xs flex flex-col items-center gap-2 hover:bg-blue-100 hover:scale-105 transition-all border border-blue-100"
-              >
-                <Package className="w-6 h-6" />
-                New Container
-              </button>
-              <button
-                onClick={() => router.push("/dashboard/client-order-tracker")}
-                className="p-3 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs flex flex-col items-center gap-2 hover:bg-indigo-100 hover:scale-105 transition-all border border-indigo-100"
-              >
-                <Briefcase className="w-6 h-6" />
-                Client Orders
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6 border-t border-slate-100">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Activity className="w-4 h-4" /> System Health
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm group cursor-help">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  Database
-                </span>
-                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
-                  Connected
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  Backups
-                </span>
-                <span className="text-slate-700 font-medium text-xs">
-                  Auto-Daily Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                  Storage
-                </span>
-                <span className="text-slate-700 font-medium text-xs">
-                  45% Used
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* --- Section 1: High Priority Alerts (Arrivals) --- */}
-      {containerStats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Urgent Arrivals - Standard SaaS Design */}
-          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
-            {/* Background decorative icon */}
-            <div className="absolute -right-6 -top-6 text-slate-50 opacity-50">
-              <Ship className="w-40 h-40" />
-            </div>
-
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                  <Ship className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-lg">
-                    Urgent Logistics
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Containers requiring immediate attention
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 mt-6">
-                <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                  <p className="text-xs font-semibold text-indigo-500 uppercase">
-                    Arriving &lt; 48h
-                  </p>
-                  <p className="text-2xl font-bold text-indigo-700 mt-1">
-                    {containerStats.arrivingSoon}
-                  </p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">
-                    This Week
-                  </p>
-                  <p className="text-2xl font-bold text-slate-700 mt-1">
-                    {containerStats.arrivingThisWeek}
-                  </p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">
-                    In Transit
-                  </p>
-                  <p className="text-2xl font-bold text-slate-700 mt-1">
-                    {containerStats.activeContainers}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Financial Quick View */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-slate-500 text-sm font-semibold uppercase tracking-wider">
-                  Estimated Payables
-                </h3>
-                <div className="text-2xl font-bold text-slate-900 mt-1">
-                  ₹{(containerStats.totalValue / 100000).toFixed(2)} L
-                </div>
-              </div>
-              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
-                <DollarSign className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="flex-1 min-h-[100px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={financialData}>
-                  <defs>
-                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#10B981"
-                    fillOpacity={1}
-                    fill="url(#colorVal)"
-                    strokeWidth={2}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      `₹${value.toLocaleString()}`,
-                      "Value",
-                    ]}
-                    labelFormatter={(label) => `Week: ${label}`}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 text-xs text-slate-400 text-center">
-              7 Day Financial Trend
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- Section 2: Detailed Grids --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Task Force (Employee Status) */}
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-blue-500" />
-                Task Velocity
-              </h3>
-              {taskStats && (
-                <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-full text-slate-600">
-                  {taskStats.progress}% Done
-                </span>
-              )}
-            </div>
-
-            <div className="p-5">
-              {/* Donut Chart for Tasks */}
-              {taskStats && (
+              {/* Super Admin: Account & Container focused */}
+              {user?.isSuper ? (
                 <>
-                  <div className="h-[180px] w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={taskStats.chartData}
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="tasks"
-                        >
-                          {taskStats.chartData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={COLORS[index % COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value, name, props) => [
-                            `${value} tasks`,
-                            props.payload.name,
-                          ]}
-                          contentStyle={{
-                            borderRadius: "8px",
-                            border: "none",
-                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {/* Center Text */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-3xl font-bold text-slate-800">
-                        {taskStats.total}
-                      </span>
-                      <span className="text-xs text-slate-400 uppercase font-bold">
-                        Tasks
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Today's Priority Tasks List */}
-                  <div className="mt-6 space-y-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                      Priority Action Items
-                    </h4>
-                    {priorityTasks.length > 0 ? (
-                      priorityTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors cursor-pointer"
-                          onClick={() => router.push("/dashboard/tasks")}
-                        >
-                          <div className="mt-0.5">
-                            <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">
-                              {task.title}
-                            </p>
-                            <p className="text-xs text-slate-500 mt-0.5 flex justify-between">
-                              <span>{task.assignee}</span>
-                              <span className="text-red-500 font-medium">
-                                High Priority
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4 text-slate-400 text-sm">
-                        No high priority tasks pending.
-                      </div>
-                    )}
-                  </div>
-
+                  <button
+                    onClick={() => router.push("/dashboard/accounts")}
+                    className="p-3 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-slate-200 transition-colors"
+                  >
+                    <Wallet className="w-5 h-5" />
+                    Accounts Hub
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/container-summary")}
+                    className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-indigo-100 transition-colors"
+                  >
+                    <Package className="w-5 h-5" />
+                    Containers
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/loading-sheet")}
+                    className="p-3 bg-blue-50 text-blue-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-blue-100 transition-colors"
+                  >
+                    <Ship className="w-5 h-5" />
+                    Loading Sheets
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/users")}
+                    className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
+                  >
+                    <Users className="w-5 h-5" />
+                    Users Hub
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/clients")}
+                    className="p-3 bg-purple-50 text-purple-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-purple-100 transition-colors"
+                  >
+                    <Building className="w-5 h-5" />
+                    Clients
+                  </button>
                   <button
                     onClick={() => router.push("/dashboard/tasks")}
-                    className="w-full mt-4 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-amber-100 transition-colors"
                   >
-                    View Task Board <ArrowRight className="w-4 h-4" />
+                    <ClipboardList className="w-5 h-5" />
+                    Tasks Hub
+                  </button>
+                </>
+              ) : (
+                /* Regular Admin: Task & User focused */
+                <>
+                  <button
+                    onClick={() => router.push("/dashboard/container-summary/create")}
+                    className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-indigo-100 transition-colors"
+                  >
+                    <Package className="w-5 h-5" />
+                    New Container
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/tasks/assignments")}
+                    className="p-3 bg-purple-50 text-purple-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-purple-100 transition-colors"
+                  >
+                    <ClipboardList className="w-5 h-5" />
+                    Assign Task
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/users/management")}
+                    className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
+                  >
+                    <Users className="w-5 h-5" />
+                    Users
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/tasks/reports")}
+                    className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-amber-100 transition-colors"
+                  >
+                    <BarChart3 className="w-5 h-5" />
+                    Reports
                   </button>
                 </>
               )}
             </div>
           </div>
 
-          {/* User Performance Widget */}
-          {userPerformance.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <User className="w-4 h-4 text-purple-500" />
-                Top Performers
-              </h3>
-              <div className="space-y-4">
-                {userPerformance.map((user, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-700">
-                      {user.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">
-                        {user.name}
-                      </p>
-                      <p className="text-xs text-slate-500">{user.role}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-slate-800">
-                        {user.completionRate}%
-                      </div>
-                      <div className="text-xs text-slate-400">Completion</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Live Operations (Orders Table) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-500" />
-                Live Orders
-              </h3>
-              <button
-                onClick={() => router.push("/dashboard/orders")}
-                className="text-xs font-medium text-slate-500 hover:text-indigo-600"
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500">
-                  <tr>
-                    <th className="px-6 py-4">Order</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">ETA</th>
-                    <th className="px-6 py-4">Supplier</th>
-                    <th className="px-6 py-4 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentOrders.length > 0 ? (
-                    recentOrders.map((order, i) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-slate-50/50 transition-colors"
-                      >
-                        <td className="px-6 py-3 font-medium text-slate-900">
-                          {order.containerCode}
-                          <div className="text-[10px] text-slate-400 font-normal">
-                            {order.month}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3">
-                          <StatusBadge status={order.status} />
-                        </td>
-                        <td className="px-6 py-3">
-                          {order.eta ? (
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={
-                                  new Date(order.eta) <=
-                                  new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
-                                    ? "text-red-600 font-bold"
-                                    : ""
-                                }
-                              >
-                                {new Date(order.eta).toLocaleDateString()}
-                              </span>
-                              {new Date(order.eta) <=
-                                new Date(
-                                  Date.now() + 2 * 24 * 60 * 60 * 1000
-                                ) && (
-                                <AlertCircle className="w-3 h-3 text-red-500" />
-                              )}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="px-6 py-3">{order.shippingLine}</td>
-                        <td className="px-6 py-3 text-right font-medium text-slate-900">
-                          ₹{(order.totalDuty || 0).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan="5"
-                        className="px-6 py-8 text-center text-slate-400"
-                      >
-                        <Package className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p>No active orders found</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Container Status Summary */}
-          {containerStats && (
-            <div className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <h3 className="font-bold text-slate-800 mb-4">
-                Container Status Summary
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(containerStats.statusCounts).map(
-                  ([status, count]) => (
-                    <div
-                      key={status}
-                      className="text-center p-4 rounded-lg bg-slate-50 border border-slate-100"
-                    >
-                      <div className="text-2xl font-bold text-slate-900">
-                        {count}
-                      </div>
-                      <div className="text-sm text-slate-500 mt-1">
-                        {status}
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          )}
+          {/* Personal Notes */}
+          <PersonalTodos userId={user?.id} />
         </div>
       </div>
     </div>
   );
 }
 
-// --- Components ---
-function StatusBadge({ status }) {
-  const statusMap = {
-    PENDING: {
-      color: "bg-amber-100 text-amber-700 border-amber-200",
-      icon: Clock,
-      label: "Pending",
-    },
-    LOADED: {
-      color: "bg-blue-100 text-blue-700 border-blue-200",
-      icon: Ship,
-      label: "Loaded",
-    },
-    IN_TRANSIT: {
-      color: "bg-indigo-100 text-indigo-700 border-indigo-200",
-      icon: Ship,
-      label: "In Transit",
-    },
-    ARRIVED: {
-      color: "bg-purple-100 text-purple-700 border-purple-200",
-      icon: Package,
-      label: "Arrived",
-    },
-    DELIVERED: {
-      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      icon: CheckCircle,
-      label: "Delivered",
-    },
-    COMPLETED: {
-      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      icon: CheckCircle,
-      label: "Completed",
-    },
-    FAILED: {
-      color: "bg-red-100 text-red-700 border-red-200",
-      icon: AlertTriangle,
-      label: "Failed",
-    },
+// ========================
+// EMPLOYEE DASHBOARD COMPONENT
+// ========================
+function EmployeeDashboard({ user, dashboardData }) {
+  const router = useRouter();
+  const [myTasks, setMyTasks] = useState([]);
+  const [performance, setPerformance] = useState(null);
+  const [containerInfo, setContainerInfo] = useState({ arriving: 0, total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadMyTasks();
+    loadPerformance();
+    loadContainerInfo();
+  }, []);
+
+  const loadMyTasks = async () => {
+    try {
+      const res = await API.get("/tasks/my-assignments");
+      if (res.data.success) {
+        setMyTasks(res.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const config = statusMap[status] || {
-    color: "bg-slate-100 text-slate-600 border-slate-200",
-    icon: Package,
-    label: status,
+  const loadPerformance = async () => {
+    try {
+      const res = await API.get("/tasks/my-completions?limit=50");
+      if (res.data.success) {
+        const completions = res.data.data || [];
+        const onTime = completions.filter((c) => c.status === "COMPLETED").length;
+        const total = completions.length;
+        
+        // Weekly data
+        const weeklyData = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+          const dayCompletions = completions.filter((c) => {
+            const cDate = new Date(c.completedAt);
+            return cDate.toDateString() === date.toDateString();
+          }).length;
+          weeklyData.push({ name: dayName, completed: dayCompletions });
+        }
+
+        setPerformance({
+          total,
+          onTime,
+          rate: total > 0 ? Math.round((onTime / total) * 100) : 0,
+          weeklyData,
+        });
+      }
+    } catch (error) {
+      console.error("Error loading performance:", error);
+    }
   };
-  const Icon = config.icon;
+
+  const loadContainerInfo = async () => {
+    try {
+      const res = await API.get("/container-summaries/statistics");
+      if (res.data.success) {
+        const stats = res.data.data;
+        setContainerInfo({
+          total: stats.totalContainers || 0,
+          arriving: stats.activeCount || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error loading container info:", error);
+    }
+  };
+
+  const todayTasks = myTasks.filter((t) => t.scheduleType === "DAILY");
+  const pendingTasks = myTasks.filter((t) => !t.completions?.some((c) => isCompletedToday(c)));
+  const completedToday = myTasks.length - pendingTasks.length;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${config.color}`}
-    >
-      <Icon className="w-3 h-3" />
-      {config.label}
-    </span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50/30 p-6 space-y-6 pb-20">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-emerald-500 p-1.5 rounded-lg">
+                <User className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold tracking-wider opacity-80">EMPLOYEE</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-1">
+              {getGreeting()}, {user?.name || "Team Member"}!
+            </h1>
+            <p className="text-white/70">
+              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4">
+              <p className="text-xs text-white/70">Your Performance</p>
+              <p className="text-3xl font-bold">{performance?.rate || 0}%</p>
+              <p className="text-xs text-white/70">On-time rate</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{completedToday}</div>
+          <p className="text-sm text-slate-500">Completed Today</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-2 rounded-lg bg-amber-50">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{pendingTasks.length}</div>
+          <p className="text-sm text-slate-500">Pending Tasks</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-2 rounded-lg bg-indigo-50">
+              <Ship className="w-5 h-5 text-indigo-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{containerInfo.arriving}</div>
+          <p className="text-sm text-slate-500">Active Containers</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-2 rounded-lg bg-purple-50">
+              <Award className="w-5 h-5 text-purple-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{performance?.total || 0}</div>
+          <p className="text-sm text-slate-500">Tasks This Week</p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Today's Tasks */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <ListTodo className="w-5 h-5 text-emerald-600" />
+              Today&apos;s Tasks
+            </h3>
+            <button
+              onClick={() => router.push("/dashboard/tasks")}
+              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+            >
+              View All <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+              </div>
+            ) : todayTasks.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No daily tasks assigned</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {todayTasks.slice(0, 5).map((task, index) => {
+                  const isCompleted = task.completions?.some((c) => isCompletedToday(c));
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
+                        isCompleted
+                          ? "bg-emerald-50 border-emerald-200"
+                          : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"
+                      }`}>
+                        {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium ${isCompleted ? "text-emerald-700 line-through" : "text-slate-900"}`}>
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-slate-500">{task.category || "General"}</p>
+                      </div>
+                      {!isCompleted && (
+                        <button
+                          onClick={() => router.push("/dashboard/tasks")}
+                          className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                          Complete
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Performance & Quick Links */}
+        <div className="space-y-6">
+          {/* Performance Chart */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              Weekly Activity
+            </h3>
+            {performance?.weeklyData ? (
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={performance.weeklyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-40 flex items-center justify-center text-slate-400">
+                No data yet
+              </div>
+            )}
+          </div>
+
+          {/* Quick Links */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-600" />
+              Quick Access
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => router.push("/dashboard/tasks")}
+                className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
+              >
+                <ListTodo className="w-5 h-5" />
+                My Tasks
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/tasks")}
+                className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-indigo-100 transition-colors"
+              >
+                <Clock className="w-5 h-5" />
+                Task Hub
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/containers")}
+                className="p-3 bg-purple-50 text-purple-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-purple-100 transition-colors"
+              >
+                <Ship className="w-5 h-5" />
+                Containers
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/profile")}
+                className="p-3 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-slate-200 transition-colors"
+              >
+                <User className="w-5 h-5" />
+                Profile
+              </button>
+            </div>
+          </div>
+
+          {/* Personal Notes */}
+          <PersonalTodos userId={user?.id} />
+        </div>
+      </div>
+    </div>
   );
+}
+
+// ========================
+// NEW JOINER DASHBOARD COMPONENT
+// ========================
+function NewJoinerDashboard({ user }) {
+  const router = useRouter();
+  const [myTasks, setMyTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newTodo, setNewTodo] = useState("");
+  const [showTodoInput, setShowTodoInput] = useState(false);
+  const [personalTodos, setPersonalTodos] = useState([]);
+
+  useEffect(() => {
+    loadMyTasks();
+    loadPersonalTodos();
+  }, []);
+
+  const loadMyTasks = async () => {
+    try {
+      const res = await API.get("/tasks/my-assignments");
+      if (res.data.success) {
+        setMyTasks(res.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPersonalTodos = () => {
+    const saved = localStorage.getItem(`personal_todos_${user?.id}`);
+    if (saved) {
+      setPersonalTodos(JSON.parse(saved));
+    }
+  };
+
+  const savePersonalTodos = (todos) => {
+    localStorage.setItem(`personal_todos_${user?.id}`, JSON.stringify(todos));
+    setPersonalTodos(todos);
+  };
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    const todo = {
+      id: Date.now(),
+      text: newTodo,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      pinned: false,
+    };
+    savePersonalTodos([todo, ...personalTodos]);
+    setNewTodo("");
+    setShowTodoInput(false);
+  };
+
+  const toggleTodo = (id) => {
+    const updated = personalTodos.map((t) =>
+      t.id === id ? { ...t, completed: !t.completed } : t
+    );
+    savePersonalTodos(updated);
+  };
+
+  const togglePin = (id) => {
+    const updated = personalTodos.map((t) =>
+      t.id === id ? { ...t, pinned: !t.pinned } : t
+    );
+    // Sort: pinned first
+    updated.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    savePersonalTodos(updated);
+  };
+
+  const deleteTodo = (id) => {
+    savePersonalTodos(personalTodos.filter((t) => t.id !== id));
+  };
+
+  const dailyTasks = myTasks.filter((t) => t.scheduleType === "DAILY");
+  const completedCount = dailyTasks.filter((t) => 
+    t.completions?.some((c) => isCompletedToday(c))
+  ).length;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 p-6 space-y-6 pb-20">
+      {/* Welcome Header */}
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <Sparkles className="absolute top-4 right-4 w-8 h-8 text-amber-400 opacity-50" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="bg-slate-600 p-1.5 rounded-lg">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-bold tracking-wider opacity-80">WELCOME ABOARD</span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">
+            {getGreeting()}, {user?.name || "New Team Member"}! 👋
+          </h1>
+          <p className="text-white/70 max-w-md">
+            We&apos;re excited to have you on the team. Here&apos;s your personal dashboard to help you get started.
+          </p>
+        </div>
+      </div>
+
+      {/* Getting Started Guide */}
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-100 rounded-xl">
+            <Sparkles className="w-6 h-6 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-amber-900 mb-1">Getting Started</h3>
+            <p className="text-sm text-amber-700">
+              Complete your daily tasks to build your track record. Your tasks are simple and designed to help you learn the system.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* My Tasks - Left Side */}
+        <div className="lg:col-span-2 order-2 lg:order-1 bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <ListTodo className="w-5 h-5 text-indigo-600" />
+                My Tasks
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {completedCount}/{dailyTasks.length} completed today
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/dashboard/tasks")}
+              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+            >
+              View All <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+              </div>
+            ) : dailyTasks.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">No tasks assigned yet</p>
+                <p className="text-sm mt-1">Your tasks will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dailyTasks.map((task, index) => {
+                  const isCompleted = task.completions?.some((c) => isCompletedToday(c));
+                  return (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        isCompleted
+                          ? "bg-emerald-50 border-emerald-200"
+                          : "bg-white border-slate-200 hover:border-indigo-300"
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-indigo-100 text-indigo-600"
+                        }`}>
+                          {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Target className="w-5 h-5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-semibold ${isCompleted ? "text-emerald-700" : "text-slate-900"}`}>
+                            {task.title}
+                          </h4>
+                          {task.description && (
+                            <p className="text-sm text-slate-500 mt-1">{task.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              task.scheduleType === "DAILY"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {task.scheduleType}
+                            </span>
+                            {task.category && (
+                              <span className="text-xs text-slate-400">{task.category}</span>
+                            )}
+                          </div>
+                        </div>
+                        {!isCompleted && (
+                          <button
+                            onClick={() => router.push("/dashboard/tasks")}
+                            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                          >
+                            Complete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar - Notes & Quick Links */}
+        <div className="space-y-6 order-1 lg:order-2">
+          {/* Personal Todo/Notes (Pinnable) */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Bookmark className="w-5 h-5 text-amber-600" />
+                My Notes
+              </h3>
+              <button
+                onClick={() => setShowTodoInput(true)}
+                className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              {showTodoInput && (
+                <div className="mb-4 flex gap-2">
+                  <input
+                    type="text"
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && addTodo()}
+                    placeholder="Add a note..."
+                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={addTodo}
+                    className="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+              {personalTodos.length === 0 ? (
+                <div className="text-center py-6 text-slate-400">
+                  <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Add personal notes here</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {personalTodos.map((todo) => (
+                    <div
+                      key={todo.id}
+                      className={`group flex items-start gap-2 p-2 rounded-lg ${
+                        todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <button
+                        onClick={() => toggleTodo(todo.id)}
+                        className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 ${
+                          todo.completed
+                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {todo.completed && <CheckCircle className="w-3 h-3" />}
+                      </button>
+                      <p className={`flex-1 text-sm ${todo.completed ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                        {todo.text}
+                      </p>
+                      <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                        <button
+                          onClick={() => togglePin(todo.id)}
+                          className={`p-1 rounded ${todo.pinned ? "text-amber-600" : "text-slate-400 hover:text-amber-600"}`}
+                        >
+                          <Pin className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => deleteTodo(todo.id)}
+                          className="p-1 text-slate-400 hover:text-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <ExternalLink className="w-5 h-5 text-indigo-600" />
+              Quick Links
+            </h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => router.push("/dashboard/tasks")}
+                className="w-full p-3 flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors"
+              >
+                <ListTodo className="w-5 h-5" />
+                <span className="font-medium text-sm">My Tasks</span>
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/tasks")}
+                className="w-full p-3 flex items-center gap-3 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <Clock className="w-5 h-5" />
+                <span className="font-medium text-sm">Task Hub</span>
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/profile")}
+                className="w-full p-3 flex items-center gap-3 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <User className="w-5 h-5" />
+                <span className="font-medium text-sm">My Profile</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Help Card */}
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white">
+            <h3 className="font-bold mb-2">Need Help?</h3>
+            <p className="text-sm text-white/80 mb-4">
+              If you have any questions, reach out to your supervisor or check the help center.
+            </p>
+            <button
+              onClick={() => router.push("/dashboard/profile")}
+              className="w-full py-2 bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
+            >
+              Contact Support
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========================
+// MAIN DASHBOARD COMPONENT
+// ========================
+export default function Dashboard() {
+  const [user, setUser] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserAndData();
+  }, []);
+
+  const loadUserAndData = async () => {
+    try {
+      // Load user info
+      const userRes = await API.get("/auth/me");
+      if (userRes.data.success) {
+        setUser(userRes.data.data);
+      }
+
+      // Load basic dashboard data
+      const [overviewRes] = await Promise.allSettled([
+        API.get("/dashboard/overview"),
+      ]);
+
+      setDashboardData({
+        overview: overviewRes.status === "fulfilled" ? overviewRes.value.data?.data : null,
+      });
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-500">Loading your dashboard...</p>
+      </div>
+    );
+  }
+
+  // Determine which dashboard to show based on role
+  const role = user?.role;
+  const isSuper = user?.isSuper;
+
+  if (role === "ADMIN" || isSuper) {
+    return <AdminDashboard user={user} dashboardData={dashboardData} />;
+  }
+
+  if (role === "NEW_JOINNER") {
+    return <NewJoinerDashboard user={user} />;
+  }
+
+  // Default: Employee Dashboard
+  return <EmployeeDashboard user={user} dashboardData={dashboardData} />;
+}
+
+// ========================
+// HELPER FUNCTIONS
+// ========================
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 18) return "Good Afternoon";
+  return "Good Evening";
+}
+
+function isCompletedToday(completion) {
+  if (!completion?.completedAt) return false;
+  const completedDate = new Date(completion.completedAt);
+  const today = new Date();
+  return completedDate.toDateString() === today.toDateString();
 }

@@ -54,8 +54,8 @@ export default function LayoutShell({ children }) {
 
         const userData = userRes.data.data;
 
-        // Admin has full access
-        if (userData.role === "ADMIN") {
+        // Only Super Admin has full access to all pages
+        if (userData.isSuper) {
           setAllowed(true);
           setChecking(false);
           return;
@@ -83,7 +83,8 @@ export default function LayoutShell({ children }) {
         const { allowed: pathAllowed, module } = canAccessPath(
           pathname,
           userPermissions,
-          userData.role
+          userData.role,
+          userData.isSuper
         );
 
         if (!pathAllowed) {
