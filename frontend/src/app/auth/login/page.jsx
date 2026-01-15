@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import authService from "@/services/auth.service";
@@ -19,7 +19,8 @@ import {
   Users,
 } from "lucide-react";
 
-export default function LoginPage() {
+// Separate component that uses useSearchParams
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -133,8 +134,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      {/* Main Login Card */}
+    <>
       <div className="w-full max-w-[400px]">
         {/* Logo & Brand */}
         <div className="text-center mb-6">
@@ -313,6 +313,39 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// Loading fallback component
+function LoginLoading() {
+  return (
+    <div className="w-full max-w-[400px]">
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-200 rounded-xl mb-4 animate-pulse" />
+        <div className="h-6 bg-slate-200 rounded w-40 mx-auto mb-2 animate-pulse" />
+        <div className="h-4 bg-slate-100 rounded w-48 mx-auto animate-pulse" />
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="h-6 bg-slate-200 rounded w-24 mb-2 animate-pulse" />
+        <div className="h-4 bg-slate-100 rounded w-48 mb-5 animate-pulse" />
+        <div className="space-y-4">
+          <div className="h-10 bg-slate-100 rounded-lg animate-pulse" />
+          <div className="h-10 bg-slate-100 rounded-lg animate-pulse" />
+          <div className="h-10 bg-slate-200 rounded-lg animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function LoginPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+      <Suspense fallback={<LoginLoading />}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }
