@@ -13,7 +13,42 @@ export default function ProfilePage() {
     name: "",
     username: "",
     role: "",
+    isSuper: false,
   });
+
+  // Get avatar color based on role and isSuper
+  const getAvatarColor = (role, isSuper) => {
+    if (isSuper) {
+      return "bg-slate-900 text-white";
+    }
+    switch (role) {
+      case "ADMIN":
+        return "bg-red-100 text-red-700";
+      case "EMPLOYEE":
+        return "bg-emerald-100 text-emerald-700";
+      case "NEW_JOINNER":
+        return "bg-slate-100 text-slate-600";
+      default:
+        return "bg-slate-100 text-slate-600";
+    }
+  };
+
+  // Get role badge color
+  const getRoleBadgeColor = (role, isSuper) => {
+    if (isSuper) {
+      return "bg-slate-900 text-white";
+    }
+    switch (role) {
+      case "ADMIN":
+        return "bg-red-100 text-red-700";
+      case "EMPLOYEE":
+        return "bg-emerald-100 text-emerald-700";
+      case "NEW_JOINNER":
+        return "bg-slate-100 text-slate-600";
+      default:
+        return "bg-slate-100 text-slate-600";
+    }
+  };
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -106,17 +141,24 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Profile Card */}
         <div className="md:col-span-1 space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center __web-inspector-hide-shortcut__">
-            <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center text-3xl font-bold text-slate-400 mb-4">
-              {user.name?.[0]?.toUpperCase()}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center">
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold mb-4 ${getAvatarColor(user.role, user.isSuper)}`}>
+              {(user.name || "Bennet User")[0].toUpperCase()}
             </div>
-            <h2 className="text-lg font-bold text-slate-900">{user.name}</h2>
-            <div className="flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium uppercase tracking-wide">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900">{user.name || "Bennet User"}</h2>
+              {user.isSuper && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-900 text-white">
+                  SUPER
+                </span>
+              )}
+            </div>
+            <div className={`flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getRoleBadgeColor(user.role, user.isSuper)}`}>
               <Shield className="w-3 h-3" />
-              {user.role?.replace("_", " ")}
+              {user.isSuper ? "Super Admin" : user.role?.replace("_", " ")}
             </div>
             <p className="text-xs text-slate-400 mt-4 text-center">
-              Member since {new Date(user.createdAt).toLocaleDateString()}
+              Member since {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
             </p>
           </div>
         </div>

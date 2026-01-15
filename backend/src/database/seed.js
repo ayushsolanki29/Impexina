@@ -7,7 +7,27 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Starting DB Seed...");
 
-  // Create Admin User
+  // Create Super User (protected - cannot be deleted/deactivated/modified)
+  const superPassword = await bcrypt.hash("super@admin123", 10);
+
+  const superUser = await prisma.user.upsert({
+    where: { username: "superadmin" },
+    update: {
+      isSuper: true, // Ensure existing user gets isSuper flag
+    },
+    create: {
+      username: "superadmin",
+      password: superPassword,
+      name: "Super Admin",
+      role: "ADMIN",
+      isActive: true,
+      isSuper: true, // This user is protected
+    },
+  });
+
+  console.log("✅ Super Admin created:", superUser.username);
+
+  // Create Regular Admin User
   const adminPassword = await bcrypt.hash("admin123", 10);
 
   const admin = await prisma.user.upsert({
@@ -19,6 +39,7 @@ async function main() {
       name: "System Admin",
       role: "ADMIN",
       isActive: true,
+      isSuper: false,
     },
   });
 
@@ -57,8 +78,27 @@ async function main() {
 
   console.log("✅ Modules seeded");
 
-  // Assign all modules to admin
+  // Assign all modules to super admin
   const allModules = await prisma.module.findMany();
+  for (const mod of allModules) {
+    await prisma.userPermission.upsert({
+      where: {
+        userId_moduleId: {
+          userId: superUser.id,
+          moduleId: mod.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: superUser.id,
+        moduleId: mod.id,
+      },
+    });
+  }
+
+  console.log("✅ Super Admin permissions assigned");
+
+  // Assign all modules to regular admin
   for (const mod of allModules) {
     await prisma.userPermission.upsert({
       where: {

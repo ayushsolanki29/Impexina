@@ -29,6 +29,7 @@ const authController = {
         name: req.user.name,
         username: req.user.username,
         role: req.user.role,
+        isSuper: req.user.isSuper || false,
         permissions: req.user.permissions.map(
           (p) => p.module.key
         ),

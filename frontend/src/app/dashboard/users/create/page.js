@@ -165,13 +165,13 @@ export default function CreateUser() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.back()}
+            onClick={() => router.push("/dashboard/users")}
             className="hover:bg-gray-100"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -365,7 +365,7 @@ export default function CreateUser() {
             </div>
 
             {/* Right Column - Permissions */}
-            <div className="space-y-4 w-[400px]">
+            <div className="space-y-4">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">

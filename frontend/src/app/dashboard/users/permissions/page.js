@@ -22,6 +22,8 @@ import {
   Key,
   UserCheck,
   UserX,
+  CheckCircle,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -72,6 +74,7 @@ export default function PermissionsManagement() {
   const [bulkSelection, setBulkSelection] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogLoading, setDialogLoading] = useState(false);
+  const [originalPermissions, setOriginalPermissions] = useState([]);
 
   // Load data
   useEffect(() => {
@@ -85,10 +88,13 @@ export default function PermissionsManagement() {
       const response = await API.get("/users");
       if (response.data.success) {
         setUsers(response.data.data.users);
+      } else {
+        toast.error(response.data.message || "Failed to load users");
       }
     } catch (error) {
       console.error("Error loading users:", error);
-      toast.error("Failed to load users");
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load users";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,36 +105,72 @@ export default function PermissionsManagement() {
       const response = await API.get("/users/roles/modules");
       if (response.data.success) {
         setModules(response.data.data);
+      } else {
+        toast.error(response.data.message || "Failed to load modules");
       }
     } catch (error) {
       console.error("Error loading modules:", error);
-      toast.error("Failed to load modules");
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load modules";
+      toast.error(errorMessage);
     }
   };
 
   const loadUserPermissions = async (userId) => {
+    if (!userId) {
+      console.error("loadUserPermissions: userId is required");
+      toast.error("User ID is required to load permissions");
+      return;
+    }
+    
     try {
       const response = await API.get(
         `/users/roles/permissions?userId=${userId}`
       );
-      if (response.data.data.success) {
-        setUserPermissions(response.data.data);
+      
+      // API.get returns axios response, so response.data is the actual response body
+      // Backend returns: { success: true, data: [...] }
+      const responseData = response.data;
+      
+      // Handle different response structures
+      if (responseData && (responseData.success === true || responseData.success === undefined)) {
+        // permissions are in responseData.data (array of module keys)
+        // If data is directly the array, use it; otherwise use responseData.data
+        let permissions = [];
+        if (Array.isArray(responseData.data)) {
+          permissions = responseData.data;
+        } else if (Array.isArray(responseData)) {
+          permissions = responseData;
+        }
+        setUserPermissions(permissions);
+      } else {
+        // Response indicates failure
+        const errorMsg = responseData?.message || "Failed to load permissions";
+        console.error("Failed to load permissions:", responseData);
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Error loading permissions:", error);
-      toast.error("Failed to load permissions");
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load permissions";
+      toast.error(errorMessage);
     }
   };
 
   // Toggle user expansion
-  const toggleUserExpansion = async (userId) => {
+  const toggleUserExpansion = async (userPublicId) => {
+    // Find user to get internal id
+    const user = users.find(u => u.publicId === userPublicId);
+    if (!user || !user.id) {
+      toast.error("User not found");
+      return;
+    }
+
     setExpandedUsers((prev) => ({
       ...prev,
-      [userId]: !prev[userId],
+      [userPublicId]: !prev[userPublicId],
     }));
 
-    if (!expandedUsers[userId]) {
-      await loadUserPermissions(userId);
+    if (!expandedUsers[userPublicId]) {
+      await loadUserPermissions(user.id);
     }
   };
 
@@ -145,21 +187,44 @@ export default function PermissionsManagement() {
 
   // Save permissions for a user
   const savePermissions = async (userId) => {
+    if (!userId) {
+      toast.error("User ID is required");
+      return;
+    }
     try {
       setDialogLoading(true);
       const response = await API.post("/users/roles/permissions", {
-        userId,
+        userId: parseInt(userId),
         permissions: userPermissions,
       });
 
-      if (response.success) {
-        toast.success("Permissions updated successfully");
+      if (response.data.success) {
+        toast.success(response.data.message || "Permissions updated successfully");
         setIsDialogOpen(false);
+        setSelectedUser(null);
+        setUserPermissions([]);
+        setOriginalPermissions([]);
         loadUsers(); // Refresh users list
+      } else {
+        toast.error(response.data.message || "Failed to save permissions");
       }
     } catch (error) {
       console.error("Error saving permissions:", error);
-      toast.error(error.message || "Failed to save permissions");
+      const errorMessage = error.response?.data?.message || error.message || "Failed to save permissions";
+      
+      // Check if it's a warning message
+      const warningMessages = [
+        "Cannot modify your own permissions",
+        "Permission denied",
+      ];
+      
+      if (warningMessages.some(msg => errorMessage.toLowerCase().includes(msg.toLowerCase()))) {
+        toast.warning(errorMessage, {
+          description: "You may not have permission to perform this action.",
+        });
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setDialogLoading(false);
     }
@@ -167,8 +232,14 @@ export default function PermissionsManagement() {
 
   // Open edit dialog for a user
   const openEditDialog = async (user) => {
+    if (!user || !user.id) {
+      toast.error("Invalid user data");
+      return;
+    }
     setSelectedUser(user);
     await loadUserPermissions(user.id);
+    // Store original permissions for comparison
+    setOriginalPermissions([...userPermissions]);
     setIsDialogOpen(true);
   };
 
@@ -198,6 +269,13 @@ export default function PermissionsManagement() {
       return;
     }
 
+    if (!userPermissions || userPermissions.length === 0) {
+      toast.warning("No permissions selected", {
+        description: "Please select permissions to apply to users. Edit a user first to select permissions.",
+      });
+      return;
+    }
+
     if (
       !confirm(`Apply these permissions to ${bulkSelection.length} user(s)?`)
     ) {
@@ -206,20 +284,46 @@ export default function PermissionsManagement() {
 
     try {
       setLoading(true);
-      const promises = bulkSelection.map((userId) =>
-        API.post("/users/roles/permissions", {
-          userId: parseInt(userId),
+      // Map publicIds to internal ids
+      const promises = bulkSelection.map((publicId) => {
+        const user = users.find(u => u.publicId === publicId);
+        if (!user || !user.id) {
+          throw new Error(`User with ID ${publicId} not found`);
+        }
+        return API.post("/users/roles/permissions", {
+          userId: parseInt(user.id),
           permissions: userPermissions, // Current selected permissions
-        })
-      );
+        });
+      });
 
-      await Promise.all(promises);
-      toast.success(`Permissions applied to ${bulkSelection.length} user(s)`);
-      setBulkSelection([]);
-      loadUsers();
+      const results = await Promise.allSettled(promises);
+      
+      // Check results
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.data?.success).length;
+      const failed = results.filter(r => r.status === 'rejected' || !r.value?.data?.success).length;
+
+      if (failed === 0) {
+        toast.success(`Permissions applied to ${successful} user(s) successfully`);
+        setBulkSelection([]);
+        loadUsers();
+      } else if (successful > 0) {
+        toast.warning(`Applied to ${successful} user(s), ${failed} failed`, {
+          description: "Some users could not be updated. Please try again.",
+        });
+        loadUsers();
+      } else {
+        // All failed - get error message from first failure
+        const firstFailure = results.find(r => r.status === 'rejected' || !r.value?.data?.success);
+        const errorMessage = firstFailure?.status === 'rejected' 
+          ? (firstFailure.reason?.response?.data?.message || firstFailure.reason?.message || "Failed to apply permissions")
+          : (firstFailure.value?.data?.message || "Failed to apply permissions");
+        
+        toast.error(errorMessage || "Failed to apply bulk permissions");
+      }
     } catch (error) {
       console.error("Error applying bulk permissions:", error);
-      toast.error("Failed to apply bulk permissions");
+      const errorMessage = error.response?.data?.message || error.message || "Failed to apply bulk permissions";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -295,23 +399,23 @@ export default function PermissionsManagement() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                Permissions Management
-              </h1>
-              <p className="text-gray-600 mt-1 text-sm md:text-base">
-                Manage user access to system modules and features
-              </p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push("/dashboard/users")}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </button>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  Permissions Management
+                </h1>
+                <p className="text-gray-600 mt-1 text-sm md:text-base">
+                  Manage user access to system modules and features
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => router.push("/dashboard/users")}
-                className="flex items-center gap-2 text-sm"
-              >
-                <Users className="w-4 h-4" />
-                User Management
-              </Button>
               {bulkSelection.length > 0 && (
                 <Button
                   onClick={applyBulkPermissions}
@@ -326,7 +430,7 @@ export default function PermissionsManagement() {
           </div>
 
           {/* Stats Cards - Responsive */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
             <Card className="border shadow-sm">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
@@ -360,19 +464,7 @@ export default function PermissionsManagement() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border shadow-sm">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs md:text-sm text-gray-500">With Permissions</p>
-                    <p className="text-xl md:text-2xl font-bold">
-                      {stats.usersWithPermissions}
-                    </p>
-                  </div>
-                  <Key className="w-6 h-6 md:w-8 md:h-8 text-amber-500" />
-                </div>
-              </CardContent>
-            </Card>
+     
             <Card className="col-span-2 md:col-span-1 border shadow-sm">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
@@ -752,174 +844,193 @@ export default function PermissionsManagement() {
         </div>
       </div>
 
-      {/* Edit Permissions Dialog - Improved for better visibility */}
+      {/* Edit Permissions Dialog - Compact UI for all screens */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b">
-            <DialogTitle className="text-lg md:text-xl">Edit Permissions</DialogTitle>
-            <DialogDescription className="text-sm md:text-base">
-              Manage permissions for {selectedUser?.name} (@
-              {selectedUser?.username})
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent showCloseButton={false} className="max-w-[95vw] md:max-w-4xl max-h-[85vh] flex flex-col p-0 bg-white rounded-xl shadow-2xl border-none overflow-hidden">
+          {/* Compact Header */}
+          <div className="bg-blue-600 px-4 py-3 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold text-white">
+                    Edit Permissions
+                  </DialogTitle>
+                  <DialogDescription className="text-blue-100 text-xs">
+                    {selectedUser?.name}
+                  </DialogDescription>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDialogOpen(false)}
+                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </div>
 
-          <div className="flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto px-4 md:px-6 py-4 flex-1 min-h-0">
-            {/* User Info */}
-            <Card className="border shadow-sm lg:w-80 flex-shrink-0">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <UserCheck className="w-6 h-6 md:w-8 md:h-8 text-gray-600" />
+          <div className="flex flex-col lg:flex-row gap-4 overflow-y-auto px-4 py-4 flex-1 min-h-0">
+            {/* Left Panel - Compact User Info & Stats */}
+            <div className="lg:w-56 flex-shrink-0 space-y-3">
+              {/* Compact User Card */}
+              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+                    <span className="text-lg font-bold text-white">
+                      {selectedUser?.name?.charAt(0).toUpperCase() || "U"}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg md:text-xl font-bold truncate">{selectedUser?.name}</h3>
-                    <div className="flex flex-wrap gap-1 md:gap-2 mt-1">
-                      <Badge className={`text-xs ${getRoleColor(selectedUser?.role)}`}>
-                        {formatRole(selectedUser?.role)}
-                      </Badge>
-                      <Badge
-                        variant={selectedUser?.isActive ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {selectedUser?.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-                    <p className="text-gray-500 text-sm truncate">
-                      @{selectedUser?.username}
-                    </p>
+                    <h3 className="text-sm font-bold text-slate-900 truncate">
+                      {selectedUser?.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 truncate">@{selectedUser?.username}</p>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-1 gap-3">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Current Permissions</p>
-                    <p className="font-bold text-lg">{userPermissions.length}</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Available Modules</p>
-                    <p className="font-bold text-lg">{modules.length}</p>
-                  </div>
-                  <div className="col-span-2 md:col-span-1 bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Access Level</p>
-                    <p className="font-bold text-lg truncate">
-                      {userPermissions.length === modules.length
-                        ? "Full Access"
-                        : userPermissions.length === 0
-                        ? "No Access"
-                        : "Limited Access"}
-                    </p>
-                  </div>
+                <div className="flex gap-1.5 mt-2">
+                  <Badge className={`text-xs px-1.5 py-0.5 ${getRoleColor(selectedUser?.role)}`}>
+                    {formatRole(selectedUser?.role)}
+                  </Badge>
+                  <Badge className={`text-xs px-1.5 py-0.5 ${selectedUser?.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {selectedUser?.isActive ? "Active" : "Inactive"}
+                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Permissions Selection */}
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <h3 className="font-bold text-base md:text-lg">Select Permissions</h3>
-                <div className="flex gap-2">
+              {/* Stats - 4 Cards Only */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white border border-slate-200 rounded-lg p-2 text-center">
+                  <p className="text-xs text-slate-500">Selected</p>
+                  <p className="text-xl font-bold text-blue-600">{userPermissions.length}</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-lg p-2 text-center">
+                  <p className="text-xs text-slate-500">Available</p>
+                  <p className="text-xl font-bold text-slate-900">{modules.length}</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-lg p-2 text-center">
+                  <p className="text-xs text-slate-500">Original</p>
+                  <p className="text-xl font-bold text-slate-400">{originalPermissions.length}</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-lg p-2 text-center">
+                  <p className="text-xs text-slate-500">Access</p>
+                  <p className={`text-sm font-bold ${
+                    userPermissions.length === modules.length ? "text-green-600" :
+                    userPermissions.length === 0 ? "text-red-600" : "text-amber-600"
+                  }`}>
+                    {userPermissions.length === modules.length ? "Full" :
+                     userPermissions.length === 0 ? "None" : "Limited"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel - Permissions Selection */}
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
+              {/* Compact Actions Bar */}
+              <div className="flex justify-between items-center gap-2 bg-slate-50 rounded-lg p-3 border border-slate-200 flex-shrink-0 mb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Select Permissions</h3>
+                  <p className="text-xs text-slate-500">Click to toggle access</p>
+                </div>
+                <div className="flex gap-1.5">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      setUserPermissions(modules.map((m) => m.key))
-                    }
-                    className="h-8 text-xs md:text-sm"
+                    onClick={() => setUserPermissions(modules.map((m) => m.key))}
+                    className="h-7 text-xs px-2"
                   >
-                    Select All
+                    <Check className="w-3 h-3 mr-1" />
+                    All
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setUserPermissions([])}
-                    className="h-8 text-xs md:text-sm"
+                    className="h-7 text-xs px-2"
                   >
-                    Clear All
+                    <X className="w-3 h-3 mr-1" />
+                    Clear
                   </Button>
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 h-[250px] md:h-[300px] lg:h-[400px] pr-2 md:pr-4">
-                <div className="space-y-2">
-                  {modules.map((module) => (
-                    <div
-                      key={module.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        userPermissions.includes(module.key)
-                          ? "bg-blue-50 border-blue-200"
-                          : "hover:bg-gray-50"
-                      }`}
-                      onClick={() => togglePermission(module.key)}
-                    >
-                      <div className="flex items-center gap-3">
-                        {userPermissions.includes(module.key) ? (
-                          <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <div className="w-4 h-4 rounded border flex-shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm md:text-base truncate">
-                            {module.name}
-                          </p>
-                          <p className="text-gray-500 text-xs truncate">
-                            {module.key}
-                          </p>
+              {/* Modules Grid - Scrollable */}
+              <div className="bg-white border border-slate-200 rounded-lg flex-1 min-h-0 overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="grid grid-cols-2 gap-2 p-3">
+                    {modules.map((module) => {
+                      const isSelected = userPermissions.includes(module.key);
+                      return (
+                        <div
+                          key={module.id}
+                          className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-blue-50 border-blue-400"
+                              : "bg-white border-slate-200 hover:border-blue-300"
+                          }`}
+                          onClick={() => togglePermission(module.key)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                                isSelected
+                                  ? "bg-blue-600 border-blue-600"
+                                  : "border-slate-300"
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900 text-xs truncate">
+                                {module.name}
+                              </p>
+                              <p className="text-xs text-slate-400 font-mono truncate">
+                                {module.key}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-
-              <div className="bg-blue-50 p-3 md:p-4 rounded-lg border border-blue-100">
-                <h4 className="font-medium text-blue-800 text-sm md:text-base mb-2">
-                  Selected Permissions ({userPermissions.length})
-                </h4>
-                {userPermissions.length > 0 ? (
-                  <div className="flex flex-wrap gap-1 md:gap-2 max-h-[100px] overflow-y-auto">
-                    {userPermissions.map((perm) => (
-                      <Badge
-                        key={perm}
-                        className="bg-blue-100 text-blue-800 border-blue-200 text-xs px-2 py-1"
-                      >
-                        {perm.length > 15 ? `${perm.substring(0, 15)}...` : perm}
-                      </Badge>
-                    ))}
+                      );
+                    })}
                   </div>
-                ) : (
-                  <p className="text-blue-600 text-sm">No permissions selected</p>
-                )}
+                </ScrollArea>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="px-4 md:px-6 py-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsDialogOpen(false)}
-              disabled={dialogLoading}
-              className="h-9 text-sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => savePermissions(selectedUser?.id)}
-              disabled={dialogLoading}
-              className="h-9 text-sm"
-            >
-              {dialogLoading ? (
-                <>
-                  <RefreshCw className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-3 h-3 md:w-4 md:h-4 mr-2" />
-                  Save Permissions
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+          {/* Compact Footer */}
+          <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex-shrink-0">
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsDialogOpen(false)}
+                disabled={dialogLoading}
+                className="h-8 px-4 text-sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => savePermissions(selectedUser?.id)}
+                disabled={dialogLoading}
+                className="h-8 px-4 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {dialogLoading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5 mr-1.5" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

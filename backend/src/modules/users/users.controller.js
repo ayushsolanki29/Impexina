@@ -52,6 +52,7 @@ const userController = {
             username: true,
             role: true,
             isActive: true,
+            isSuper: true,
             createdAt: true,
             updatedAt: true,
             permissions: {
@@ -113,6 +114,7 @@ const userController = {
           username: true,
           role: true,
           isActive: true,
+          isSuper: true,
           createdAt: true,
           updatedAt: true,
           permissions: {
@@ -252,6 +254,14 @@ const userController = {
         });
       }
 
+      // Protect super user from modifications
+      if (existingUser.isSuper) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin cannot be modified'
+        });
+      }
+
       // Update user
       const updatedUser = await prisma.user.update({
         where: { publicId: id },
@@ -334,6 +344,14 @@ const userController = {
         });
       }
 
+      // Protect super user from deletion
+      if (user.isSuper) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin cannot be deleted'
+        });
+      }
+
       await prisma.user.delete({
         where: { publicId: id }
       });
@@ -376,6 +394,14 @@ const userController = {
         });
       }
 
+      // Protect super user from status changes
+      if (user.isSuper) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin status cannot be changed'
+        });
+      }
+
       await prisma.user.update({
         where: { publicId: id },
         data: { isActive }
@@ -408,6 +434,14 @@ const userController = {
         return res.status(404).json({
           success: false,
           message: 'User not found'
+        });
+      }
+
+      // Protect super user password (only super user can change their own password)
+      if (user.isSuper && req.user.publicId !== id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin password can only be changed by Super Admin'
         });
       }
 
@@ -480,6 +514,26 @@ const userController = {
   updatePermissions: async (req, res) => {
     try {
       const { userId, permissions } = req.body;
+
+      // Check if user is super admin
+      const user = await prisma.user.findUnique({
+        where: { id: parseInt(userId) }
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      // Protect super user permissions
+      if (user.isSuper) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin permissions cannot be modified'
+        });
+      }
 
       // Delete existing permissions
       await prisma.userPermission.deleteMany({

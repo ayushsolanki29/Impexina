@@ -13,6 +13,7 @@ class ProfileService {
         name: true,
         username: true,
         role: true,
+        isSuper: true,
         permissions: true,
         createdAt: true,
         isActive: true,

@@ -32,6 +32,7 @@ model User {
   name     String
   role     Role    @default(NEW_JOINNER)
   isActive Boolean @default(true)
+  isSuper  Boolean @default(false) // Super user cannot be deleted/deactivated/modified
 
   permissions UserPermission[]
 

@@ -128,7 +128,7 @@ const ALL_MENU_ITEMS = [
   },
   {
     key: "users",
-    label: "User Management",
+    label: "User Administration",
     icon: UserCog,
     path: "/dashboard/users",
     moduleKey: "USER_MANAGEMENT",
@@ -163,43 +163,43 @@ const ALL_MENU_ITEMS = [
   },
 ];
 
-function roleColor(role) {
+function roleColor(role, isSuper = false) {
+  // Super Admin - Black/Dark theme
+  if (isSuper) {
+    return {
+      bg: "bg-slate-900",
+      text: "text-white",
+      border: "border-slate-700",
+    };
+  }
+
   switch (role) {
     case "ADMIN":
+      // Admin - Red
       return {
-        bg: "bg-red-50",
+        bg: "bg-red-100",
         text: "text-red-700",
-        border: "border-red-200",
+        border: "border-red-300",
       };
     case "EMPLOYEE":
+      // Employee - Green/Teal
       return {
-        bg: "bg-emerald-50",
+        bg: "bg-emerald-100",
         text: "text-emerald-700",
-        border: "border-emerald-200",
+        border: "border-emerald-300",
       };
     case "NEW_JOINNER":
+      // New Joiner - Light gray
       return {
-        bg: "bg-blue-50",
-        text: "text-blue-700",
-        border: "border-blue-200",
-      };
-    case "mod":
-      return {
-        bg: "bg-amber-50",
-        text: "text-amber-800",
-        border: "border-amber-200",
-      };
-    case "accounts":
-      return {
-        bg: "bg-blue-50",
-        text: "text-blue-700",
-        border: "border-blue-200",
+        bg: "bg-slate-100",
+        text: "text-slate-600",
+        border: "border-slate-300",
       };
     default:
       return {
-        bg: "bg-slate-50",
-        text: "text-slate-700",
-        border: "border-slate-200",
+        bg: "bg-slate-100",
+        text: "text-slate-600",
+        border: "border-slate-300",
       };
   }
 }
@@ -585,22 +585,35 @@ export default function SidebarAdvanced({
             className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors group"
           >
             <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-semibold border ${
-                roleColor(currentUser.role).border
-              } ${roleColor(currentUser.role).bg} ${
-                roleColor(currentUser.role).text
-              }`}
+              className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
+                roleColor(currentUser.role, currentUser.isSuper).bg
+              } ${roleColor(currentUser.role, currentUser.isSuper).text}`}
             >
-              {currentUser.name?.[0]?.toUpperCase() || "U"}
+              {(currentUser.name || "Bennet User")[0].toUpperCase()}
             </div>
 
             {open && (
               <div className="flex-1 min-w-0 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-slate-700 truncate group-hover:text-slate-900">
-                    {currentUser.name}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-700 truncate group-hover:text-slate-900">
+                      {currentUser.name || "Bennet User"}
+                    </span>
+                    {currentUser.isSuper && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-900 text-white">
+                        SUPER
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs text-slate-500 truncate capitalize">
+                  <div className={`text-xs truncate capitalize ${
+                    currentUser.isSuper 
+                      ? "text-slate-900 font-medium" 
+                      : currentUser.role === "ADMIN" 
+                        ? "text-red-600 font-medium"
+                        : currentUser.role === "EMPLOYEE"
+                          ? "text-emerald-600 font-medium"
+                          : "text-slate-500"
+                  }`}>
                     {currentUser.role?.toLowerCase().replace("_", " ")}
                   </div>
                 </div>
