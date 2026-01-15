@@ -327,7 +327,7 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
                       <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '4px', textAlign: 'center' }}>
                          {item.photo ? (
                           <img
-                            src={`${process.env.NEXT_PUBLIC_API_URL}${item.photo}`}
+                            src={`${process.env.NEXT_PUBLIC_SERVER_URL}${item.photo}`}
                             alt=""
                             style={{ width: '40px', height: '40px', objectFit: 'contain', display: 'block', margin: '0 auto', border: `1px solid ${colors.slate200}`, borderRadius: '4px' }}
                             crossOrigin="anonymous"

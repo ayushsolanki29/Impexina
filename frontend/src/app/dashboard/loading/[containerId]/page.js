@@ -181,14 +181,38 @@ export default function LoadingSheetPage() {
     setItems(newItems);
   };
 
-  const handlePhotoUpload = async (index, file) => {
-    if (!file) return;
+  const handlePhotoUpload = async (index, event) => {
+    const file = event?.target?.files?.[0];
+    
+    if (!file) {
+      toast.error('No file selected', {
+        description: 'Please select an image file to upload.',
+      });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Invalid file type', {
+        description: 'Please select an image file (JPG, PNG, etc.).',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File too large', {
+        description: 'Please select an image smaller than 5MB.',
+      });
+      return;
+    }
 
     try {
       const formData = new FormData();
       formData.append('photo', file);
 
-      // Fix: Check if container exists before accessing properties
+      // Check if container exists before accessing properties
       const cCode = container?.containerCode || 'UNKNOWN';
 
       const response = await API.post(
@@ -201,10 +225,18 @@ export default function LoadingSheetPage() {
 
       if (response.data.success) {
         updateItem(index, 'photo', response.data.data.photo);
-        toast.success('Photo uploaded');
+        toast.success('Photo uploaded successfully');
+      } else {
+        toast.error('Upload failed', {
+          description: response.data.message || 'Could not upload the photo.',
+        });
       }
     } catch (error) {
-      toast.error('Failed to upload photo');
+      console.error('Photo upload error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      toast.error('Failed to upload photo', {
+        description: errorMessage,
+      });
     }
   };
 
@@ -783,7 +815,7 @@ export default function LoadingSheetPage() {
                           {item.photo ? (
                             <div className="relative group w-9 h-9">
                               <img
-                                src={`${process.env.NEXT_PUBLIC_API_URL}${item.photo}`}
+                                src={`${process.env.NEXT_PUBLIC_SERVER_URL}${item.photo}`}
                                 alt="Item"
                                 className="w-full h-full object-cover rounded border border-slate-300"
                               />
@@ -801,7 +833,10 @@ export default function LoadingSheetPage() {
                                 type="file"
                                 className="hidden"
                                 accept="image/*"
-                                onChange={(e) => handlePhotoUpload(idx, e)}
+                                onChange={(e) => {
+                                  handlePhotoUpload(idx, e);
+                                  e.target.value = ''; // Reset to allow re-selecting same file
+                                }}
                               />
                             </label>
                           )}
