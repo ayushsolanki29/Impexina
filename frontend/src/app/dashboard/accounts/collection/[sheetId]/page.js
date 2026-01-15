@@ -554,18 +554,18 @@ toast.info("Export feature coming soon!");
             <table className="w-full">
               <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
                 <tr>
-                  <th className="p-4 text-left font-semibold text-slate-700 w-64">Client</th>
-                  <th className="p-4 text-left font-semibold text-slate-700 w-36">Expected Date</th>
-                  <th className="p-4 text-right font-semibold text-slate-700 w-28">24-25</th>
-                  <th className="p-4 text-right font-semibold text-blue-700 w-28">Add Co.</th>
-                  <th className="p-4 text-right font-semibold text-purple-700 w-28">25-26</th>
-                  <th className="p-4 text-right font-semibold text-emerald-700 w-28">Advance</th>
-                  <th className="p-4 text-right font-semibold text-slate-900 w-32">Balance</th>
+                  <th className="p-4 text-left font-semibold text-slate-700 min-w-[300px]">Client</th>
+                  <th className="p-4 text-left font-semibold text-slate-700 min-w-[150px]">Expected Date</th>
+                  <th className="p-4 text-right font-semibold text-slate-700 min-w-[150px]">24-25</th>
+                  <th className="p-4 text-right font-semibold text-blue-700 min-w-[150px]">Add Co.</th>
+                  <th className="p-4 text-right font-semibold text-purple-700 min-w-[150px]">25-26</th>
+                  <th className="p-4 text-right font-semibold text-emerald-700 min-w-[150px]">Advance</th>
+                  <th className="p-4 text-right font-semibold text-slate-900 min-w-[150px]">Balance</th>
                   {showAdvanced && (
-                    <th className="p-4 text-left font-semibold text-slate-700 w-48">Notes</th>
+                    <th className="p-4 text-left font-semibold text-slate-700 min-w-[200px]">Notes</th>
                   )}
-                  <th className="p-4 text-center font-semibold text-slate-700 w-20">Flag</th>
-                  <th className="p-4 text-center font-semibold text-slate-700 w-20">Actions</th>
+                  <th className="p-4 text-center font-semibold text-slate-700 min-w-[150px]">Flag</th>
+                  <th className="p-4 text-center font-semibold text-slate-700 min-w-[150px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

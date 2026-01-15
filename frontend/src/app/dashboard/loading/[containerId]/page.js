@@ -514,32 +514,32 @@ export default function LoadingSheetPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md hover:border-blue-100 group">
+            <div className="p-4 bg-blue-50/50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all">
               <Package className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Items</div>
-              <div className="text-2xl font-black text-slate-800">{stats.totalItems}</div>
+              <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Total Items</div>
+              <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.totalItems}</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md hover:border-purple-100 group">
+            <div className="p-4 bg-purple-50/50 text-purple-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-all">
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Clients</div>
-              <div className="text-2xl font-black text-slate-800">{stats.clients.length}</div>
+              <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Total Clients</div>
+              <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.clients.length}</div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-             <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md hover:border-orange-100 group">
+             <div className="p-4 bg-orange-50/50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all">
               <Box className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total CTN</div>
-              <div className="text-2xl font-black text-slate-800">{stats.totalCtn}</div>
+              <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Total CTN</div>
+              <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.totalCtn}</div>
             </div>
           </div>
         </div>
@@ -579,20 +579,22 @@ export default function LoadingSheetPage() {
         {/* Form */}
         <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
           {/* Status Header Bar */}
-          <div className={`px-6 py-3 flex justify-between items-center border-b ${
+          <div className={`px-6 py-4 flex justify-between items-center border-b ${
              getStatusColor(activeSheet?.status || 'DRAFT')
           }`}>
-             <div className="flex items-center gap-2">
-               <span className="text-xs font-bold uppercase tracking-widest opacity-80">Mark Status:</span>
-               <span className="font-black uppercase tracking-wide">{activeSheet?.status || 'DRAFT'}</span>
+             <div className="flex items-center gap-3">
+               <span className="text-[10px] font-medium uppercase tracking-widest opacity-60">Mark Status</span>
+               <span className="text-sm font-bold uppercase tracking-widest hover:scale-105 transition-transform cursor-default">{activeSheet?.status || 'DRAFT'}</span>
              </div>
-             <div className="flex gap-2">
+             <div className="flex gap-1.5">
                {['DRAFT', 'CONFIRMED', 'SENT'].map(status => (
                  <button 
                   key={status}
                   onClick={() => handleSheetStatusChange(status)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all bg-white/50 hover:bg-white hover:shadow-sm ${
-                    (activeSheet?.status || 'DRAFT') === status ? 'bg-white text-black shadow' : ''
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-medium uppercase transition-all ${
+                    (activeSheet?.status || 'DRAFT') === status 
+                      ? 'bg-white text-slate-900 shadow-md scale-105' 
+                      : 'hover:bg-white/40 text-slate-600'
                   }`}
                  >
                    {status}
@@ -607,7 +609,7 @@ export default function LoadingSheetPage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Shipping Mark / MARK *
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <input
                     type="text"
                     value={shippingMark}
@@ -616,7 +618,7 @@ export default function LoadingSheetPage() {
                       fetchMarkSuggestions(e.target.value);
                     }}
                     placeholder="e.g., BB-AMD, SMW-INK"
-                    className="flex-1 px-4 py-3 text-lg border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold tracking-wide"
+                    className="flex-1 px-4 py-3 text-lg bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold tracking-widest uppercase placeholder:text-slate-300"
                   />
                   {activeSheet && (
                      <button 
@@ -673,8 +675,8 @@ export default function LoadingSheetPage() {
                         fetchClientSuggestions(e.target.value);
                       }}
                       placeholder="Search or enter client name"
-                      className={`w-full pl-10 pr-12 py-3 text-lg border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium transition-all ${
-                        clientId ? 'border-green-500 bg-green-50/30' : 'border-slate-300'
+                      className={`w-full pl-10 pr-12 py-3 text-lg bg-slate-50/50 border rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold ${
+                        clientId ? 'border-green-500 bg-green-50/30' : 'border-slate-200'
                       }`}
                     />
                     {clientId && (
@@ -750,24 +752,24 @@ export default function LoadingSheetPage() {
             </div>
 
             {/* Items Table */}
-            <div className="border border-slate-300 rounded-lg overflow-hidden shadow-sm">
-              <table className="w-full text-sm border-collapse">
+            <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+              <table className="w-full text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-900 border-b-2 border-slate-300">
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-12">No.</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-16">PHOTO</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold">PARTICULAR</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-28">MARK</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-24">ITEM NO.</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-20">CTN</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-20">PCS</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-24">T.PCS</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-20">UNIT</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-24">CBM</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-28">T.CBM</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-24">WT</th>
-                    <th className="px-2 py-3 border-r border-slate-300 text-center font-bold w-28">T.WT</th>
-                    <th className="px-2 py-3 w-10"></th>
+                  <tr className="bg-slate-50 text-slate-500 uppercase tracking-widest font-medium text-[10px]">
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">No.</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">Photo</th>
+                    <th className="px-3 py-4 text-left min-w-[150px] border-b border-slate-100">Particular</th>
+                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">Mark</th>
+                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">Item No</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">CTN</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">PCS</th>
+                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">Total PCS</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">Unit</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">CBM</th>
+                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">Total CBM</th>
+                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">WT</th>
+                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">Total WT</th>
+                    <th className="min-w-[100px] border-b border-slate-100"></th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -805,100 +807,100 @@ export default function LoadingSheetPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                         <textarea
                           value={item.particular}
                           onChange={(e) => updateItem(idx, 'particular', e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded resize-none h-10 bg-transparent placeholder-slate-400 transition-all font-medium text-slate-700"
-                          placeholder="Description"
+                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg resize-none h-12 transition-all font-normal text-slate-900 placeholder:text-slate-300"
+                          placeholder="Item Description"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                           rows={1}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                          <input
                           type="text"
                           value={item.mark || ''}
                           onChange={(e) => updateItem(idx, 'mark', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-medium text-slate-500 placeholder-slate-300"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal tracking-widest uppercase text-slate-500 placeholder:text-slate-200 transition-all"
                           placeholder={activeSheet?.shippingMark || '-'}
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                          <input
                           type="text"
                           value={item.itemNo || ''}
                           onChange={(e) => updateItem(idx, 'itemNo', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-medium text-slate-600 uppercase"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal tracking-widest uppercase text-slate-700 placeholder:text-slate-200 transition-all"
                           placeholder="-"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                         <input
                           type="number"
                           value={item.ctn}
                           onChange={(e) => updateItem(idx, 'ctn', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold text-slate-800"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-900 transition-all"
                           placeholder="0"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                         <input
                           type="number"
                           value={item.pcs}
                           onChange={(e) => updateItem(idx, 'pcs', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent text-slate-800"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-700 transition-all"
                           placeholder="0"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200 text-center font-bold bg-slate-50 text-slate-700">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-normal text-slate-400 bg-slate-50/30">
                         {calculateRowTotal(item.ctn, item.pcs)}
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                          <input
                           type="text"
                           value={item.unit || 'PCS'}
                           onChange={(e) => updateItem(idx, 'unit', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent uppercase text-xs font-semibold text-slate-500"
+                          className="w-full px-2 py-2 text-[10px] text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg uppercase font-normal text-slate-400 transition-all"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                       <td className="px-1 py-1 border-r border-slate-200">
+                       <td className="px-2 py-1.5 border-b border-slate-50">
                         <input
                           type="number"
                           value={item.cbm}
                           onChange={(e) => updateItem(idx, 'cbm', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent text-slate-600"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
                           placeholder="0"
                           step="0.001"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200 text-center font-bold text-blue-600 bg-blue-50/50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-bold text-blue-600 bg-blue-50/30">
                         {(item.ctn * item.cbm || 0).toFixed(3)}
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200">
+                      <td className="px-2 py-1.5 border-b border-slate-50">
                         <input
                           type="number"
                           value={item.wt}
                           onChange={(e) => updateItem(idx, 'wt', e.target.value)}
-                          className="w-full px-1 py-1 text-sm text-center border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded bg-transparent text-slate-600"
+                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
                           placeholder="0"
                           step="0.01"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200 text-center font-bold text-orange-600 bg-orange-50/50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-bold text-orange-600 bg-orange-50/30">
                         {(item.ctn * item.wt || 0).toFixed(2)}
                       </td>
-                      <td className="px-1 py-1 text-center">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-center">
                         <button
                           onClick={() => removeItem(idx)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded hover:bg-red-50"
+                          className="text-slate-200 hover:text-red-500 transition-all p-2 rounded-xl hover:bg-red-50 active:scale-95"
                           title="Delete Item"
                         >
                           <Trash2 className="w-4 h-4" />

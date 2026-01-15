@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
@@ -10,8 +10,8 @@ import { get, post, put, del } from "@/lib/api";
 
 const HeaderMetric = ({ label, value, colorClass = "text-gray-900" }) => (
     <div className="flex flex-col items-end">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</span>
-        <span className={`text-2xl font-black tracking-tight ${colorClass}`}>{value}</span>
+        <span className="text-[10px]   uppercase tracking-widest text-gray-400 mb-1">{label}</span>
+        <span className={`text-2xl  tracking-tight ${colorClass}`}>{value}</span>
     </div>
 );
 
@@ -20,6 +20,7 @@ const EditableCell = ({
     value, 
     onChange, 
     onKeyDown,
+    onBlur,
     type = "text", 
     className = "", 
     placeholder = "",
@@ -34,8 +35,9 @@ const EditableCell = ({
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
+            onBlur={onBlur}
             disabled={disabled}
-            className={`w-full bg-transparent border-none outline-none p-2 text-sm placeholder:text-slate-300 focus:bg-slate-50 transition-colors ${className}`}
+            className={`w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm placeholder:text-slate-300 rounded transition-all ${className}`}
             placeholder={placeholder}
             autoFocus={autoFocus}
             autoComplete="off"
@@ -55,6 +57,12 @@ export default function ExcelLedgerPage() {
   const [transactions, setTransactions] = useState([]);
   const [availableSheets, setAvailableSheets] = useState([]);
   const [sheetName, setSheetName] = useState("");
+  const [formattedContainer, setFormattedContainer] = useState("");
+  const [defaultDeliveryDate, setDefaultDeliveryDate] = useState("");
+  const [defaultParticulars, setDefaultParticulars] = useState("");
+  const [defaultCbm, setDefaultCbm] = useState("");
+  const [defaultWeight, setDefaultWeight] = useState("");
+  const [mixLimit, setMixLimit] = useState(5);
   
   useEffect(() => {
     fetchData();
@@ -84,6 +92,65 @@ export default function ExcelLedgerPage() {
       return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [router]);
 
+  const fetchContainerInfo = async (code, clientName) => {
+      if (!code || !clientName) return null;
+      try {
+          const baseCode = code.replace(/[ -]?\d+$/, "").trim();
+          const res = await get(`/bifurcation?search=${encodeURIComponent(code)}`);
+          
+          if (res.success && res.data && res.data.length > 0) {
+              const clientData = res.data.filter(item => 
+                  item.clientName?.toLowerCase().includes(clientName.toLowerCase()) ||
+                  clientName.toLowerCase().includes(item.clientName?.toLowerCase())
+              );
+
+              if (clientData.length > 0) {
+                  const totalCtn = clientData.reduce((sum, item) => sum + (item.ctn || 0), 0);
+                  const totalCbm = clientData.reduce((sum, item) => sum + (item.totalCbm || 0), 0);
+                  const totalWeight = clientData.reduce((sum, item) => sum + (item.totalWt || 0), 0);
+                  const totalGstAmount = clientData.reduce((sum, item) => sum + (item.gstAmount || 0), 0);
+                  const invoiceNo = [...new Set(clientData.map(d => d.invoiceNo).filter(Boolean))].join(', ');
+                  const gstText = [...new Set(clientData.map(d => d.gst).filter(Boolean))].join(', ');
+
+                  const formatted = `${baseCode} ${totalCtn} CTN`.toUpperCase();
+                  
+                  // Particulars
+                  const allProducts = clientData.map(d => d.product).filter(Boolean);
+                  const uniqueItems = [...new Set(allProducts.flatMap(p => p.split(', ').map(item => item.trim())))];
+                  let particulars = "";
+                  
+                  // Use latest mixLimit from settings if provided
+                  const currentMixLimit = res.settings?.mixLimit ? parseInt(res.settings.mixLimit) : mixLimit;
+                  if (res.settings?.mixLimit) setMixLimit(currentMixLimit);
+
+                  if (uniqueItems.length > currentMixLimit || allProducts.includes("MIX ITEM")) {
+                      particulars = "MIX ITEM";
+                  } else {
+                      particulars = uniqueItems.join(', ');
+                  }
+
+                  // Delivery Date
+                  const delDateObj = clientData.find(d => d.deliveryDate);
+                  const delDateStr = delDateObj ? new Date(delDateObj.deliveryDate).toISOString().split('T')[0] : "";
+
+                  return { 
+                      formatted, 
+                      particulars, 
+                      delDateStr, 
+                      totalCbm: parseFloat(totalCbm.toFixed(3)),
+                      totalWeight: parseFloat(totalWeight.toFixed(2)),
+                      invoiceNo,
+                      gstText,
+                      totalGstAmount: parseFloat(totalGstAmount.toFixed(2))
+                  };
+              }
+          }
+      } catch (error) {
+          console.error("Error fetching container data:", error);
+      }
+      return null;
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -98,11 +165,78 @@ export default function ExcelLedgerPage() {
         setTransactions(mapTxns);
         setAvailableSheets(res.data.availableSheets || []);
 
-        // Naming Logic
+        // Naming Logic & Container Prefetch
         if (containerCode) {
             const date = new Date();
             const month = date.toLocaleString('en-US', { month: 'long' });
             setSheetName(`${res.data.name} ${containerCode} ${month}`.toUpperCase());
+
+            const info = await fetchContainerInfo(containerCode, res.data.name);
+            if (info) {
+                setFormattedContainer(info.formatted);
+                setDefaultParticulars(info.particulars);
+                setDefaultDeliveryDate(info.delDateStr);
+                setDefaultCbm(info.totalCbm.toString());
+                setDefaultWeight(info.totalWeight.toString());
+
+                setTransactions(prev => {
+                    const updated = prev.map(t => {
+                        if (t.containerCode === containerCode || !t.containerCode) {
+                            return {
+                                ...t,
+                                containerCode: info.formatted,
+                                particulars: (!t.particulars || t.particulars === "Description" || !t.particulars.trim()) ? info.particulars : t.particulars,
+                                deliveryDate: (!t.deliveryDate) ? info.delDateStr : t.deliveryDate,
+                                quantity: (!t.quantity) ? info.totalCbm : t.quantity,
+                                weight: (!t.weight) ? info.totalWeight : t.weight
+                            };
+                        }
+                        return t;
+                    });
+
+                    if (updated.length === 0) {
+                        const newRows = [
+                            {
+                                id: `temp-${Date.now()}`,
+                                isNew: true,
+                                containerCode: info.formatted,
+                                deliveryDate: info.delDateStr || new Date().toISOString().split('T')[0],
+                                particulars: info.particulars,
+                                quantity: info.totalCbm, 
+                                rate: "",
+                                amount: "", 
+                                paid: "",
+                                paymentDate: "",
+                                paymentMode: "",
+                                clientId: id,
+                                billingType: "CBM",
+                                sheetName: querySheetName || ""
+                            }
+                        ];
+
+                        if (info.invoiceNo || info.totalGstAmount > 0) {
+                            newRows.push({
+                                id: `temp-${Date.now() + 1}`,
+                                isNew: true,
+                                containerCode: "",
+                                deliveryDate: "",
+                                particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
+                                quantity: "", 
+                                rate: "",
+                                amount: info.totalGstAmount, 
+                                paid: "",
+                                paymentDate: "",
+                                paymentMode: "",
+                                clientId: id,
+                                billingType: "FLAT",
+                                sheetName: querySheetName || ""
+                            });
+                        }
+                        return newRows;
+                    }
+                    return updated;
+                });
+            }
         } else if (querySheetName) {
             setSheetName(querySheetName.toUpperCase());
         } else {
@@ -174,14 +308,31 @@ export default function ExcelLedgerPage() {
       }
   };
 
+  const handleContainerBlur = async (rowIndex, originalValue) => {
+      if (!originalValue || originalValue.includes("CTN")) return;
+
+      const info = await fetchContainerInfo(originalValue, client.name);
+      if (info) {
+          handleUpdateRow(rowIndex, 'containerCode', info.formatted);
+          handleUpdateRow(rowIndex, 'particulars', info.particulars);
+          handleUpdateRow(rowIndex, 'deliveryDate', info.delDateStr);
+          handleUpdateRow(rowIndex, 'quantity', info.totalCbm);
+          handleUpdateRow(rowIndex, 'weight', info.totalWeight);
+          
+          // Save the row
+          setTimeout(() => saveRow(rowIndex), 0);
+      }
+  };
+
   const handleAddRow = () => {
       const newTxn = {
           id: `temp-${Date.now()}`,
           isNew: true,
-          containerCode: "",
-          deliveryDate: new Date().toISOString().split('T')[0],
-          particulars: "",
-          quantity: "", 
+          containerCode: formattedContainer || containerCode || "",
+          deliveryDate: defaultDeliveryDate || new Date().toISOString().split('T')[0],
+          particulars: defaultParticulars || "",
+          quantity: defaultCbm || "", 
+          weight: defaultWeight || "",
           rate: "",
           amount: "", 
           paid: "",
@@ -189,7 +340,6 @@ export default function ExcelLedgerPage() {
           paymentMode: "",
           clientId: id,
           billingType: "FLAT",
-          containerCode: containerCode || "",
           sheetName: querySheetName || ""
       };
       setTransactions(prev => [...prev, newTxn]);
@@ -352,9 +502,59 @@ export default function ExcelLedgerPage() {
                         title="RENAME CURRENT SHEET"
                    />
                    
-                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                   <span>{client.companyName}</span>
-                   {client.city && (
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span>{client.companyName}</span>
+                    {containerCode && (
+                        <button 
+                             onClick={async () => {
+                                 const info = await fetchContainerInfo(containerCode, client.name);
+                                 if (info) {
+                                     setTransactions(prev => {
+                                         const existingGstRow = prev.find(t => t.particulars?.startsWith("GST INV"));
+                                         const updated = prev.map(t => {
+                                             if (t.particulars?.startsWith("GST INV")) {
+                                                 return {
+                                                     ...t,
+                                                     particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
+                                                     amount: info.totalGstAmount
+                                                 };
+                                             }
+                                             return {
+                                                ...t,
+                                                containerCode: info.formatted,
+                                                particulars: info.particulars,
+                                                deliveryDate: info.delDateStr,
+                                                quantity: info.totalCbm,
+                                                weight: info.totalWeight
+                                             };
+                                         });
+
+                                         if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
+                                             updated.push({
+                                                 id: `temp-${Date.now()}`,
+                                                 isNew: true,
+                                                 containerCode: "",
+                                                 deliveryDate: "",
+                                                 particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
+                                                 amount: info.totalGstAmount,
+                                                 paid: "",
+                                                 clientId: id,
+                                                 billingType: "FLAT",
+                                                 sheetName: querySheetName || ""
+                                             });
+                                         }
+                                         return updated;
+                                     });
+                                     toast.success("Details Updated from Warehouse");
+                                 }
+                             }}
+                             className="ml-4 bg-emerald-50 text-emerald-600 font-bold px-3 py-1 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all text-[10px] flex items-center gap-2"
+                        >
+                             <RefreshCw className="w-3 h-3" /> 
+                             SYNC FROM BIFURCATION
+                        </button>
+                    )}
+                    {client.city && (
                        <>
                         <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                         <span>{client.city}</span>
@@ -368,8 +568,8 @@ export default function ExcelLedgerPage() {
              <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
              <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
              <div className="flex flex-col items-end">
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                 <div className={`text-2xl font-black tracking-tight px-3 py-1 rounded-xl shadow-sm ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
+                 <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                 <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
                      ₹{balance.toLocaleString()}
                  </div>
              </div>
@@ -393,14 +593,24 @@ export default function ExcelLedgerPage() {
                  {transactions.map((txn, idx) => (
                      <div 
                         key={txn.id} 
-                        className={`grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] hover:bg-slate-50 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''}`}
+                        className={`grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] hover:bg-slate-50/80 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/5' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
                      >
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-containerCode`} value={txn.containerCode} onChange={v => handleUpdateRow(idx, 'containerCode', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')} placeholder="--" className="text-slate-600" /></div>
-                         <div className="px-2 py-1"><input id={`cell-${idx}-deliveryDate`} type="date" value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} className="w-full bg-transparent border-none outline-none p-2 text-sm text-slate-400 font-medium" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-particulars`} value={txn.particulars} onChange={v => handleUpdateRow(idx, 'particulars', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} placeholder="Description" className="text-slate-900 font-medium" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-quantity`} value={txn.quantity} type="number" onChange={v => handleUpdateRow(idx, 'quantity', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} className="text-right text-slate-500" /></div>
-                         <div className="px-2 py-1 text-right text-slate-300 py-3 text-xs">-</div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-rate`} value={txn.rate} type="number" onChange={v => handleUpdateRow(idx, 'rate', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} className="text-right text-slate-500" /></div>
+                         <div className="px-2 py-1">
+                             <EditableCell 
+                                id={`cell-${idx}-containerCode`} 
+                                value={txn.containerCode} 
+                                onChange={v => handleUpdateRow(idx, 'containerCode', v)} 
+                                onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')} 
+                                onBlur={() => handleContainerBlur(idx, txn.containerCode)}
+                                placeholder="--" 
+                                className="text-slate-600 font-medium" 
+                             />
+                         </div>
+                         <div className="px-2 py-1"><input id={`cell-${idx}-deliveryDate`} type="date" value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 font-medium rounded transition-all" /></div>
+                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-particulars`} value={txn.particulars} onChange={v => handleUpdateRow(idx, 'particulars', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} placeholder="Description" className="text-slate-900 font-bold" /></div>
+                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-quantity`} value={txn.quantity?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'quantity', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} className="text-right text-slate-600 font-semibold" /></div>
+                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-weight`} value={txn.weight?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'weight', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'weight')} className="text-right text-slate-500" /></div>
+                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-rate`} value={txn.rate?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'rate', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} className="text-right text-slate-500" /></div>
                          
                          {/* Total Column with Yellow Bg */}
                          <div className="px-2 py-1 bg-yellow-50/50 border-x border-yellow-100/50">
@@ -410,14 +620,14 @@ export default function ExcelLedgerPage() {
                                 type="number" 
                                 onChange={v => handleUpdateRow(idx, 'amount', v)} 
                                 onKeyDown={(e) => handleKeyDown(e, idx, 'amount')}
-                                className="text-right font-bold text-slate-900" 
+                                className="text-right font-bold text-slate-900 bg-transparent" 
                              />
                          </div>
                          
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-paid`} value={txn.paid} type="number" onChange={v => handleUpdateRow(idx, 'paid', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} className="text-right text-emerald-600 font-medium" /></div>
-                         <div className="px-2 py-1"><input id={`cell-${idx}-paymentDate`} type="date" value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} className="w-full bg-transparent border-none outline-none p-2 text-sm text-slate-400" /></div>
+                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-paid`} value={txn.paid?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'paid', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} className="text-right text-emerald-600 font-bold" /></div>
+                         <div className="px-2 py-1"><input id={`cell-${idx}-paymentDate`} type="date" value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" /></div>
                          <div className="px-2 py-1">
-                             <select id={`cell-${idx}-paymentMode`} value={txn.paymentMode || ''} onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} className="w-full h-full bg-transparent border-none outline-none p-2 text-xs font-medium text-slate-500">
+                             <select id={`cell-${idx}-paymentMode`} value={txn.paymentMode || ''} onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all">
                                  <option value="">-</option>
                                  <option value="CASH">Cash</option>
                                  <option value="CHEQUE">Cheque</option>

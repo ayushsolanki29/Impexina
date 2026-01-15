@@ -326,23 +326,23 @@ export default function LoadingPage() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Loading Management</h1>
-            <p className="text-slate-500 mt-1">Track containers, loading details and shipment stats</p>
+            <h1 className="text-4xl font-bold text-slate-900 tracking-tight leading-none">Warehouse</h1>
+            <p className="text-slate-500 mt-2 font-normal">Track containers, loading details and shipment stats</p>
           </div>
           
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/dashboard/loading/activities')}
-              className="flex items-center gap-2 bg-white text-slate-700 px-5 py-2.5 rounded-lg hover:bg-slate-50 transition-all border border-slate-200 shadow-sm font-medium"
+              className="flex items-center gap-2.5 bg-white text-slate-600 px-5 py-3 rounded-2xl hover:bg-slate-50 transition-all border border-slate-200 shadow-sm font-semibold text-sm"
             >
-              <History className="w-5 h-5 text-blue-600" />
-              Audit History
+              <History className="w-4 h-4 text-blue-500" />
+              Audit Logs
             </button>
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
+              className="flex items-center gap-2.5 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 font-semibold text-sm active:scale-95"
             >
               {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               {showForm ? 'Cancel' : 'New Container'}
@@ -352,46 +352,58 @@ export default function LoadingPage() {
 
         {/* Totals Cards */}
         {loading && containers.length === 0 ? <TotalsSkeleton /> : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-              <span className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Total Containers</span>
-              <span className="text-2xl font-bold text-slate-900 mt-1">{aggregates.totalContainers.toLocaleString()}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all">
+              <span className="text-[10px] font-semibold uppercase text-slate-400 tracking-widest leading-none mb-3">Total Containers</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{aggregates.totalContainers.toLocaleString()}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-slate-400 transition-colors"></div>
+              </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-              <span className="text-xs font-semibold uppercase text-blue-600 tracking-wider">Total CTN</span>
-              <span className="text-2xl font-bold text-slate-900 mt-1">{aggregates.totalCTN.toLocaleString()}</span>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all">
+              <span className="text-[10px] font-semibold uppercase text-blue-500/60 tracking-widest leading-none mb-3">Total CTN</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{aggregates.totalCTN.toLocaleString()}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-100 group-hover:bg-blue-400 transition-colors"></div>
+              </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-              <span className="text-xs font-semibold uppercase text-emerald-600 tracking-wider">Total CBM</span>
-              <span className="text-2xl font-bold text-slate-900 mt-1">{aggregates.totalCBM?.toLocaleString() || 0} m³</span>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all">
+              <span className="text-[10px] font-semibold uppercase text-emerald-500/60 tracking-widest leading-none mb-3">Total CBM</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{aggregates.totalCBM?.toLocaleString() || 0}</span>
+                <span className="text-xs font-bold text-emerald-500/60 uppercase">m³</span>
+              </div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-              <span className="text-xs font-semibold uppercase text-amber-600 tracking-wider">Total Weight</span>
-              <span className="text-2xl font-bold text-slate-900 mt-1">{aggregates.totalWT?.toLocaleString() || 0} kg</span>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all">
+              <span className="text-[10px] font-semibold uppercase text-amber-500/60 tracking-widest leading-none mb-3">Total Weight</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{aggregates.totalWT?.toLocaleString() || 0}</span>
+                <span className="text-xs font-bold text-amber-500/60 uppercase">kg</span>
+              </div>
             </div>
           </div>
         )}
 
         {/* Inline Form */}
         {showForm && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200 animate-in fade-in slide-in-from-top-4 duration-300">
-            <h3 className="text-lg font-semibold mb-4 text-slate-900">
-              {editingContainer ? 'Edit Container' : 'Create New Container'}
+          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-10 border border-slate-100 animate-in fade-in slide-in-from-top-6 duration-500">
+            <h3 className="text-xl font-bold mb-6 text-slate-900 tracking-tight">
+              {editingContainer ? 'Edit Container' : 'New Container Registration'}
             </h3>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Container Code *</label>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Container Code</label>
                 <input
                   type="text"
                   value={formData.containerCode}
                   onChange={(e) => setFormData({ ...formData, containerCode: e.target.value.toUpperCase() })}
-                  placeholder="e.g., PSDH-86"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="e.g., ABCD123456"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Origin *</label>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Origin Port</label>
                 <Combobox 
                    options={origins}
                    value={formData.origin}
@@ -400,12 +412,12 @@ export default function LoadingPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Loading Date</label>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Loading Date</label>
                 <input
                   type="date"
                   value={formData.loadingDate}
                   onChange={(e) => setFormData({ ...formData, loadingDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold text-slate-900"
                   disabled={submitting}
                 />
               </div>
@@ -413,9 +425,9 @@ export default function LoadingPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                  className="w-full bg-blue-600 text-white px-6 py-4 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-bold uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95"
                 >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Container'}
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Register Container'}
                 </button>
               </div>
             </form>
@@ -423,16 +435,16 @@ export default function LoadingPage() {
         )}
 
         {/* Advanced Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-slate-200/60 p-5 mb-10 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
               <input
                 type="text"
                 value={filters.search}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
-                placeholder="Search code..."
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Search container code..."
+                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none transition-all font-medium text-slate-600 placeholder:text-slate-300"
               />
             </div>
             
@@ -440,49 +452,49 @@ export default function LoadingPage() {
                    options={origins}
                    value={filters.origin}
                    onChange={(val) => handleFilterChange('origin', val)}
-                   placeholder="All Origins"
+                   placeholder="All Port Origins"
              />
 
-            <div className="flex gap-2">
+            <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
                <input
                 type="date"
                 value={filters.startDate}
                 onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="From"
+                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
                />
+               <span className="flex items-center text-slate-200 font-black">/</span>
                <input
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="To"
+                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
                />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
                <input
                 type="number"
                 value={filters.minCtn}
                 onChange={(e) => handleFilterChange('minCtn', e.target.value)}
                 placeholder="Min CTN"
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none placeholder:text-slate-300"
                />
+               <span className="flex items-center text-slate-200 font-black">/</span>
                <input
                 type="number"
                 value={filters.maxCtn}
                 onChange={(e) => handleFilterChange('maxCtn', e.target.value)}
                 placeholder="Max CTN"
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none placeholder:text-slate-300"
                />
             </div>
           </div>
           
           {(filters.search || filters.origin || filters.startDate || filters.endDate || filters.minCtn || filters.maxCtn) && (
-            <div className="mt-3 flex justify-end">
+            <div className="mt-4 flex justify-end">
               <button 
                 onClick={clearFilters}
-                className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                className="text-xs text-red-500 font-bold uppercase tracking-widest flex items-center gap-1.5 hover:text-red-600 transition-colors"
               >
                 <X className="w-3 h-3" /> Clear Filters
               </button>
@@ -507,77 +519,74 @@ export default function LoadingPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
               {containers.map((container) => (
                 <div
                   key={container.id}
-                  className="bg-white rounded-xl shadow-sm hover:shadow-xl transition-all border border-slate-200 overflow-hidden group flex flex-col h-full"
+                  className="bg-white rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 border border-slate-100 overflow-hidden group flex flex-col h-full"
                 >
-                  <div className="p-6 flex-1">
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="p-8 flex-1">
+                    <div className="flex items-start justify-between gap-6 mb-6">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-xl font-bold text-slate-900 truncate" title={container.containerCode}>
-                            {container.containerCode}
-                            </h3>
-                            <div className="shrink-0">
-                              {getStatusBadge(container.status)}
-                            </div>
+                        <div className="flex flex-col mb-2">
+                             <div className="flex items-center justify-between mb-3">
+                                {getStatusBadge(container.status)}
+                                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                                  {formatDateTag(container.loadingDate)}
+                                </span>
+                             </div>
+                             <h3 className="text-2xl font-bold text-slate-900 truncate tracking-tight leading-none" title={container.containerCode}>
+                              {container.containerCode}
+                             </h3>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
-                          <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                          <MapPin className="w-3.5 h-3.5 text-blue-500" />
                           <span className="truncate">{container.origin}</span>
                         </div>
                       </div>
                       
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-slate-800 text-white border border-slate-900 whitespace-nowrap shadow-sm">
-                           {formatDateTag(container.loadingDate)}
-                        </span>
-                        
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                            onClick={() => handleEdit(container)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit"
-                            >
-                            <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                            onClick={() => handleDelete(container.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
-                            >
-                            <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                        <button
+                          onClick={() => handleEdit(container)}
+                          className="p-2.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-blue-100 transition-all"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(container.id)}
+                          className="p-2.5 bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-red-100 transition-all"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-slate-500 mb-6 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <Calendar className="w-4 h-4 text-slate-400" />
-                      Loaded on {new Date(container.loadingDate).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                    <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-8 bg-slate-50/50 p-3 rounded-2xl border border-slate-50">
+                      <Calendar className="w-3.5 h-3.5 text-slate-300" />
+                      {new Date(container.loadingDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
-                        <div className="text-xs text-blue-600 font-semibold uppercase tracking-wider mb-1">Total CTN</div>
-                        <div className="text-xl font-bold text-slate-900">{container.totalCtn || 0}</div>
+                    <div className="grid grid-cols-2 gap-4 mb-2">
+                      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm group/stat hover:border-blue-200 transition-colors">
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1 group-hover/stat:text-blue-500 transition-colors">Total CTN</div>
+                        <div className="text-2xl font-bold text-slate-900 tracking-tight">{container.totalCtn || 0}</div>
                       </div>
-                      <div className="bg-amber-50/50 rounded-lg p-3 border border-amber-100">
-                        <div className="text-xs text-amber-600 font-semibold uppercase tracking-wider mb-1">Items</div>
-                        <div className="text-xl font-bold text-slate-900">{container.clientCount || 0} Clients</div>
+                      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm group/stat hover:border-amber-200 transition-colors">
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1 group-hover/stat:text-amber-500 transition-colors">Clients</div>
+                        <div className="text-2xl font-bold text-slate-900 tracking-tight">{container.clientCount || 0}</div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="p-4 bg-slate-50/50 border-t border-slate-100">
+                  <div className="p-6 pt-0">
                     <button
                         onClick={() => window.location.href = `/dashboard/loading/${container.id}`}
-                        className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800 transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 font-medium"
+                        className="w-full bg-slate-900 text-white py-4 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 font-semibold uppercase text-xs tracking-widest active:scale-[0.98]"
                     >
                         <Package className="w-4 h-4" />
-                        Manage Loading
+                        Manage Log
                     </button>
                   </div>
                 </div>

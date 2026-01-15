@@ -5,12 +5,13 @@ import API from '@/lib/api';
 import { toast } from 'sonner';
 import { 
     Loader2, RefreshCw, Settings, ChevronLeft, ChevronRight, 
-    Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History
+    Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History,
+    Users
 } from 'lucide-react';
 import Link from 'next/link';
 
 // Enhanced editable cell component with Tab support
-const EditableCell = ({ value, type = "text", onSave, tabIndex }) => {
+const EditableCell = ({ value, type = "text", onSave, tabIndex, className = "" }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [currentValue, setCurrentValue] = useState(value);
     
@@ -35,7 +36,7 @@ const EditableCell = ({ value, type = "text", onSave, tabIndex }) => {
         return (
             <input
                 type={type}
-                className="w-full px-2 py-1 text-sm border-2 border-blue-500 rounded-md outline-none bg-white shadow-sm font-medium"
+                className={`w-full bg-white border border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm font-normal rounded shadow-sm transition-all ${className}`}
                 value={currentValue}
                 onChange={(e) => setCurrentValue(e.target.value)}
                 onBlur={handleBlur}
@@ -49,16 +50,16 @@ const EditableCell = ({ value, type = "text", onSave, tabIndex }) => {
     return (
         <div 
             onClick={() => setIsEditing(true)}
-            className="w-full h-full min-h-[32px] cursor-pointer hover:bg-white/80 transition-colors flex items-center px-1 rounded hover:shadow-sm"
+            className={`w-full h-full min-h-[32px] cursor-pointer hover:bg-slate-50 transition-all flex items-center px-2 rounded-md border border-transparent hover:border-slate-200 group/cell ${className}`}
             tabIndex={tabIndex}
             onFocus={() => setIsEditing(true)}
         >
             {value ? (
-                <span className="truncate font-medium text-slate-700">
-                    {type === 'date' ? new Date(value).toLocaleDateString() : value}
+                <span className="truncate font-normal text-slate-700">
+                    {type === 'date' ? new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) : value}
                 </span>
             ) : (
-                <span className="text-slate-300 italic text-xs">Click to edit</span>
+                <span className="text-slate-300 italic text-[10px] uppercase tracking-wider font-medium group-hover/cell:text-slate-400">Click to edit</span>
             )}
         </div>
     );
@@ -228,31 +229,31 @@ export default function BifurcationPage() {
                 </div>
 
                 {/* Filters Section */}
-                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 mb-8 items-center">
-                    <div className="relative flex-1 group">
+                <div className="bg-white/60 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row gap-4 mb-8 items-center">
+                    <div className="relative flex-1 group w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
                             type="text"
                             placeholder="Search container or shipping mark..."
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium text-slate-600"
+                            className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 transition-all text-sm font-medium text-slate-600 placeholder:text-slate-300"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
                     
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl group focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
                             <Calendar className="w-4 h-4 text-slate-400" />
                             <input 
                                 type="date" 
-                                className="bg-transparent text-xs font-semibold text-slate-600 outline-none"
+                                className="bg-transparent text-xs font-bold text-slate-600 outline-none"
                                 value={dateRange.from}
                                 onChange={(e) => setDateRange(prev => ({...prev, from: e.target.value}))}
                             />
-                            <span className="text-slate-300 text-xs">to</span>
+                            <span className="text-slate-200 font-black">/</span>
                             <input 
                                 type="date" 
-                                className="bg-transparent text-xs font-semibold text-slate-600 outline-none"
+                                className="bg-transparent text-xs font-bold text-slate-600 outline-none"
                                 value={dateRange.to}
                                 onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
                             />
@@ -283,50 +284,52 @@ export default function BifurcationPage() {
                                     <div key={code} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300">
                                         {/* Accordion Header */}
                                         <div 
-                                            className={`px-5 py-4 flex flex-wrap justify-between items-center cursor-pointer select-none transition-colors ${isExpanded ? 'bg-slate-50/50 border-b border-slate-200' : 'bg-white hover:bg-slate-50/30'}`}
+                                            className={`px-6 py-5 flex flex-wrap justify-between items-center cursor-pointer select-none transition-all duration-300 ${isExpanded ? 'bg-slate-50/80 border-b border-slate-100' : 'bg-white hover:bg-slate-50/50'}`}
                                             onClick={() => toggleContainer(code)}
                                         >
-                                            <div className="flex items-center gap-6">
+                                            <div className="flex items-center gap-8">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Container</span>
-                                                    <div className="flex items-center gap-2 group/code">
-                                                        <h2 className="text-lg font-bold text-slate-800 leading-tight">{code}</h2>
+                                                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1.5">Container</span>
+                                                    <div className="flex items-center gap-2.5 group/code">
+                                                        <h2 className="text-xl font-bold text-slate-900 leading-none tracking-tight">{code}</h2>
                                                         <Link 
                                                             href={`/dashboard/loading/${containerId}`}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className="p-1 opacity-0 group-hover/code:opacity-100 transition-opacity text-blue-500 hover:bg-blue-50 rounded"
+                                                            className="p-1 opacity-0 group-hover/code:opacity-100 transition-all text-blue-500 hover:bg-white hover:shadow-sm border border-transparent hover:border-blue-100 rounded-lg"
                                                             title="View details"
                                                         >
-                                                            <ExternalLink className="w-3.5 h-3.5" />
+                                                            <ExternalLink className="w-4 h-4" />
                                                         </Link>
                                                     </div>
                                                 </div>
-                                                <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-                                                <div className="flex flex-col hidden md:flex">
-                                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Loading Date</span>
-                                                    <div className="text-xs font-semibold text-blue-600">
-                                                        {new Date(items[0].loadingDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                                                
+                                                <div className="h-10 w-px bg-slate-200/60 hidden sm:block"></div>
+                                                
+                                                <div className="flex flex-col hidden lg:flex">
+                                                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mb-1.5">Loading Date</span>
+                                                    <div className="text-sm font-bold text-slate-800 tracking-tight">
+                                                        {new Date(items[0].loadingDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
                                                     </div>
                                                 </div>
                                             </div>
                                             
-                                            <div className="flex items-center gap-4 sm:gap-8">
-                                                <div className="flex gap-4 sm:gap-8">
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">Total CTN</div>
-                                                        <div className="text-sm font-bold text-slate-700 leading-none">{totalCtn}</div>
+                                            <div className="flex items-center gap-6 sm:gap-12">
+                                                <div className="flex gap-6 sm:gap-10">
+                                                    <div className="flex flex-col items-end px-3 border-r border-slate-100">
+                                                        <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest leading-none mb-2">CTN</div>
+                                                        <div className="text-lg font-bold text-slate-900 leading-none">{totalCtn}</div>
                                                     </div>
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] text-emerald-500/80 font-bold uppercase tracking-wider leading-none mb-1">Total CBM</div>
-                                                        <div className="text-sm font-bold text-emerald-600 leading-none">{containerTotalCbm.toFixed(3)}</div>
+                                                    <div className="flex flex-col items-end px-3 border-r border-slate-100">
+                                                        <div className="text-[10px] text-emerald-500/60 font-medium uppercase tracking-widest leading-none mb-2">CBM</div>
+                                                        <div className="text-lg font-bold text-emerald-600 leading-none">{containerTotalCbm.toFixed(3)}</div>
                                                     </div>
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] text-amber-500/80 font-bold uppercase tracking-wider leading-none mb-1">Total WT</div>
-                                                        <div className="text-sm font-bold text-amber-600 leading-none">{containerTotalWt.toFixed(2)}</div>
+                                                    <div className="flex flex-col items-end px-3">
+                                                        <div className="text-[10px] text-amber-500/60 font-medium uppercase tracking-widest leading-none mb-2">WT</div>
+                                                        <div className="text-lg font-bold text-amber-600 leading-none">{containerTotalWt.toFixed(2)}</div>
                                                     </div>
                                                 </div>
-                                                <div className="p-1.5 rounded-full hover:bg-slate-100 transition-colors">
-                                                    {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                                                <div className={`p-2 rounded-xl transition-all ${isExpanded ? 'bg-white shadow-sm rotate-180' : 'bg-slate-50'}`}>
+                                                    <ChevronDown className="w-4 h-4 text-slate-400" />
                                                 </div>
                                             </div>
                                         </div>
@@ -337,19 +340,19 @@ export default function BifurcationPage() {
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-xs">
                                                         <thead>
-                                                            <tr className="bg-slate-50/30 border-b border-slate-100 text-slate-400 text-left uppercase text-[10px] font-bold tracking-wider">
-                                                                <th className="px-4 py-3 w-10 text-center">#</th>
-                                                                <th className="px-4 py-3 w-40">Shipping Mark</th>
-                                                                <th className="px-4 py-3 w-16 text-center">CTN</th>
-                                                                <th className="px-4 py-3 min-w-[200px]">Product Detail</th>
-                                                                <th className="px-4 py-3 w-20 text-right">CBM</th>
-                                                                <th className="px-4 py-3 w-20 text-right">WT</th>
-                                                                 <th className="px-4 py-3 w-24 border-l border-slate-50 bg-blue-50/10 text-blue-600/70">From</th>
-                                                                 <th className="px-4 py-3 w-24 bg-blue-50/10 text-blue-600/70">To</th>
-                                                                 <th className="px-4 py-3 w-28 border-l border-slate-50 bg-amber-50/10 text-amber-600/70">Delivery</th>
-                                                                 <th className="px-4 py-3 w-28 bg-amber-50/10 text-amber-600/70">Inv No</th>
-                                                                 <th className="px-4 py-3 w-16 bg-amber-50/10 text-amber-600/70 text-center">LR.No</th>
-                                                                 <th className="px-4 py-3 w-24 bg-amber-50/10 text-amber-600/70 text-right">GST AMT</th>
+                                                            <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-left uppercase text-[10px] font-medium tracking-widest">
+                                                                <th className="px-5 py-4 min-w-[50px] text-center">#</th>
+                                                                <th className="px-5 py-4 min-w-[150px]">Shipping Mark</th>
+                                                                <th className="px-5 py-4 min-w-[100px] text-center">CTN</th>
+                                                                <th className="px-5 py-4 min-w-[250px]">Product Detail</th>
+                                                                <th className="px-5 py-4 min-w-[100px] text-right">CBM</th>
+                                                                <th className="px-5 py-4 min-w-[100px] text-right">WT</th>
+                                                                 <th className="px-5 py-4 min-w-[120px] border-l border-slate-100">From</th>
+                                                                 <th className="px-5 py-4 min-w-[120px]">To</th>
+                                                                 <th className="px-5 py-4 min-w-[140px] border-l border-slate-100 text-amber-600/60">Delivery</th>
+                                                                 <th className="px-5 py-4 min-w-[120px] text-amber-600/60">Inv No</th>
+                                                                 <th className="px-5 py-4 min-w-[80px] text-amber-600/60 text-center">LR</th>
+                                                                 <th className="px-5 py-4 min-w-[120px] text-amber-600/60 text-right">GST</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-50">
@@ -370,41 +373,41 @@ export default function BifurcationPage() {
                                                                 return groupEntries.map(([client, clientItems], gIdx) => (
                                                                     <React.Fragment key={client || 'none'}>
                                                                         {client && (
-                                                                            <tr className="bg-slate-50 border-y border-slate-100">
-                                                                                <td colSpan="11" className="px-4 py-1.5">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
-                                                                                        <span className="text-[10px] font-bold text-slate-600">
-                                                                                            Client: <span className="text-blue-700">{client}</span>
+                                                                            <tr className="bg-slate-50/50">
+                                                                                <td colSpan="11" className="px-5 py-2.5">
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        <Users className="w-3.5 h-3.5 text-blue-500/60" />
+                                                                                        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">
+                                                                                            {client}
                                                                                         </span>
-                                                                                        <span className="text-[10px] font-medium text-slate-400 ml-1">
-                                                                                            ({clientItems.length} {clientItems.length === 1 ? 'mark' : 'marks'})
+                                                                                        <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                                                                                            {clientItems.length} {clientItems.length === 1 ? 'mark' : 'marks'}
                                                                                         </span>
                                                                                     </div>
                                                                                 </td>
-                                                                            </tr>
+                                                            </tr>
                                                                         )}
                                                                         {clientItems.map((item, iIdx) => (
-                                                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                                                <td className="px-4 py-3 text-center text-slate-400 font-medium">
+                                                                            <tr key={item.id} className="hover:bg-slate-50/80 transition-all group border-b border-slate-50 last:border-0 font-sans">
+                                                                                <td className="px-5 py-4 text-center text-slate-300 font-medium text-[10px]">
                                                                                     {client ? `${gIdx}.${iIdx + 1}` : iIdx + 1}
                                                                                 </td>
-                                                                                <td className="px-4 py-3 font-bold text-slate-800 border-r border-slate-50">{item.mark}</td>
-                                                                                <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/10">{item.ctn}</td>
-                                                                                <td className="px-4 py-3 text-slate-500 max-w-xs truncate font-medium" title={item.product}>
+                                                                                <td className="px-5 py-4 font-normal text-slate-900 tracking-tight">{item.mark}</td>
+                                                                                <td className="px-5 py-4 text-center font-normal text-slate-600">{item.ctn}</td>
+                                                                                <td className="px-5 py-4 text-slate-500 max-w-[250px] truncate font-normal text-[11px]" title={item.product}>
                                                                                     {item.product}
                                                                                 </td>
-                                                                                <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{item.totalCbm.toFixed(3)}</td>
-                                                                                <td className="px-4 py-3 text-right text-amber-600 font-semibold">{item.totalWt.toFixed(2)}</td>
+                                                                                <td className="px-5 py-4 text-right text-emerald-600 font-normal">{item.totalCbm.toFixed(3)}</td>
+                                                                                <td className="px-5 py-4 text-right text-amber-600 font-normal">{item.totalWt.toFixed(2)}</td>
                                                                                 
-                                                                                <td className="px-4 py-3 border-l border-slate-50 bg-blue-50/5 group-hover:bg-blue-50/10">
+                                                                                <td className="px-2 py-2 border-l border-slate-50">
                                                                                     <EditableCell 
                                                                                         value={item.from} 
                                                                                         onSave={(val) => handleUpdate(item.id, 'from', val)} 
                                                                                         tabIndex={(gIdx * 100) + (iIdx * 5) + 1}
                                                                                     />
                                                                                 </td>
-                                                                                <td className="px-4 py-3 bg-blue-50/5 group-hover:bg-blue-50/10">
+                                                                                <td className="px-2 py-2">
                                                                                     <EditableCell 
                                                                                         value={item.to} 
                                                                                         onSave={(val) => handleUpdate(item.id, 'to', val)} 
@@ -412,38 +415,41 @@ export default function BifurcationPage() {
                                                                                     />
                                                                                 </td>
 
-                                                                                <td className="px-4 py-3 border-l border-slate-50 bg-amber-50/5 group-hover:bg-amber-50/10">
+                                                                                <td className="px-2 py-2 border-l border-slate-50">
                                                                                     <EditableCell 
                                                                                         value={item.deliveryDate} 
                                                                                         type="date"
                                                                                         onSave={(val) => handleUpdate(item.id, 'deliveryDate', val)} 
                                                                                         tabIndex={(gIdx * 100) + (iIdx * 5) + 3}
+                                                                                        className="text-amber-700 font-normal"
                                                                                     />
                                                                                 </td>
-                                                                                <td className="px-4 py-3 bg-amber-50/5 group-hover:bg-amber-50/10">
+                                                                                <td className="px-2 py-2">
                                                                                     <EditableCell 
                                                                                         value={item.invoiceNo} 
                                                                                         onSave={(val) => handleUpdate(item.id, 'invoiceNo', val)} 
                                                                                         tabIndex={(gIdx * 100) + (iIdx * 5) + 4}
+                                                                                        className="text-amber-700 font-normal"
                                                                                     />
                                                                                 </td>
-                                                                                <td className="px-4 py-3 bg-amber-50/5 group-hover:bg-amber-50/10 text-center">
+                                                                                <td className="px-2 py-2 text-center">
                                                                                     <input 
                                                                                         type="checkbox"
-                                                                                        className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-blue-500/10 cursor-pointer"
+                                                                                        className="w-4 h-4 rounded-md border-slate-300 text-blue-600 focus:ring-4 focus:ring-blue-500/10 cursor-pointer transition-all"
                                                                                         checked={item.lrNo}
                                                                                         onChange={(e) => handleUpdate(item.id, 'lrNo', e.target.checked)}
                                                                                         tabIndex={(gIdx * 100) + (iIdx * 5) + 4}
                                                                                     />
                                                                                 </td>
-                                                                                <td className="px-4 py-3 bg-amber-50/5 group-hover:bg-amber-50/10 text-right">
-                                                                                    <div className="flex items-center justify-end gap-1">
-                                                                                        <span className="text-slate-300 font-medium">₹</span>
+                                                                                <td className="px-2 py-2 text-right">
+                                                                                    <div className="flex items-center justify-end gap-1 px-1">
+                                                                                        <span className="text-slate-300 font-medium text-[10px]">₹</span>
                                                                                         <EditableCell 
                                                                                             value={item.gstAmount || 0} 
                                                                                             type="number"
                                                                                             onSave={(val) => handleUpdate(item.id, 'gstAmount', val)} 
                                                                                             tabIndex={(gIdx * 100) + (iIdx * 5) + 5}
+                                                                                            className="text-amber-700 font-normal text-right"
                                                                                         />
                                                                                     </div>
                                                                                 </td>
