@@ -365,7 +365,7 @@ export default function CreateUser() {
             </div>
 
             {/* Right Column - Permissions */}
-            <div className="space-y-6">
+            <div className="space-y-4 w-[400px]">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">

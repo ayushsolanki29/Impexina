@@ -44,7 +44,7 @@ async function main() {
     { key: "MY_TASK", name: "My Tasks" },
     { key: "BACKUPS", name: "System Backups" },
     { key: "PROFILE", name: "PROFILE" },
-
+    { key: "SETTINGS", name: "Settings" },
   ];
 
   for (const mod of modules) {
@@ -76,6 +76,25 @@ async function main() {
   }
 
   console.log("✅ Admin permissions assigned");
+
+  // Create default system settings
+  const defaultSettings = [
+    {
+      key: "BIFURCATION_ITEM_LIMIT",
+      value: "5",
+      description: "Product layout limit for bifurcation reports. Descriptions collapse to 'MIX ITEM' for marks exceeding this limit.",
+    },
+  ];
+
+  for (const setting of defaultSettings) {
+    await prisma.systemSetting.upsert({
+      where: { key: setting.key },
+      update: {},
+      create: setting,
+    });
+  }
+
+  console.log("✅ Default settings seeded");
   console.log("🌱 Database seeding completed successfully.");
 }
 

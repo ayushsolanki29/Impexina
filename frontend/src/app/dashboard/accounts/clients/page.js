@@ -43,119 +43,152 @@ export default function AccountClientsPage() {
   const cities = ["ALL", ...new Set(clients.map(c => c.city).filter(Boolean))];
 
   return (
-    <div className="min-h-screen bg-white p-4 md:p-10 font-sans">
-      <div className="max-w-5xl mx-auto space-y-12">
-        
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-4">
-          <div className="flex items-start gap-6">
-            <button 
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <button 
                 onClick={() => router.push("/dashboard/accounts")}
-                className="mt-1 p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-900 transition-all hover:bg-slate-50"
-                title="Back to Hub"
-            >
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+                title="Back to Accounts"
+              >
                 <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-               <h1 className="text-4xl font-light text-slate-900 tracking-tight">Client Ledgers</h1>
-               <p className="text-slate-400 mt-2 text-sm leading-relaxed">Select a client to manage their financial records</p>
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="w-6 h-6 text-blue-600" />
+                  Client Ledgers
+                </h1>
+                <p className="text-sm text-slate-600 mt-1">
+                  Select a client to manage their financial records
+                </p>
+              </div>
             </div>
-          </div>
-          
-          <div className="relative w-full md:w-72">
-                <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+            <div className="w-full md:w-72">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search clients..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-7 pr-4 py-2 bg-transparent border-b border-slate-100 focus:border-slate-900 outline-none transition-all placeholder:text-slate-200 text-sm"
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 />
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4 py-6">
 
         {/* Filter Chips */}
         {!loading && clients.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="mb-6">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                 {cities.map(city => (
-                    <button
-                        key={city}
-                        onClick={() => setSelectedCity(city)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
-                            selectedCity === city 
-                            ? "bg-slate-900 text-white border-slate-900" 
-                            : "bg-white text-slate-500 border-slate-100 hover:border-slate-300"
-                        }`}
-                    >
-                        {city}
-                    </button>
+                  <button
+                    key={city}
+                    onClick={() => setSelectedCity(city)}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
+                      selectedCity === city 
+                        ? "bg-blue-600 text-white border-blue-600" 
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {city}
+                  </button>
                 ))}
+              </div>
             </div>
+          </div>
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-200 mb-4" />
-              <p className="text-slate-300 text-sm">Loading clients...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-48 bg-slate-100 animate-pulse rounded-xl"
+              />
+            ))}
+          </div>
+        ) : filteredClients.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-slate-900">
+              No Clients Found
+            </h3>
+            <p className="text-slate-500 text-sm mb-4">
+              {search || selectedCity !== "ALL" 
+                ? "Try adjusting your filters" 
+                : "No clients available"}
+            </p>
+            {(search || selectedCity !== "ALL") && (
+              <button 
+                onClick={() => {setSearch(""); setSelectedCity("ALL")}} 
+                className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-widest"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10">
-              {filteredClients.map(client => (
-                  <div 
-                      key={client.id}
-                      onClick={() => router.push(`/dashboard/accounts/clients/${client.id}/containers`)}
-                      className="group cursor-pointer flex flex-col pt-6 border-t border-slate-100/60 hover:border-slate-300 transition-colors"
-                  >
-                      <div className="flex justify-between items-start mb-4">
-                           <div className="flex flex-col">
-                               <h3 className="text-xl font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
-                                   {client.name}
-                               </h3>
-                               <p className="text-sm text-slate-400 font-normal mt-1 truncate max-w-[240px]">
-                                   {client.companyName || 'No Company Details'}
-                               </p>
-                           </div>
-                           <div className="flex flex-col items-end gap-1.5">
-                               {client.city && (
-                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 py-0.5 border border-slate-100 rounded-md">
-                                       {client.city}
-                                   </span>
-                               )}
-                               {client.type === 'LEAD' && (
-                                   <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-widest">
-                                       LEAD
-                                   </span>
-                               )}
-                           </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 uppercase tracking-widest mt-auto mb-2">
-                          <div className="flex gap-4">
-                              <span>{client.phone ? "PH" : ""}</span>
-                              <span>{client.email ? "EM" : ""}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                              <span>Open</span>
-                              <ChevronRight className="w-3 h-3" />
-                          </div>
-                      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredClients.map(client => (
+              <div 
+                key={client.id}
+                onClick={() => router.push(`/dashboard/accounts/clients/${client.id}/containers`)}
+                className="group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md border-blue-200 cursor-pointer"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 mb-1">
+                      {client.name}
+                    </h3>
+                    <p className="text-sm text-slate-500 line-clamp-1">
+                      {client.companyName || 'No Company Details'}
+                    </p>
                   </div>
-              ))}
-              
-              {filteredClients.length === 0 && (
-                  <div className="col-span-full py-24 text-center">
-                      <p className="text-slate-300 font-light text-xl italic">No matches found.</p>
-                      <button onClick={() => {setSearch(""); setSelectedCity("ALL")}} className="mt-4 text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-widest">Reset Filters</button>
+                  <div className="flex flex-col items-end gap-1.5 ml-2">
+                    {client.city && (
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-0.5 bg-slate-50 border border-slate-200 rounded">
+                        {client.city}
+                      </span>
+                    )}
+                    {client.type === 'LEAD' && (
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-amber-100">
+                        LEAD
+                      </span>
+                    )}
                   </div>
-              )}
+                </div>
+                
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-4 text-[11px] font-medium text-slate-400 uppercase tracking-widest">
+                      {client.phone && <span>PH</span>}
+                      {client.email && <span>EM</span>}
+                    </div>
+                    <div className="flex items-center gap-1 text-blue-600 font-medium text-sm group-hover:gap-2 transition-all">
+                      <span>Open</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {/* Summary Footer */}
         {!loading && clients.length > 0 && (
-            <div className="pt-8 border-t border-gray-100 text-center text-slate-300 text-[10px] font-bold uppercase tracking-[0.2em]">
-                {clients.length} Clients Identified • {new Set(clients.map(c => c.city)).size} Cities
-            </div>
+          <div className="mt-8 pt-6 border-t border-slate-200 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            {filteredClients.length} {filteredClients.length === 1 ? 'Client' : 'Clients'} Identified • {new Set(filteredClients.map(c => c.city)).size} {new Set(filteredClients.map(c => c.city)).size === 1 ? 'City' : 'Cities'}
+          </div>
         )}
       </div>
     </div>

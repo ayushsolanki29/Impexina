@@ -1518,3 +1518,78 @@ model InvoiceActivity {
 
   createdAt DateTime @default(now())
 }
+
+// TukaramJI Account Sheet Models
+enum TukaramSheetStatus {
+  ACTIVE
+  ARCHIVED
+  LOCKED
+}
+
+model TukaramSheet {
+  id          String  @id @default(uuid())
+  title       String  @unique
+  description String?
+
+  // Status
+  status   TukaramSheetStatus @default(ACTIVE)
+  isLocked Boolean           @default(false)
+
+  // Metadata
+  month Int? // 1-12 for filtering
+  year  Int? // 2025, 2026, etc
+  tags  String[]
+
+  // Opening Balance
+  openingBalance Float @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entries TukaramSheetEntry[]
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([month, year])
+  @@index([status])
+}
+
+model TukaramSheetEntry {
+  id      String       @id @default(uuid())
+  sheetId String
+  sheet   TukaramSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  // Entry data based on TUKARAM JI - AC SHEET
+  containerCode String
+  totalCtn      Int       @default(0)
+  loadingDate   DateTime?
+  deliveryDate  DateTime?
+  particular    String?   // MIX, FULL, etc.
+  charges       Float     @default(0)
+  scanning      Float     @default(0)
+  dc            Float     @default(0) // Delivery Challan
+  total         Float     @default(0)
+  paid          Float     @default(0)
+  paymentDate   DateTime?
+  note          String?
+
+  // Calculated fields
+  balance Float @default(0) // total - paid
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([sheetId])
+  @@index([containerCode])
+  @@index([loadingDate])
+  @@index([deliveryDate])
+}

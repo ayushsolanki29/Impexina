@@ -47,7 +47,7 @@ const clientsService = {
         },
         orders: {
           take: 10,
-          orderBy: { createdAt: "desc" }
+          orderBy: { id: "desc" }
         }
       }
     });

@@ -154,6 +154,13 @@ const ALL_MENU_ITEMS = [
     path: "/dashboard/backups",
     moduleKey: "BACKUPS",
   },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: Settings,
+    path: "/dashboard/settings",
+    moduleKey: "SETTINGS",
+  },
 ];
 
 function roleColor(role) {

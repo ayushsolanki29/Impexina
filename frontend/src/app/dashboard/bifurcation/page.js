@@ -162,7 +162,7 @@ export default function BifurcationPage() {
     const handleUpdateSetting = async () => {
         try {
             setSavingSettings(true);
-            await API.post('/bifurcation/settings', { key: 'BIFURCATION_ITEM_LIMIT', value: mixLimit });
+            await API.post('/settings/bifurcation/update', { mixLimit: parseInt(mixLimit) });
             toast.success("Settings updated");
             setShowSettings(false);
             fetchData(pagination.page);

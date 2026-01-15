@@ -46,6 +46,7 @@ router.use("/accounts/dineshbhai", dinieshbhaiRoutes);
 router.use("/accounts/david", davidSheet);
 router.use("/accounts/collection", paymentCollection);
 router.use("/accounts/shipping", ShippingRoutes);
+router.use("/accounts/tukaram", require("./accounts/tukaram/tukaram.routes"));
 router.use("/clients", ClientsRoutes);
 router.use("/expenses/mumbai-ledger", mumbaiLedger);
 router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
@@ -60,6 +61,7 @@ router.use("/loading-sheets", loadingSheetsRoutes);
 router.use("/bifurcation", require("./bifurcation/bifurcation.routes"));
 router.use("/invoice", require("./invoice/invoice.routes"));
 router.use("/warehouse", require("./warehouse/warehouse.routes"));
+router.use("/settings", require("./settings/settings.routes"));
 
 // Generic Upload Route
 const upload = require("../middleware/upload");

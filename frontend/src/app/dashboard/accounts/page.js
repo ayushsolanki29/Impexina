@@ -2,16 +2,19 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users, TrendingUp, Globe, CreditCard, Ship,
-  Lock, ShieldCheck, LogOut, Key, X
+  Users, TrendingUp, Globe, CreditCard, Ship, FileText,
+  Lock, ShieldCheck, LogOut, Key, X, Loader2, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import API from "@/lib/api";
 
 export default function AccountsHub() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [otp, setOtp] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [accountsConfigured, setAccountsConfigured] = useState(false);
 
   // Check localStorage on mount
   useEffect(() => {
@@ -20,7 +23,19 @@ export default function AccountsHub() {
       setIsAuthenticated(true);
     }
     setMounted(true);
+    checkAccountsConfig();
   }, []);
+
+  const checkAccountsConfig = async () => {
+    try {
+      const response = await API.get('/settings/accounts/get');
+      if (response.data.success) {
+        setAccountsConfigured(response.data.data.isConfigured);
+      }
+    } catch (error) {
+      console.error("Failed to check accounts config");
+    }
+  };
 
   // Save to localStorage when authenticated
   useEffect(() => {
@@ -74,16 +89,49 @@ export default function AccountsHub() {
       color: "bg-indigo-50 text-indigo-600",
       border: "border-indigo-200 hover:border-indigo-400",
     },
+    {
+      title: "TukaramJI Accounts",
+      desc: "Container-wise account sheets with charges, scanning, and DC tracking.",
+      path: "/dashboard/accounts/tukaram",
+      icon: FileText,
+      color: "bg-cyan-50 text-cyan-600",
+      border: "border-cyan-200 hover:border-cyan-400",
+    },
   ];
 
-  const handleVerify = (e) => {
+  const handleVerify = async (e) => {
     e.preventDefault();
-    if (otp === "1234") {
-      setIsAuthenticated(true);
-      toast.success("Access granted");
-    } else {
-      toast.error("Invalid code");
+    
+    if (!otp) {
+      toast.error("Please enter password or keyphrase");
+      return;
+    }
+
+    if (!accountsConfigured) {
+      toast.error("Accounts security not configured. Please set up keyphrase in Settings first.");
+      return;
+    }
+
+    try {
+      setVerifying(true);
+      const response = await API.post('/settings/accounts/verify', {
+        input: otp
+      });
+      
+      if (response.data.success && response.data.data.isValid) {
+        setIsAuthenticated(true);
+        toast.success("Access granted");
+        setOtp("");
+      } else {
+        toast.error("Invalid password or keyphrase");
+        setOtp("");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || "Verification failed");
       setOtp("");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -104,25 +152,37 @@ export default function AccountsHub() {
                 Financial Portal
               </h1>
               <p className="text-gray-500 text-sm">
-                Enter security code to continue
+                {accountsConfigured 
+                  ? "Enter password or keyphrase to continue"
+                  : "Security not configured. Please set up keyphrase in Settings."}
               </p>
+              {!accountsConfigured && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                    <p className="text-xs text-amber-700">
+                      Accounts security must be configured in Settings before accessing this module.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Form */}
             <form onSubmit={handleVerify} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Security Code
+                  Password or Keyphrase
                 </label>
                 <div className="relative">
                   <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input 
                     type="password" 
-                    maxLength={4}
-                    placeholder="Enter 4-digit code"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="Enter password or keyphrase"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition disabled:opacity-50 disabled:cursor-not-allowed"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
+                    disabled={!accountsConfigured || verifying}
                     autoFocus
                   />
                 </div>
@@ -130,10 +190,20 @@ export default function AccountsHub() {
 
               <button 
                 type="submit"
-                className="w-full py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition flex items-center justify-center gap-2"
+                disabled={!accountsConfigured || verifying || !otp}
+                className="w-full py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <ShieldCheck className="w-5 h-5" />
-                Unlock Portal
+                {verifying ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-5 h-5" />
+                    Unlock Portal
+                  </>
+                )}
               </button>
             </form>
 

@@ -328,7 +328,7 @@ export default function LoadingPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 tracking-tight leading-none">Warehouse</h1>
+            <h1 className="text-4xl font-bold text-slate-900 tracking-tight leading-none">Loading Containers</h1>
             <p className="text-slate-500 mt-2 font-normal">Track containers, loading details and shipment stats</p>
           </div>
           
@@ -586,7 +586,7 @@ export default function LoadingPage() {
                         className="w-full bg-slate-900 text-white py-4 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 font-semibold uppercase text-xs tracking-widest active:scale-[0.98]"
                     >
                         <Package className="w-4 h-4" />
-                        Manage Log
+                        Manage Loading
                     </button>
                   </div>
                 </div>
