@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Search, Filter, Download, MoreVertical, FileText, Trash2, Edit, Eye, Mail, RefreshCw, Users, UserPlus, CheckCircle2, MapPin, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, del } from "@/lib/api";
 
 export default function ClientsPage() {
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -20,6 +22,14 @@ export default function ClientsPage() {
   });
   const [selectedClients, setSelectedClients] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Read search parameter from URL on mount
+  useEffect(() => {
+    const urlSearch = searchParams.get("search");
+    if (urlSearch) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchClients();

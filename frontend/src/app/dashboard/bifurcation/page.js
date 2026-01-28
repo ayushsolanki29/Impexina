@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { 
     Loader2, RefreshCw, Settings, ChevronLeft, ChevronRight, 
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History,
@@ -66,6 +67,7 @@ const EditableCell = ({ value, type = "text", onSave, tabIndex, className = "" }
 };
 
 export default function BifurcationPage() {
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
@@ -375,11 +377,15 @@ export default function BifurcationPage() {
                                                                         {client && (
                                                                             <tr className="bg-slate-50/50">
                                                                                 <td colSpan="11" className="px-5 py-2.5">
-                                                                                    <div className="flex items-center gap-3">
+                                                                                    <div className="flex items-center gap-3 group/client">
                                                                                         <Users className="w-3.5 h-3.5 text-blue-500/60" />
-                                                                                        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">
+                                                                                        <Link
+                                                                                            href={`/dashboard/loading/${clientItems[0].containerId}?client=${encodeURIComponent(client)}`}
+                                                                                            className="text-[11px] font-bold text-slate-800 uppercase tracking-tight hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2 group-hover/client:underline"
+                                                                                        >
                                                                                             {client}
-                                                                                        </span>
+                                                                                            <ExternalLink className="w-3 h-3 opacity-0 group-hover/client:opacity-100 transition-opacity text-blue-500" />
+                                                                                        </Link>
                                                                                         <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">
                                                                                             {clientItems.length} {clientItems.length === 1 ? 'mark' : 'marks'}
                                                                                         </span>

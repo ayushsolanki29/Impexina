@@ -66,7 +66,7 @@ export default function PackingListEntryPage() {
     showMixColumn: true,
     showHsnColumn: true,
     from: '',
-    to: ''
+    to: 'NHAVA SHEVA'
   });
 
   const [items, setItems] = useState([]);
@@ -127,7 +127,7 @@ export default function PackingListEntryPage() {
             showMixColumn: pl.showMixColumn ?? true,
             showHsnColumn: pl.showHsnColumn ?? true,
             from: pl.from || response.data.data.container.origin || '',
-            to: pl.to || response.data.data.container.destination || ''
+            to: pl.to || response.data.data.container.destination || 'NHAVA SHEVA'
           });
           if (pl.items?.length > 0) {
             setItems(pl.items.map(i => ({ ...i, id: i.id || `item_${Math.random()}` })));
@@ -142,7 +142,7 @@ export default function PackingListEntryPage() {
                 ...prev, 
                 invNo: `IGP-${response.data.data.container.containerCode}`,
                 from: response.data.data.container.origin || '',
-                to: response.data.data.container.destination || ''
+                to: response.data.data.container.destination || 'NHAVA SHEVA'
             }));
             handleAutoImport();
         }
@@ -763,8 +763,8 @@ export default function PackingListEntryPage() {
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input 
-                            value={item.itemNumber} 
-                            onChange={e => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
+                            value={item.shippingMark} 
+                            onChange={e => updateItem(item.id, 'shippingMark', e.target.value.toUpperCase())}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
                             placeholder="-"
                           />

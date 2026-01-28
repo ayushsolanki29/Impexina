@@ -11,6 +11,24 @@ import API from "@/lib/api";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+// Helper function to get image URL
+const getImageUrl = (photoPath) => {
+  if (!photoPath) return null;
+  
+  // If already a full URL, return as is
+  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
+    return photoPath;
+  }
+  
+  // Ensure photoPath starts with /
+  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
+  
+  // Get base URL and remove trailing slash if present
+  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
+  
+  return `${baseUrl}${normalizedPath}`;
+};
+
 export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
   const [showImages, setShowImages] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -327,10 +345,14 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
                       <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '4px', textAlign: 'center' }}>
                          {item.photo ? (
                           <img
-                            src={`${process.env.NEXT_PUBLIC_SERVER_URL}${item.photo}`}
+                            src={getImageUrl(item.photo)}
                             alt=""
                             style={{ width: '40px', height: '40px', objectFit: 'contain', display: 'block', margin: '0 auto', border: `1px solid ${colors.slate200}`, borderRadius: '4px' }}
                             crossOrigin="anonymous"
+                            onError={(e) => {
+                              console.error("Preview image load error:", getImageUrl(item.photo), item.photo);
+                              e.target.style.display = "none";
+                            }}
                           />
                         ) : (
                           <div style={{ width: '40px', height: '40px', background: colors.slate50, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: `1px dashed ${colors.slate300}`, borderRadius: '4px' }}>-</div>

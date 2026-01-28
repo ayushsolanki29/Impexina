@@ -128,7 +128,7 @@ const loadingSheetService = {
     if (items && items.length > 0) {
       const itemsToCreate = items.map((item) => ({
         loadingSheetId: loadingSheet.id,
-        photo: item.photo || null,
+        photo: item.photo || null, // Keep original photo path - don't modify it
         particular: item.particular,
         mark: item.mark || null,
         itemNo: item.itemNo || item.particular,

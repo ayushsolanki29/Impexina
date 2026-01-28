@@ -100,10 +100,13 @@ const loadingSheetController = {
         });
       }
 
+      // Decode shippingMark if it was URL-encoded (handles spaces, special chars)
+      const decodedShippingMark = shippingMark ? decodeURIComponent(shippingMark) : "general";
+
       const photoPath = await loadingSheetService.uploadPhoto(
         req.file,
         containerCode,
-        shippingMark
+        decodedShippingMark
       );
 
       res.json({
