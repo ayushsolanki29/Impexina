@@ -397,6 +397,18 @@ const orderTrackerController = {
       console.error('Error creating client:', error);
       res.status(500).json({ success: false, message: error.message || 'Failed to create client' });
     }
+  },
+
+  // Get supplier suggestions
+  getSupplierSuggestions: async (req, res) => {
+    try {
+      const { search = '' } = req.query;
+      const suppliers = await orderTrackerService.getSupplierSuggestions(search);
+      res.json({ success: true, data: suppliers });
+    } catch (error) {
+      console.error('Error fetching supplier suggestions:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch suppliers' });
+    }
   }
 };
 

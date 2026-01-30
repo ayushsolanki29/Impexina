@@ -563,6 +563,35 @@ class OrderTrackerService {
       where: { id }
     });
   }
+
+  // Get supplier suggestions
+  async getSupplierSuggestions(search) {
+    if (!search || search.length < 2) {
+      return [];
+    }
+
+    const suppliers = await prisma.orderTracker.findMany({
+      where: {
+        supplier: {
+          contains: search,
+          mode: 'insensitive'
+        }
+      },
+      select: {
+        supplier: true
+      },
+      distinct: ['supplier'],
+      take: 10,
+      orderBy: {
+        supplier: 'asc'
+      }
+    });
+
+    return suppliers
+      .map(s => s.supplier)
+      .filter(Boolean)
+      .map(supplier => ({ name: supplier, id: supplier }));
+  }
 }
 
 module.exports = new OrderTrackerService();

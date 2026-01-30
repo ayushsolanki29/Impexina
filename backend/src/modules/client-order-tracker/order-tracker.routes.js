@@ -48,6 +48,9 @@ router.get('/clients/suggestions', orderTrackerController.getClientSuggestions);
 // Quick create a new client
 router.post('/clients/quick-create', orderTrackerController.createQuickClient);
 
+// Get supplier suggestions for autocomplete
+router.get('/suppliers/suggestions', orderTrackerController.getSupplierSuggestions);
+
 // ========== ORDER SHEET ROUTES ==========
 
 // List Sheets
