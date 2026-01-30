@@ -30,13 +30,16 @@ import {
   Users,
   Ship,
   History,
+  Code,
+  ExternalLink,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import API from "@/lib/api";
 import { toast } from "sonner";
 import { clearAuthCookies } from "@/utils/auth-storage";
-   
+
 // Define all possible menu items with their module keys
 const ALL_MENU_ITEMS = [
   {
@@ -103,7 +106,7 @@ const ALL_MENU_ITEMS = [
       },
     ],
   },
-     {
+  {
     key: "warehouse",
     label: "Warehouse Plan",
     icon: Warehouse,
@@ -247,10 +250,10 @@ function UserSkeleton({ isOpen }) {
   );
 }
 
-export default function SidebarAdvanced({ 
-  role: propRole, 
+export default function SidebarAdvanced({
+  role: propRole,
   currentPath: propPath,
-  initialPermissions = [] 
+  initialPermissions = [],
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -261,7 +264,12 @@ export default function SidebarAdvanced({
   const [user, setUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState(initialPermissions);
   const [expandedMap, setExpandedMap] = useState({});
-  const [taskStats, setTaskStats] = useState({ completed: 0, pending: 0, total: 0 });
+  const [taskStats, setTaskStats] = useState({
+    completed: 0,
+    pending: 0,
+    total: 0,
+  });
+  const [footerExpanded, setFooterExpanded] = useState(true);
   const containerRef = useRef(null);
   const indicatorRef = useRef(null);
   const itemsRef = useRef({});
@@ -274,18 +282,18 @@ export default function SidebarAdvanced({
     }
 
     // All other users (including regular Admin) only see permitted modules
-    return ALL_MENU_ITEMS.filter(menuItem => {
+    return ALL_MENU_ITEMS.filter((menuItem) => {
       // Check if user has permission for this menu item
       const hasPermission = userPermissions.includes(menuItem.moduleKey);
-      
+
       // For parent items with children, check if user has permission for any child
       if (menuItem.children) {
-        const hasChildPermission = menuItem.children.some(child => 
-          userPermissions.includes(child.moduleKey)
+        const hasChildPermission = menuItem.children.some((child) =>
+          userPermissions.includes(child.moduleKey),
         );
         return hasPermission || hasChildPermission;
       }
-      
+
       return hasPermission;
     });
   }, [user, userPermissions]);
@@ -294,20 +302,26 @@ export default function SidebarAdvanced({
     let activeKey = null;
     let maxMatchLength = 0;
 
-    const normalizedPath = currentPath.endsWith("/") 
-      ? currentPath.slice(0, -1) 
+    const normalizedPath = currentPath.endsWith("/")
+      ? currentPath.slice(0, -1)
       : currentPath;
 
     for (const item of ALL_MENU_ITEMS) {
       if (item.children) {
         for (const child of item.children) {
-          if (normalizedPath === child.path || normalizedPath.startsWith(child.path + "/")) {
+          if (
+            normalizedPath === child.path ||
+            normalizedPath.startsWith(child.path + "/")
+          ) {
             return item.key;
           }
         }
       }
 
-      if (normalizedPath === item.path || normalizedPath.startsWith(item.path + "/")) {
+      if (
+        normalizedPath === item.path ||
+        normalizedPath.startsWith(item.path + "/")
+      ) {
         if (item.path.length > maxMatchLength) {
           maxMatchLength = item.path.length;
           activeKey = item.key;
@@ -319,7 +333,10 @@ export default function SidebarAdvanced({
   }, [currentPath]);
 
   useEffect(() => {
-    if (activeKey && ALL_MENU_ITEMS.find((m) => m.key === activeKey)?.children) {
+    if (
+      activeKey &&
+      ALL_MENU_ITEMS.find((m) => m.key === activeKey)?.children
+    ) {
       setExpandedMap((prev) => ({ ...prev, [activeKey]: true }));
     }
   }, [activeKey]);
@@ -327,7 +344,22 @@ export default function SidebarAdvanced({
   useEffect(() => {
     fetchUserData();
     fetchTaskStats();
+    
+    // Load footer state from localStorage
+    const savedFooterState = localStorage.getItem('sidebarFooterExpanded');
+    if (savedFooterState !== null) {
+      setFooterExpanded(JSON.parse(savedFooterState));
+    }
   }, []);
+
+  // Save footer state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarFooterExpanded', JSON.stringify(footerExpanded));
+  }, [footerExpanded]);
+
+  const toggleFooter = () => {
+    setFooterExpanded(prev => !prev);
+  };
 
   const fetchTaskStats = async () => {
     try {
@@ -336,24 +368,24 @@ export default function SidebarAdvanced({
         const tasks = res.data.data || [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         let completed = 0;
         let pending = 0;
-        
+
         tasks.forEach((task) => {
           const isCompletedToday = task.completions?.some((c) => {
             const completedAt = new Date(c.completedAt);
             completedAt.setHours(0, 0, 0, 0);
             return completedAt.getTime() === today.getTime();
           });
-          
+
           if (isCompletedToday) {
             completed++;
           } else {
             pending++;
           }
         });
-        
+
         setTaskStats({ completed, pending, total: tasks.length });
       }
     } catch (error) {
@@ -384,14 +416,16 @@ export default function SidebarAdvanced({
       if (userRes.data.success) {
         const userData = userRes.data.data;
         setUser(userData);
-        
+
         // If user has permissions in response, use them
         if (userData.permissions) {
           setUserPermissions(userData.permissions);
         } else if (userData.id) {
           // Otherwise fetch permissions separately
           try {
-            const permRes = await API.get(`/users/roles/permissions?userId=${userData.id}`);
+            const permRes = await API.get(
+              `/users/roles/permissions?userId=${userData.id}`,
+            );
             if (permRes.data.success) {
               setUserPermissions(permRes.data.data);
             }
@@ -399,7 +433,7 @@ export default function SidebarAdvanced({
             console.error("Failed to fetch permissions:", permError);
             // Only Super Admin gets all permissions as fallback
             if (userData.isSuper) {
-              setUserPermissions(ALL_MENU_ITEMS.map(item => item.moduleKey));
+              setUserPermissions(ALL_MENU_ITEMS.map((item) => item.moduleKey));
             }
           }
         }
@@ -427,9 +461,9 @@ export default function SidebarAdvanced({
     setExpandedMap((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const currentUser = user || { 
-    name: "Ayush Solanki", 
-    role: propRole || "ADMIN" 
+  const currentUser = user || {
+    name: "Ayush Solanki",
+    role: propRole || "ADMIN",
   };
 
   // Helper function to check if user has specific permission
@@ -448,12 +482,16 @@ export default function SidebarAdvanced({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200">
-        <div className={`flex items-center transition-all duration-300 ${
-          open ? "justify-start" : "justify-center w-full"
-        }`}>
-          <div className={`flex items-center justify-center rounded-xl overflow-hidden transition-all duration-300 ${
-            open ? "w-44 h-14" : "w-14 h-14"
-          }`}>
+        <div
+          className={`flex items-center transition-all duration-300 ${
+            open ? "justify-start" : "justify-center w-full"
+          }`}
+        >
+          <div
+            className={`flex items-center justify-center rounded-xl overflow-hidden transition-all duration-300 ${
+              open ? "w-44 h-14" : "w-14 h-14"
+            }`}
+          >
             <Image
               src="/logo.png"
               alt="Logo"
@@ -471,9 +509,11 @@ export default function SidebarAdvanced({
             open ? "ml-2" : "absolute right-3"
           }`}
         >
-          <ChevronLeft className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
-            open ? "" : "rotate-180"
-          }`} />
+          <ChevronLeft
+            className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
+              open ? "" : "rotate-180"
+            }`}
+          />
         </button>
       </div>
 
@@ -498,14 +538,20 @@ export default function SidebarAdvanced({
               const Icon = item.icon;
               const isActive = item.key === activeKey;
               const hasChildren = item.children && item.children.length > 0;
-              
+
               // Filter children based on permissions
-              const visibleChildren = hasChildren 
-                ? item.children.filter(child => hasPermission(child.moduleKey))
+              const visibleChildren = hasChildren
+                ? item.children.filter((child) =>
+                    hasPermission(child.moduleKey),
+                  )
                 : [];
 
               // Don't show parent if no children are visible (unless parent itself has permission)
-              if (hasChildren && visibleChildren.length === 0 && !hasPermission(item.moduleKey)) {
+              if (
+                hasChildren &&
+                visibleChildren.length === 0 &&
+                !hasPermission(item.moduleKey)
+              ) {
                 return null;
               }
 
@@ -535,15 +581,19 @@ export default function SidebarAdvanced({
                           isActive
                             ? "text-blue-600"
                             : "text-slate-400 group-hover:text-slate-600"
-                        } ${(!item.path && !hasChildren) ? "opacity-50" : ""}`}
+                        } ${!item.path && !hasChildren ? "opacity-50" : ""}`}
                       />
 
                       {open && (
                         <>
                           <div className="flex-1 flex items-center justify-between overflow-hidden">
-                            <span className={`text-sm truncate ${
-                              isActive ? "font-semibold" : "font-medium"
-                            } ${(!item.path && !hasChildren) ? "opacity-50" : ""}`}>
+                            <span
+                              className={`text-sm truncate ${
+                                isActive ? "font-semibold" : "font-medium"
+                              } ${
+                                !item.path && !hasChildren ? "opacity-50" : ""
+                              }`}
+                            >
                               {item.label}
                             </span>
                             <div className="flex items-center gap-2">
@@ -564,32 +614,39 @@ export default function SidebarAdvanced({
                   </div>
 
                   {/* Submenu */}
-                  {hasChildren && open && expandedMap[item.key] && visibleChildren.length > 0 && (
-                    <ul className="mt-1 ml-4 space-y-0.5 pl-3 border-l border-slate-100">
-                      {visibleChildren.map((child) => {
-                        const isChildActive = currentPath.startsWith(child.path);
-                        return (
-                          <li key={child.key}>
-                            <button
-                              onClick={() => navTo(child.path)}
-                              className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
-                                isChildActive
-                                  ? "bg-slate-100 text-slate-900 font-medium"
-                                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                              }`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  isChildActive ? "bg-blue-500" : "bg-slate-300"
+                  {hasChildren &&
+                    open &&
+                    expandedMap[item.key] &&
+                    visibleChildren.length > 0 && (
+                      <ul className="mt-1 ml-4 space-y-0.5 pl-3 border-l border-slate-100">
+                        {visibleChildren.map((child) => {
+                          const isChildActive = currentPath.startsWith(
+                            child.path,
+                          );
+                          return (
+                            <li key={child.key}>
+                              <button
+                                onClick={() => navTo(child.path)}
+                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                                  isChildActive
+                                    ? "bg-slate-100 text-slate-900 font-medium"
+                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                 }`}
-                              />
-                              <span>{child.label}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    isChildActive
+                                      ? "bg-blue-500"
+                                      : "bg-slate-300"
+                                  }`}
+                                />
+                                <span>{child.label}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                 </li>
               );
             })}
@@ -603,10 +660,10 @@ export default function SidebarAdvanced({
               Quick Actions
             </div>
           )}
-          
+
           {/* My Tasks Status Card - Only for non-admin users */}
-          {currentUser.role !== 'ADMIN' && (
-            <div 
+          {currentUser.role !== "ADMIN" && (
+            <div
               onClick={() => navTo("/dashboard/my-tasks")}
               className="mb-3 p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-100 cursor-pointer hover:from-indigo-100 hover:to-blue-100 transition-colors"
             >
@@ -617,19 +674,27 @@ export default function SidebarAdvanced({
                       <ListTodo className="w-3.5 h-3.5" />
                       My Tasks
                     </span>
-                    <span className="text-[10px] text-indigo-500 font-medium">Today</span>
+                    <span className="text-[10px] text-indigo-500 font-medium">
+                      Today
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
-                      <div className="text-lg font-bold text-emerald-600">{taskStats.completed}</div>
+                      <div className="text-lg font-bold text-emerald-600">
+                        {taskStats.completed}
+                      </div>
                       <div className="text-[10px] text-emerald-700">Done</div>
                     </div>
                     <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
-                      <div className="text-lg font-bold text-amber-600">{taskStats.pending}</div>
+                      <div className="text-lg font-bold text-amber-600">
+                        {taskStats.pending}
+                      </div>
                       <div className="text-[10px] text-amber-700">Pending</div>
                     </div>
                     <div className="flex-1 text-center p-1.5 bg-white/60 rounded">
-                      <div className="text-lg font-bold text-slate-600">{taskStats.total}</div>
+                      <div className="text-lg font-bold text-slate-600">
+                        {taskStats.total}
+                      </div>
                       <div className="text-[10px] text-slate-500">Total</div>
                     </div>
                   </div>
@@ -637,7 +702,9 @@ export default function SidebarAdvanced({
               ) : (
                 <div className="flex flex-col items-center">
                   <ListTodo className="w-5 h-5 text-indigo-600 mb-1" />
-                  <span className="text-xs font-bold text-indigo-700">{taskStats.pending}</span>
+                  <span className="text-xs font-bold text-indigo-700">
+                    {taskStats.pending}
+                  </span>
                 </div>
               )}
             </div>
@@ -682,7 +749,7 @@ export default function SidebarAdvanced({
             )}
 
             {/* Admin (non-super): Task & User management */}
-            {currentUser.role === 'ADMIN' && !currentUser.isSuper && (
+            {currentUser.role === "ADMIN" && !currentUser.isSuper && (
               <>
                 <Button
                   onClick={() => navTo("/dashboard/tasks/assignments")}
@@ -708,7 +775,7 @@ export default function SidebarAdvanced({
             )}
 
             {/* Employee: Quick task access */}
-            {currentUser.role === 'EMPLOYEE' && (
+            {currentUser.role === "EMPLOYEE" && (
               <Button
                 onClick={() => navTo("/dashboard/my-tasks")}
                 variant="outline"
@@ -722,7 +789,7 @@ export default function SidebarAdvanced({
             )}
 
             {/* New Joiner: Simple task access */}
-            {currentUser.role === 'NEW_JOINNER' && (
+            {currentUser.role === "NEW_JOINNER" && (
               <Button
                 onClick={() => navTo("/dashboard/my-tasks")}
                 variant="outline"
@@ -768,15 +835,17 @@ export default function SidebarAdvanced({
                       </span>
                     )}
                   </div>
-                  <div className={`text-xs truncate capitalize ${
-                    currentUser.isSuper 
-                      ? "text-slate-900 font-medium" 
-                      : currentUser.role === "ADMIN" 
+                  <div
+                    className={`text-xs truncate capitalize ${
+                      currentUser.isSuper
+                        ? "text-slate-900 font-medium"
+                        : currentUser.role === "ADMIN"
                         ? "text-red-600 font-medium"
                         : currentUser.role === "EMPLOYEE"
-                          ? "text-emerald-600 font-medium"
-                          : "text-slate-500"
-                  }`}>
+                        ? "text-emerald-600 font-medium"
+                        : "text-slate-500"
+                    }`}
+                  >
                     {currentUser.role?.toLowerCase().replace("_", " ")}
                   </div>
                 </div>
@@ -794,6 +863,65 @@ export default function SidebarAdvanced({
           </button>
         </div>
       )}
+
+      {/* App Footer */}
+      <div className="border-t border-slate-200 bg-slate-50/50 overflow-hidden">
+        {/* Toggle Button */}
+        <button
+          onClick={toggleFooter}
+          className="w-full px-4 py-2 flex items-center justify-between hover:bg-slate-100/50 transition-colors group"
+          title={footerExpanded ? 'Hide footer' : 'Show footer'}
+        >
+          {open && (
+            <span className="text-[11px] text-slate-500 font-medium">Software Information</span>
+          )}
+          <div className={`flex items-center gap-1 ${open ? '' : 'mx-auto'}`}>
+            {open && (
+              <Code className="w-3 h-3 text-slate-400" />
+            )}
+            {footerExpanded ? (
+              <ChevronUp className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors ${open ? '' : 'mx-auto'}`} />
+            ) : (
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors ${open ? '' : 'mx-auto'}`} />
+            )}
+          </div>
+        </button>
+
+        {/* Footer Content - Accordion */}
+        <div
+          className={`transition-all duration-300 ease-in-out ${
+            footerExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="px-4 py-2.5">
+            {open ? (
+              <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <Code className="w-3 h-3 text-slate-400" />
+                  <span className="font-medium">v{process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">by</span>
+                  <a
+                    href="https://ayushsolanki.site"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>ayushsolanki</span>
+                    <ExternalLink className="w-3 h-3 opacity-50" />
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <Code className="w-3.5 h-3.5 text-slate-400" title={`v${process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'}`} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }

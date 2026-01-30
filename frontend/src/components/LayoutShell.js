@@ -8,6 +8,7 @@ import { getAuthToken } from "@/utils/auth-storage";
 import API from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
+
 export default function LayoutShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -130,7 +131,10 @@ export default function LayoutShell({ children }) {
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {!hideSidebar && <Sidebar />}
-      <main className="flex-1 overflow-y-auto bg-gray-50">{children}</main>
+      <main className="flex-1 overflow-y-auto bg-gray-50">{children}
+
+     
+      </main>
     </div>
   );
 }
