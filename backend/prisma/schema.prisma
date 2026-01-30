@@ -663,6 +663,10 @@ model ClientTransaction {
   fromAccount String @default("Main")
   toAccount   String @default("Client")
 
+  // Location/Transportation (from Bifurcation)
+  from String? // FROM location
+  to   String? // TO location
+
   // Audit fields - store as strings
   createdBy String?
   updatedBy String?

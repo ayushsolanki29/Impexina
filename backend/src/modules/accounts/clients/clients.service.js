@@ -120,7 +120,9 @@ const AccountClientsService = {
         billingType: cleanData.billingType || 'FLAT', // Default billing type
         sheetName: cleanData.sheetName ? cleanData.sheetName.toUpperCase() : undefined,
         paymentMode: cleanData.paymentMode ? cleanData.paymentMode : undefined, // Handle empty string
-        containerCode: cleanData.containerCode ? cleanData.containerCode : undefined
+        containerCode: cleanData.containerCode ? cleanData.containerCode : undefined,
+        from: cleanData.from || undefined,
+        to: cleanData.to || undefined
       }
     });
   },
@@ -149,6 +151,8 @@ const AccountClientsService = {
      if (updateData.paymentMode === "") updateData.paymentMode = null;
      if (updateData.containerCode === "") updateData.containerCode = null;
      if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
+     if (updateData.from === "") updateData.from = null;
+     if (updateData.to === "") updateData.to = null;
 
      return prisma.clientTransaction.update({
         where: { id },

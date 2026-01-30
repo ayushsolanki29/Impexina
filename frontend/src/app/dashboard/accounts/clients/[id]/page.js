@@ -82,6 +82,7 @@ const EditableCell = ({
             placeholder={placeholder}
             autoFocus={autoFocus}
             autoComplete="off"
+            style={{ minWidth: className.includes('min-w-') ? undefined : '200px' }}
         />
     );
 };
@@ -155,6 +156,12 @@ export default function ExcelLedgerPage() {
                   const totalGstAmount = clientData.reduce((sum, item) => sum + (item.gstAmount || 0), 0);
                   const invoiceNo = [...new Set(clientData.map(d => d.invoiceNo).filter(Boolean))].join(', ');
                   const gstText = [...new Set(clientData.map(d => d.gst).filter(Boolean))].join(', ');
+                  
+                  // Get FROM and TO from bifurcation
+                  const fromLocations = [...new Set(clientData.map(d => d.from).filter(Boolean))];
+                  const toLocations = [...new Set(clientData.map(d => d.to).filter(Boolean))];
+                  const fromLocation = fromLocations.length > 0 ? fromLocations[0] : '';
+                  const toLocation = toLocations.length > 0 ? toLocations[0] : '';
 
                   const formatted = `${baseCode} ${totalCtn} CTN`.toUpperCase();
                   
@@ -185,7 +192,9 @@ export default function ExcelLedgerPage() {
                       totalWeight: parseFloat(totalWeight.toFixed(2)),
                       invoiceNo,
                       gstText,
-                      totalGstAmount: parseFloat(totalGstAmount.toFixed(2))
+                      totalGstAmount: parseFloat(totalGstAmount.toFixed(2)),
+                      from: fromLocation,
+                      to: toLocation
                   };
               }
           }
@@ -231,13 +240,34 @@ export default function ExcelLedgerPage() {
                 setTransactions(prev => {
                     const updated = prev.map(t => {
                         if (t.containerCode === containerCode || !t.containerCode) {
+                            // Update GST INV line with FROM/TO format
+                            let updatedParticulars = t.particulars;
+                            if (t.particulars?.startsWith("GST INV")) {
+                                const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                                const toPart = info.to ? ` TO: ${info.to}` : '';
+                                updatedParticulars = `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`;
+                            }
+                            
                             return {
                                 ...t,
                                 containerCode: info.formatted,
-                                particulars: (!t.particulars || t.particulars === "Description" || !t.particulars.trim()) ? info.particulars : t.particulars,
+                                particulars: (!t.particulars || t.particulars === "Description" || !t.particulars.trim()) ? info.particulars : updatedParticulars,
                                 deliveryDate: (!t.deliveryDate) ? info.delDateStr : t.deliveryDate,
                                 quantity: (!t.quantity) ? info.totalCbm : t.quantity,
-                                weight: (!t.weight) ? info.totalWeight : t.weight
+                                weight: (!t.weight) ? info.totalWeight : t.weight,
+                                from: info.from || t.from || '',
+                                to: info.to || t.to || ''
+                            };
+                        }
+                        // Also update GST INV rows even if container code doesn't match
+                        if (t.particulars?.startsWith("GST INV") && info.invoiceNo) {
+                            const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                            const toPart = info.to ? ` TO: ${info.to}` : '';
+                            return {
+                                ...t,
+                                particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
+                                from: info.from || t.from || '',
+                                to: info.to || t.to || ''
                             };
                         }
                         return t;
@@ -257,6 +287,8 @@ export default function ExcelLedgerPage() {
                                 paid: "",
                                 paymentDate: "",
                                 paymentMode: "",
+                                from: info.from || '',
+                                to: info.to || '',
                                 clientId: id,
                                 billingType: "CBM",
                                 sheetName: querySheetName || ""
@@ -264,18 +296,22 @@ export default function ExcelLedgerPage() {
                         ];
 
                         if (info.invoiceNo || info.totalGstAmount > 0) {
+                            const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                            const toPart = info.to ? ` TO: ${info.to}` : '';
                             newRows.push({
                                 id: `temp-${Date.now() + 1}`,
                                 isNew: true,
                                 containerCode: "",
                                 deliveryDate: "",
-                                particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
+                                particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
                                 quantity: "", 
                                 rate: "",
                                 amount: info.totalGstAmount, 
                                 paid: "",
                                 paymentDate: "",
                                 paymentMode: "",
+                                from: info.from || '',
+                                to: info.to || '',
                                 clientId: id,
                                 billingType: "FLAT",
                                 sheetName: querySheetName || ""
@@ -367,6 +403,8 @@ export default function ExcelLedgerPage() {
           handleUpdateRow(rowIndex, 'deliveryDate', info.delDateStr);
           handleUpdateRow(rowIndex, 'quantity', info.totalCbm);
           handleUpdateRow(rowIndex, 'weight', info.totalWeight);
+          handleUpdateRow(rowIndex, 'from', info.from || '');
+          handleUpdateRow(rowIndex, 'to', info.to || '');
           
           // Save the row
           setTimeout(() => saveRow(rowIndex), 0);
@@ -387,6 +425,8 @@ export default function ExcelLedgerPage() {
           paid: "",
           paymentDate: "",
           paymentMode: "",
+          from: "",
+          to: "",
           clientId: id,
           billingType: "FLAT",
           sheetName: querySheetName || ""
@@ -632,172 +672,164 @@ export default function ExcelLedgerPage() {
   return (
     <div className="flex flex-col h-screen max-w-[100vw] overflow-hidden bg-white font-sans text-slate-900">
       
-      {/* Minimal Header */}
-      <div className="flex-none px-8 py-6 border-b border-slate-100 flex items-start justify-between">
-        <div className="flex items-center gap-6">
-           <button onClick={() => router.push(`/dashboard/accounts/clients/${id}/containers`)} className="group p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-900 icon-btn" title="Go Back (Esc)">
-            <ArrowLeft className="w-5 h-5" />
-           </button>
-           <div>
-               <h1 className="text-2xl font-medium tracking-tight text-slate-900">
-                   {client.name}
-               </h1>
-                              <div className="flex items-center gap-3 text-sm text-slate-400 mt-1 uppercase">
-                   <div className="relative flex items-center gap-2">
-                       <select 
-                            value={querySheetName ? querySheetName.toUpperCase() : (containerCode ? containerCode : "ENTIRE LEDGER")}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === "NEW") {
-                                    const newName = prompt("ENTER NEW SHEET NAME:");
-                                    if (newName) {
-                                        const cleanName = newName.toUpperCase().trim();
-                                        router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(cleanName)}`);
-                                    }
-                                } else if (val === "ENTIRE LEDGER") {
-                                    router.push(`/dashboard/accounts/clients/${id}`);
-                                } else {
-                                    // Navigate to specific sheet
-                                    router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(val)}`);
-                                }
-                            }}
-                            className="bg-blue-50 text-blue-600 font-bold px-3 py-1 rounded border border-transparent focus:border-blue-200 outline-none appearance-none cursor-pointer pr-8"
-                       >
-                           <option value="ENTIRE LEDGER">ENTIRE LEDGER</option>
-                           <optgroup label="SHEETS">
-                               {availableSheets.map(s => (
-                                   <option key={s} value={s}>{s}</option>
-                               ))}
-                           </optgroup>
-                           <option value="NEW" className="text-emerald-600 font-bold font-sans">+ NEW SHEET</option>
-                       </select>
-                       <div className="absolute right-2 pointer-events-none">
-                            <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                       </div>
-                   </div>
+      {/* Clean Header */}
+      <div className="flex-none px-6 py-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: Client Info & Sheet Selector */}
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <button 
+              onClick={() => router.push(`/dashboard/accounts/clients/${id}/containers`)} 
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-900 shrink-0"
+              title="Go Back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <h1 className="text-xl font-bold text-slate-900 truncate">
+                {client.name}
+              </h1>
+              
+              <div className="relative">
+                <select 
+                  value={querySheetName ? querySheetName.toUpperCase() : (containerCode ? containerCode : "ENTIRE LEDGER")}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "NEW") {
+                      const newName = prompt("ENTER NEW SHEET NAME:");
+                      if (newName) {
+                        const cleanName = newName.toUpperCase().trim();
+                        router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(cleanName)}`);
+                      }
+                    } else if (val === "ENTIRE LEDGER") {
+                      router.push(`/dashboard/accounts/clients/${id}`);
+                    } else {
+                      router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(val)}`);
+                    }
+                  }}
+                  className="bg-blue-50 text-blue-600 font-semibold px-3 py-1.5 rounded-lg border border-blue-200 focus:border-blue-400 outline-none appearance-none cursor-pointer pr-8 text-sm"
+                >
+                  <option value="ENTIRE LEDGER">ENTIRE LEDGER</option>
+                  <optgroup label="SHEETS">
+                    {availableSheets.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                  <option value="NEW" className="text-emerald-600 font-bold">+ NEW SHEET</option>
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              
+              {containerCode && (
+                <button 
+                  onClick={async () => {
+                    const info = await fetchContainerInfo(containerCode, client.name);
+                    if (info) {
+                      setTransactions(prev => {
+                        const existingGstRow = prev.find(t => t.particulars?.startsWith("GST INV"));
+                        const updated = prev.map(t => {
+                          if (t.particulars?.startsWith("GST INV")) {
+                            // Update GST INV line with FROM/TO format
+                            const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                            const toPart = info.to ? ` TO: ${info.to}` : '';
+                            return {
+                              ...t,
+                              particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
+                              amount: info.totalGstAmount,
+                              from: info.from || t.from || '',
+                              to: info.to || t.to || ''
+                            };
+                          }
+                          return {
+                            ...t,
+                            containerCode: info.formatted,
+                            particulars: info.particulars,
+                            deliveryDate: info.delDateStr,
+                            quantity: info.totalCbm,
+                            weight: info.totalWeight,
+                            from: info.from || t.from || '',
+                            to: info.to || t.to || ''
+                          };
+                        });
 
-                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                   
-                   <input 
-                        value={sheetName} 
-                        onChange={(e) => setSheetName(e.target.value.toUpperCase())}
-                        onBlur={(e) => {
-                            if (e.target.value.toUpperCase() !== querySheetName?.toUpperCase()) {
-                                handleRenameSheet(e.target.value);
-                            }
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.target.blur();
-                        }}
-                        className="bg-slate-50 text-slate-600 font-bold px-2 py-0.5 rounded border border-transparent focus:border-blue-200 outline-none min-w-[200px]"
-                        title="RENAME CURRENT SHEET"
-                   />
-                   
-                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                    <span>{client.companyName}</span>
-                    {containerCode && (
-                        <button 
-                             onClick={async () => {
-                                 const info = await fetchContainerInfo(containerCode, client.name);
-                                 if (info) {
-                                     setTransactions(prev => {
-                                         const existingGstRow = prev.find(t => t.particulars?.startsWith("GST INV"));
-                                         const updated = prev.map(t => {
-                                             if (t.particulars?.startsWith("GST INV")) {
-                                                 return {
-                                                     ...t,
-                                                     particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
-                                                     amount: info.totalGstAmount
-                                                 };
-                                             }
-                                             return {
-                                                ...t,
-                                                containerCode: info.formatted,
-                                                particulars: info.particulars,
-                                                deliveryDate: info.delDateStr,
-                                                quantity: info.totalCbm,
-                                                weight: info.totalWeight
-                                             };
-                                         });
+                        if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
+                          const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                          const toPart = info.to ? ` TO: ${info.to}` : '';
+                          updated.push({
+                            id: `temp-${Date.now()}`,
+                            isNew: true,
+                            containerCode: "",
+                            deliveryDate: "",
+                            particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
+                            amount: info.totalGstAmount,
+                            paid: "",
+                            clientId: id,
+                            billingType: "FLAT",
+                            sheetName: querySheetName || "",
+                            from: info.from || '',
+                            to: info.to || ''
+                          });
+                        }
+                        return updated;
+                      });
+                      toast.success("Details Updated from Bifurcation");
+                    }
+                  }}
+                  className="bg-emerald-50 text-emerald-600 font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-all text-xs flex items-center gap-2 shrink-0"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> 
+                  SYNC
+                </button>
+              )}
+            </div>
+          </div>
 
-                                         if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
-                                             updated.push({
-                                                 id: `temp-${Date.now()}`,
-                                                 isNew: true,
-                                                 containerCode: "",
-                                                 deliveryDate: "",
-                                                 particulars: `GST INV - ${info.invoiceNo}${info.gstText ? ` (${info.gstText})` : ""}`,
-                                                 amount: info.totalGstAmount,
-                                                 paid: "",
-                                                 clientId: id,
-                                                 billingType: "FLAT",
-                                                 sheetName: querySheetName || ""
-                                             });
-                                         }
-                                         return updated;
-                                     });
-                                     toast.success("Details Updated from Warehouse");
-                                 }
-                             }}
-                             className="ml-4 bg-emerald-50 text-emerald-600 font-bold px-3 py-1 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all text-[10px] flex items-center gap-2"
-                        >
-                             <RefreshCw className="w-3 h-3" /> 
-                             SYNC FROM BIFURCATION
-                        </button>
-                    )}
-                    {client.city && (
-                       <>
-                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                        <span>{client.city}</span>
-                       </>
-                   )}
-               </div>
-           </div>
+          {/* Right: Actions & Metrics */}
+          <div className="flex items-center gap-4 shrink-0">
+            <button
+              onClick={() => setShowPreview(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
+              title="Preview Account Sheets"
+            >
+              <Eye className="w-4 h-4" />
+              Preview
+            </button>
+            
+            <div className="h-8 w-px bg-slate-200" />
+            
+            <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
+            
+            <div className="h-8 w-px bg-slate-200" />
+            
+            {activeTab === 'expense' ? (
+              <>
+                <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
+                <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                  <div className={`text-xl tracking-tight px-3 py-1 rounded-lg ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
+                    ₹{balance.toLocaleString()}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <HeaderMetric label="Total" value={`₹${trfTotalAmount.toLocaleString()}`} />
+                <HeaderMetric label="Paid" value={`₹${trfTotalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                  <div className={`text-xl tracking-tight px-3 py-1 rounded-lg ${trfBalance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
+                    ₹{trfBalance.toLocaleString()}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-        
-         <div className="flex items-center gap-6">
-             {/* Preview Button */}
-             <button
-                 onClick={() => setShowPreview(true)}
-                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
-                 title="Preview Account Sheets"
-             >
-                 <Eye className="w-4 h-4" />
-                 Preview
-             </button>
-             
-             <div className="h-8 w-px bg-slate-200" />
-             
-             {/* Tab Switch */}
-             <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
-             
-             <div className="h-8 w-px bg-slate-200" />
-             
-             {/* Dynamic Metrics based on active tab */}
-             {activeTab === 'expense' ? (
-                 <>
-                     <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
-                     <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
-                     <div className="flex flex-col items-end">
-                         <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                         <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
-                             ₹{balance.toLocaleString()}
-                         </div>
-                     </div>
-                 </>
-             ) : (
-                 <>
-                     <HeaderMetric label="Total" value={`₹${trfTotalAmount.toLocaleString()}`} />
-                     <HeaderMetric label="Paid" value={`₹${trfTotalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
-                     <div className="flex flex-col items-end">
-                         <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                         <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${trfBalance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
-                             ₹{trfBalance.toLocaleString()}
-                         </div>
-                     </div>
-                 </>
-             )}
-         </div>
       </div>
 
       {/* Animated Table Area */}
@@ -810,11 +842,11 @@ export default function ExcelLedgerPage() {
                       : 'opacity-0 -translate-x-full pointer-events-none'
               }`}
           >
-             <div className="min-w-[1200px] h-full overflow-auto">
+             <div className="min-w-[1600px] h-full overflow-auto">
                  {/* Header Row - Blue Theme */}
-                 <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-white z-10 grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] border-b border-blue-100">
-                     {['Container', 'Delivery', 'Particulars', 'CBM', 'Weight', 'Rate', 'Total', 'Paid', 'Payment Date', 'Mode', ''].map((h, i) => (
-                         <div key={i} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-blue-600 ${['CBM', 'Weight', 'Rate', 'Total', 'Paid'].includes(h) ? 'text-right' : ''}`}>
+                 <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-white z-10 grid grid-cols-[200px_120px_450px_200px_200px_200px_200px_200px_200px_200px_200px_200px_50px] border-b border-blue-100">
+                     {['Container', 'Delivery', 'Particulars', 'CBM', 'Weight', 'Rate', 'Total', 'Paid', 'Payment Date', 'Mode', 'FROM', 'TO', ''].map((h, i) => (
+                         <div key={i} className={`px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-blue-600 ${['CBM', 'Weight', 'Rate', 'Total', 'Paid'].includes(h) ? 'text-right' : ''}`}>
                              {h}
                          </div>
                      ))}
@@ -825,9 +857,9 @@ export default function ExcelLedgerPage() {
                      {transactions.map((txn, idx) => (
                          <div 
                             key={txn.id} 
-                            className={`grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] hover:bg-blue-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
+                            className={`grid grid-cols-[200px_120px_450px_200px_200px_200px_200px_200px_200px_200px_200px_200px_50px] hover:bg-blue-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
                          >
-                             <div className="px-2 py-1">
+                             <div className="px-2 py-1 min-w-[200px]">
                                  <EditableCell 
                                     id={`cell-${idx}-containerCode`} 
                                     value={txn.containerCode} 
@@ -835,37 +867,126 @@ export default function ExcelLedgerPage() {
                                     onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')} 
                                     onBlur={() => handleContainerBlur(idx, txn.containerCode)}
                                     placeholder="--" 
-                                    className="text-slate-600 font-medium" 
+                                    className="text-slate-600 font-medium min-w-[200px]" 
                                  />
                              </div>
-                             <div className="px-2 py-1"><input id={`cell-${idx}-deliveryDate`} type="date" value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 font-medium rounded transition-all" /></div>
-                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-particulars`} value={txn.particulars} onChange={v => handleUpdateRow(idx, 'particulars', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} placeholder="Description" className="text-slate-900 font-bold" /></div>
-                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-quantity`} value={txn.quantity?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'quantity', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} className="text-right text-slate-600 font-semibold" /></div>
-                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-weight`} value={txn.weight?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'weight', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'weight')} className="text-right text-slate-500" /></div>
-                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-rate`} value={txn.rate?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'rate', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} className="text-right text-slate-500" /></div>
+                             <div className="px-2 py-1 min-w-[120px]">
+                                 <input 
+                                    id={`cell-${idx}-deliveryDate`} 
+                                    type="date" 
+                                    value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} 
+                                    onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} 
+                                    className="w-full min-w-[120px] bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 font-medium rounded transition-all" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[450px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-particulars`} 
+                                    value={txn.particulars} 
+                                    onChange={v => handleUpdateRow(idx, 'particulars', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} 
+                                    placeholder="Description" 
+                                    className="text-slate-900 font-bold min-w-[450px]" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-quantity`} 
+                                    value={txn.quantity?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateRow(idx, 'quantity', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} 
+                                    className="text-right text-slate-600 font-semibold min-w-[200px]" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-weight`} 
+                                    value={txn.weight?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateRow(idx, 'weight', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'weight')} 
+                                    className="text-right text-slate-500 min-w-[200px]" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-rate`} 
+                                    value={txn.rate?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateRow(idx, 'rate', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} 
+                                    className="text-right text-slate-500 min-w-[200px]" 
+                                 />
+                             </div>
                              
                              {/* Total Column with Blue Bg */}
-                             <div className="px-2 py-1 bg-blue-50/50 border-x border-blue-100/50">
+                             <div className="px-2 py-1 bg-blue-50/50 border-x border-blue-100/50 min-w-[200px]">
                                  <EditableCell 
                                     id={`cell-${idx}-amount`}
                                     value={txn.amount} 
                                     type="number" 
                                     onChange={v => handleUpdateRow(idx, 'amount', v)} 
                                     onKeyDown={(e) => handleKeyDown(e, idx, 'amount')}
-                                    className="text-right font-bold text-slate-900 bg-transparent" 
+                                    className="text-right font-bold text-slate-900 bg-transparent min-w-[200px]" 
                                  />
                              </div>
                              
-                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-paid`} value={txn.paid?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'paid', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} className="text-right text-emerald-600 font-bold" /></div>
-                             <div className="px-2 py-1"><input id={`cell-${idx}-paymentDate`} type="date" value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" /></div>
-                             <div className="px-2 py-1">
-                                 <select id={`cell-${idx}-paymentMode`} value={txn.paymentMode || ''} onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all">
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-paid`} 
+                                    value={txn.paid?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateRow(idx, 'paid', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} 
+                                    className="text-right text-emerald-600 font-bold min-w-[200px]" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <input 
+                                    id={`cell-${idx}-paymentDate`} 
+                                    type="date" 
+                                    value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} 
+                                    onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} 
+                                    className="w-full min-w-[200px] bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <select 
+                                    id={`cell-${idx}-paymentMode`} 
+                                    value={txn.paymentMode || ''} 
+                                    onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} 
+                                    className="w-full min-w-[200px] h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all"
+                                 >
                                      <option value="">-</option>
                                      <option value="CASH">Cash</option>
                                      <option value="CHEQUE">Cheque</option>
                                      <option value="UPI">UPI</option>
                                      <option value="BANK_TRANSFER">Bank</option>
                                  </select>
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-from`} 
+                                    value={txn.from || ''} 
+                                    onChange={v => handleUpdateRow(idx, 'from', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'from')} 
+                                    placeholder="FROM::" 
+                                    className="text-slate-600 font-medium min-w-[200px]" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1 min-w-[200px]">
+                                 <EditableCell 
+                                    id={`cell-${idx}-to`} 
+                                    value={txn.to || ''} 
+                                    onChange={v => handleUpdateRow(idx, 'to', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'to')} 
+                                    placeholder="TO::" 
+                                    className="text-slate-600 font-medium min-w-[200px]" 
+                                 />
                              </div>
                              <div className="px-2 py-1 flex items-center justify-center gap-1">
                                  <button onClick={() => saveRow(idx)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Save Row">
