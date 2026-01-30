@@ -20,4 +20,7 @@ router.get('/quick-stats', dashboardController.getQuickStats);
 router.get('/custom', dashboardController.getCustomDashboard);
 router.get('/widgets', dashboardController.getDashboardWidgets);
 
+// Activities
+router.get('/activities', dashboardController.getAllActivities);
+
 module.exports = router;

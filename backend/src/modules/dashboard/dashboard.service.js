@@ -762,6 +762,534 @@ class DashboardService {
       }
     };
   }
+
+  // Get all activities from different modules
+  async getAllActivities(filters = {}) {
+    const { 
+      page = 1, 
+      limit = 50, 
+      search = '', 
+      module: moduleFilter = '',
+      type: typeFilter = '',
+      userId: userIdFilter = '',
+      startDate,
+      endDate
+    } = filters;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const allActivities = [];
+
+    try {
+      // 1. Container Summary Activities
+      if (!moduleFilter || moduleFilter === 'container-summary') {
+        try {
+        const summaryActivities = await prisma.summaryActivity.findMany({
+          where: {
+            ...(search && {
+              OR: [
+                { note: { contains: search, mode: 'insensitive' } },
+                { field: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { summary: { month: { contains: search, mode: 'insensitive' } } }
+              ]
+            }),
+            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+            ...(typeFilter && { type: typeFilter }),
+            ...(startDate || endDate ? {
+              createdAt: {
+                ...(startDate && { gte: new Date(startDate) }),
+                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+              }
+            } : {})
+          },
+          include: {
+            user: { select: { name: true, username: true, role: true } },
+            summary: { select: { month: true, id: true } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit)
+        });
+
+        summaryActivities.forEach(activity => {
+          let description = activity.note || '';
+          if (!description && activity.field) {
+            const oldVal = activity.oldValue ? (typeof activity.oldValue === 'object' ? JSON.stringify(activity.oldValue) : String(activity.oldValue)) : 'empty';
+            const newVal = activity.newValue ? (typeof activity.newValue === 'object' ? JSON.stringify(activity.newValue) : String(activity.newValue)) : 'empty';
+            description = `${activity.field} changed from "${oldVal}" to "${newVal}"`;
+          }
+          if (!description) {
+            description = `${activity.type} operation on ${activity.summary?.month || 'summary'}`;
+          }
+          
+          allActivities.push({
+            id: `summary-${activity.id}`,
+            module: 'container-summary',
+            type: activity.type,
+            description: description,
+            user: activity.user,
+            entityId: activity.summaryId,
+            entityName: activity.summary?.month || 'Unknown',
+            createdAt: activity.createdAt,
+            metadata: {
+              summaryId: activity.summaryId,
+              summaryMonth: activity.summary?.month,
+              field: activity.field,
+              oldValue: activity.oldValue,
+              newValue: activity.newValue,
+              note: activity.note
+            }
+          });
+        });
+        } catch (err) {
+          console.error('Error fetching container summary activities:', err);
+        }
+      }
+
+      // 2. Bifurcation Activities
+      if (!moduleFilter || moduleFilter === 'bifurcation') {
+        try {
+        const bifurcationActivities = await prisma.bifurcationActivity.findMany({
+          where: {
+            ...(search && {
+              OR: [
+                { field: { contains: search, mode: 'insensitive' } },
+                { oldValue: { contains: search, mode: 'insensitive' } },
+                { newValue: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { bifurcation: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
+              ]
+            }),
+            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+            ...(typeFilter && { type: typeFilter }),
+            ...(startDate || endDate ? {
+              createdAt: {
+                ...(startDate && { gte: new Date(startDate) }),
+                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+              }
+            } : {})
+          },
+          include: {
+            user: { select: { name: true, username: true, role: true } },
+            bifurcation: {
+              include: {
+                container: { select: { containerCode: true, id: true } }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit)
+        });
+
+        bifurcationActivities.forEach(activity => {
+          const oldVal = activity.oldValue || 'empty';
+          const newVal = activity.newValue || 'empty';
+          const description = activity.field 
+            ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
+            : `${activity.type} operation performed`;
+          
+          allActivities.push({
+            id: `bifurcation-${activity.id}`,
+            module: 'bifurcation',
+            type: activity.type,
+            description: description,
+            user: activity.user,
+            entityId: activity.bifurcation?.containerId || activity.bifurcationId,
+            entityName: activity.bifurcation?.container?.containerCode || 'Unknown',
+            createdAt: activity.createdAt,
+            metadata: {
+              bifurcationId: activity.bifurcationId,
+              containerId: activity.bifurcation?.containerId,
+              field: activity.field,
+              oldValue: activity.oldValue,
+              newValue: activity.newValue
+            }
+          });
+        });
+        } catch (err) {
+          console.error('Error fetching bifurcation activities:', err);
+        }
+      }
+
+      // 3. Loading Sheet Activities
+      if (!moduleFilter || moduleFilter === 'loading') {
+        try {
+        const loadingActivities = await prisma.loadingActivity.findMany({
+          where: {
+            ...(search && {
+              OR: [
+                { field: { contains: search, mode: 'insensitive' } },
+                { oldValue: { contains: search, mode: 'insensitive' } },
+                { newValue: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
+              ]
+            }),
+            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+            ...(typeFilter && { type: typeFilter }),
+            ...(startDate || endDate ? {
+              createdAt: {
+                ...(startDate && { gte: new Date(startDate) }),
+                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+              }
+            } : {})
+          },
+          include: {
+            user: { select: { name: true, username: true, role: true } },
+            loadingSheet: { 
+              include: {
+                container: { select: { containerCode: true, id: true } }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit)
+        });
+
+        loadingActivities.forEach(activity => {
+          let description = 'Activity performed';
+          if (activity.field && (activity.oldValue !== null || activity.newValue !== null)) {
+            description = `${activity.field} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`;
+          } else if (activity.type) {
+            description = `${activity.type} operation performed`;
+          }
+          
+          allActivities.push({
+            id: `loading-${activity.id}`,
+            module: 'loading',
+            type: activity.type || 'UPDATE',
+            description: description,
+            user: activity.user,
+            entityId: activity.loadingSheetId,
+            entityName: activity.loadingSheet?.container?.containerCode || 'Unknown',
+            createdAt: activity.createdAt,
+            metadata: {
+              loadingSheetId: activity.loadingSheetId,
+              field: activity.field,
+              oldValue: activity.oldValue,
+              newValue: activity.newValue
+            }
+          });
+        });
+        } catch (err) {
+          console.error('Error fetching loading activities:', err);
+        }
+      }
+
+      // 4. Container Activities
+      if (!moduleFilter || moduleFilter === 'containers') {
+        try {
+        const containerActivities = await prisma.containerActivity.findMany({
+          where: {
+            ...(search && {
+              OR: [
+                { field: { contains: search, mode: 'insensitive' } },
+                { oldValue: { contains: search, mode: 'insensitive' } },
+                { newValue: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { container: { containerCode: { contains: search, mode: 'insensitive' } } }
+              ]
+            }),
+            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+            ...(typeFilter && { type: typeFilter }),
+            ...(startDate || endDate ? {
+              createdAt: {
+                ...(startDate && { gte: new Date(startDate) }),
+                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+              }
+            } : {})
+          },
+          include: {
+            user: { select: { name: true, username: true, role: true } },
+            container: { select: { containerCode: true, id: true } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit)
+        });
+
+        containerActivities.forEach(activity => {
+          const oldVal = activity.oldValue || 'empty';
+          const newVal = activity.newValue || 'empty';
+          const description = activity.field 
+            ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
+            : `${activity.type} operation performed`;
+          
+          allActivities.push({
+            id: `container-${activity.id}`,
+            module: 'containers',
+            type: activity.type,
+            description: description,
+            user: activity.user,
+            entityId: activity.containerId,
+            entityName: activity.container?.containerCode || 'Unknown',
+            createdAt: activity.createdAt,
+            metadata: {
+              containerId: activity.containerId,
+              field: activity.field,
+              oldValue: activity.oldValue,
+              newValue: activity.newValue
+            }
+          });
+        });
+        } catch (err) {
+          console.error('Error fetching container activities:', err);
+        }
+      }
+
+      // 5. Warehouse Activities
+      if (!moduleFilter || moduleFilter === 'warehouse') {
+        try {
+        const warehouseActivities = await prisma.warehouseActivity.findMany({
+          where: {
+            ...(search && {
+              OR: [
+                { field: { contains: search, mode: 'insensitive' } },
+                { oldValue: { contains: search, mode: 'insensitive' } },
+                { newValue: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { warehouse: { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } } }
+              ]
+            }),
+            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+            ...(typeFilter && { type: typeFilter }),
+            ...(startDate || endDate ? {
+              createdAt: {
+                ...(startDate && { gte: new Date(startDate) }),
+                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+              }
+            } : {})
+          },
+          include: {
+            user: { select: { name: true, username: true, role: true } },
+            warehouse: {
+              include: {
+                loadingSheet: {
+                  include: {
+                    container: { select: { containerCode: true, id: true } }
+                  }
+                }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit)
+        });
+
+        warehouseActivities.forEach(activity => {
+          allActivities.push({
+            id: `warehouse-${activity.id}`,
+            module: 'warehouse',
+            type: activity.type,
+            description: `${activity.field || 'Field'} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`,
+            user: activity.user,
+            entityId: activity.warehouseId,
+            entityName: activity.warehouse?.loadingSheet?.container?.containerCode || 'Unknown',
+            createdAt: activity.createdAt,
+            metadata: {
+              warehouseId: activity.warehouseId,
+              field: activity.field,
+              oldValue: activity.oldValue,
+              newValue: activity.newValue
+            }
+          });
+        });
+        } catch (err) {
+          console.error('Error fetching warehouse activities:', err);
+        }
+      }
+
+      // 6. Packing List Activities
+      if (!moduleFilter || moduleFilter === 'packing') {
+        try {
+          const packingActivities = await prisma.packingListActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { note: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              packingList: { select: { id: true, containerCode: true, invNo: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
+          });
+
+          packingActivities.forEach(activity => {
+            allActivities.push({
+              id: `packing-${activity.id}`,
+              module: 'packing',
+              type: activity.type,
+              description: activity.note || `${activity.field || 'Field'} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`,
+              user: activity.user,
+              entityId: activity.packingListId,
+              entityName: activity.packingList?.containerCode || activity.packingList?.invNo || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                packingListId: activity.packingListId,
+                containerCode: activity.packingList?.containerCode,
+                invNo: activity.packingList?.invNo,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue,
+                note: activity.note
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Error fetching packing list activities:', err);
+        }
+      }
+
+      // 7. Invoice Activities
+      if (!moduleFilter || moduleFilter === 'invoice') {
+        try {
+          const invoiceActivities = await prisma.invoiceActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { note: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { invoice: { containerCode: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              invoice: { select: { containerCode: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
+          });
+
+          invoiceActivities.forEach(activity => {
+            allActivities.push({
+              id: `invoice-${activity.id}`,
+              module: 'invoice',
+              type: activity.type,
+              description: activity.note || `${activity.field || 'Field'} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`,
+              user: activity.user,
+              entityId: activity.invoiceId,
+              entityName: activity.invoice?.containerCode || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                invoiceId: activity.invoiceId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue,
+                note: activity.note
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Error fetching invoice activities:', err);
+        }
+      }
+
+      // 8. Client Activities
+      if (!moduleFilter || moduleFilter === 'clients') {
+        try {
+          const clientActivities = await prisma.clientActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { description: { contains: search, mode: 'insensitive' } },
+                  { userName: { contains: search, mode: 'insensitive' } },
+                  { client: { name: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: userIdFilter.toString() }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              client: { select: { name: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
+          });
+
+          clientActivities.forEach(activity => {
+            allActivities.push({
+              id: `client-${activity.id}`,
+              module: 'clients',
+              type: activity.type,
+              description: activity.description,
+              user: { 
+                name: activity.userName || 'Unknown', 
+                username: activity.userId || null, 
+                role: null 
+              },
+              entityId: activity.clientId,
+              entityName: activity.client?.name || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                clientId: activity.clientId,
+                userId: activity.userId,
+                metadata: activity.metadata
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Error fetching client activities:', err);
+        }
+      }
+
+      // Sort all activities by createdAt descending
+      allActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Apply pagination
+      const paginatedActivities = allActivities.slice(skip, skip + parseInt(limit));
+      const total = allActivities.length;
+
+      return {
+        data: paginatedActivities,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(total / parseInt(limit))
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching all activities:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        filters: filters
+      });
+      throw new Error(`Failed to fetch activities: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new DashboardService();

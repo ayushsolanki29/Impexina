@@ -29,6 +29,7 @@ import {
   Clock,
   Users,
   Ship,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -150,6 +151,13 @@ const ALL_MENU_ITEMS = [
     icon: ListTodo,
     path: "/dashboard/my-tasks",
     moduleKey: "MY_TASK",
+  },
+  {
+    key: "activities",
+    label: "Recent Activities",
+    icon: History,
+    path: "/dashboard/activities",
+    moduleKey: "ACTIVITIES",
   },
   {
     key: "backups",

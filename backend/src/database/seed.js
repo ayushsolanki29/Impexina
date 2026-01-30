@@ -42,6 +42,7 @@ async function main() {
     { key: "CONTAINERS_LIST", name: "Containers List" },
     { key: "WAREHOUSE_PLAN", name: "Warehouse Plan" },
     { key: "ACCOUNTS", name: "Accounts" },
+    { key: "ACTIVITIES", name: "Activities" },
     { key: "CLIENTS", name: "Clients" },
     { key: "EXPENSES", name: "Expenses" },
     { key: "USER_MANAGEMENT", name: "User Management" },

@@ -38,6 +38,11 @@ import {
   ClipboardList,
   Wallet,
   Building,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Eye,
 } from "lucide-react";
 import {
   AreaChart,
@@ -211,6 +216,20 @@ function AdminDashboard({ user, dashboardData }) {
   const [upcomingContainers, setUpcomingContainers] = useState([]);
   const [userTaskSummary, setUserTaskSummary] = useState([]);
   const [loadingContainers, setLoadingContainers] = useState(true);
+  
+  // Advanced Container Dashboard State
+  const [allContainers, setAllContainers] = useState([]);
+  const [filteredContainers, setFilteredContainers] = useState([]);
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [containerFilters, setContainerFilters] = useState({
+    search: "",
+    status: "",
+    dateRange: "",
+    workflowStatus: "",
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showAdvancedDashboard, setShowAdvancedDashboard] = useState(false);
+  const containersPerPage = 10;
 
   useEffect(() => {
     loadContainerData();
@@ -224,17 +243,18 @@ function AdminDashboard({ user, dashboardData }) {
       if (summariesRes.data.success) {
         const summaries = summariesRes.data.data.summaries || [];
         
-        // Get all containers from summaries
-        const allContainers = [];
-        for (const summary of summaries.slice(0, 10)) {
+        // Get all containers from summaries (load all, not just first 10)
+        const allContainersData = [];
+        for (const summary of summaries) {
           try {
             const detailRes = await API.get(`/container-summaries/${summary.id}`);
             if (detailRes.data.success && detailRes.data.data.containers) {
               detailRes.data.data.containers.forEach((c) => {
-                allContainers.push({
+                allContainersData.push({
                   ...c,
                   month: summary.month,
                   summaryId: summary.id,
+                  arrivalDate: c.eta || c.loadingDate,
                 });
               });
             }
@@ -242,6 +262,11 @@ function AdminDashboard({ user, dashboardData }) {
             console.error("Error loading summary detail:", e);
           }
         }
+        
+        setAllContainers(allContainersData);
+        
+        // Use allContainersData for calculations
+        const allContainers = allContainersData;
 
         // Calculate stats
         const now = new Date();
@@ -329,6 +354,83 @@ function AdminDashboard({ user, dashboardData }) {
     ].filter((d) => d.value > 0);
   }, [containerStats]);
 
+  // Filter containers based on active filters
+  useEffect(() => {
+    let filtered = [...allContainers];
+    
+    // Apply active filter from card click
+    if (activeFilter) {
+      if (activeFilter.type === 'arriving') {
+        const days = activeFilter.days || 15;
+        const now = new Date();
+        const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+        filtered = filtered.filter((c) => {
+          if (!c.arrivalDate) return false;
+          const arrival = new Date(c.arrivalDate);
+          return arrival >= now && arrival <= futureDate && c.status !== "Delivered";
+        });
+      } else if (activeFilter.type === 'status') {
+        filtered = filtered.filter((c) => c.status === activeFilter.status);
+      } else if (activeFilter.type === 'duty') {
+        filtered = filtered.filter((c) => 
+          c.status !== "Delivered" && (c.duty > 0 || c.finalAmount > 0)
+        );
+      }
+    }
+    
+    // Apply manual filters
+    if (containerFilters.search) {
+      const searchLower = containerFilters.search.toLowerCase();
+      filtered = filtered.filter((c) =>
+        c.containerCode?.toLowerCase().includes(searchLower) ||
+        c.bl?.toLowerCase().includes(searchLower) ||
+        c.shippingLine?.toLowerCase().includes(searchLower) ||
+        c.month?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    if (containerFilters.status) {
+      filtered = filtered.filter((c) => c.status === containerFilters.status);
+    }
+    
+    if (containerFilters.workflowStatus) {
+      filtered = filtered.filter((c) => c.workflowStatus === containerFilters.workflowStatus);
+    }
+    
+    if (containerFilters.dateRange) {
+      const now = new Date();
+      let startDate, endDate;
+      if (containerFilters.dateRange === 'next10') {
+        startDate = now;
+        endDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+      } else if (containerFilters.dateRange === 'next15') {
+        startDate = now;
+        endDate = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      } else if (containerFilters.dateRange === 'thisMonth') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      }
+      
+      if (startDate && endDate) {
+        filtered = filtered.filter((c) => {
+          if (!c.arrivalDate) return false;
+          const arrival = new Date(c.arrivalDate);
+          return arrival >= startDate && arrival <= endDate;
+        });
+      }
+    }
+    
+    setFilteredContainers(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [allContainers, activeFilter, containerFilters]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredContainers.length / containersPerPage);
+  const paginatedContainers = filteredContainers.slice(
+    (currentPage - 1) * containersPerPage,
+    currentPage * containersPerPage
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 space-y-6 pb-20">
       {/* Header with Admin Greeting */}
@@ -350,9 +452,17 @@ function AdminDashboard({ user, dashboardData }) {
         </div>
       </div>
 
-      {/* Critical Alerts Row */}
+      {/* Critical Alerts Row - Reordered: Containers Arriving first, Delivered This Month last */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        {/* Containers Arriving - FIRST */}
+        <div 
+          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-300"
+          onClick={() => {
+            setShowAdvancedDashboard(true);
+            setActiveFilter({ type: 'arriving', days: 15 });
+            setContainerFilters({ search: "", status: "", dateRange: "next15", workflowStatus: "" });
+          }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 rounded-lg bg-indigo-50">
               <Ship className="w-5 h-5 text-indigo-600" />
@@ -367,7 +477,14 @@ function AdminDashboard({ user, dashboardData }) {
           <p className="text-sm text-slate-500 mt-1">Containers Arriving</p>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
+          onClick={() => {
+            setShowAdvancedDashboard(true);
+            setActiveFilter({ type: 'duty', status: 'pending' });
+            setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
+          }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 rounded-lg bg-amber-50">
               <DollarSign className="w-5 h-5 text-amber-600" />
@@ -382,7 +499,14 @@ function AdminDashboard({ user, dashboardData }) {
           <p className="text-sm text-slate-500 mt-1">Duty Payments Due</p>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
+          onClick={() => {
+            setShowAdvancedDashboard(true);
+            setActiveFilter({ type: 'duty', status: 'pending' });
+            setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
+          }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 rounded-lg bg-amber-50">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -394,7 +518,15 @@ function AdminDashboard({ user, dashboardData }) {
           <p className="text-sm text-slate-500 mt-1">Total Duty Pending</p>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        {/* Delivered This Month - LAST */}
+        <div 
+          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-300"
+          onClick={() => {
+            setShowAdvancedDashboard(true);
+            setActiveFilter({ type: 'status', status: 'Delivered' });
+            setContainerFilters({ search: "", status: "Delivered", dateRange: "thisMonth", workflowStatus: "" });
+          }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 rounded-lg bg-emerald-50">
               <CheckCircle className="w-5 h-5 text-emerald-600" />
@@ -405,6 +537,261 @@ function AdminDashboard({ user, dashboardData }) {
           </div>
           <p className="text-sm text-slate-500 mt-1">Delivered This Month</p>
         </div>
+      </div>
+
+      {/* Advanced Container Dashboard */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-600" />
+            Container Dashboard
+          </h3>
+          <button
+            onClick={() => {
+              setShowAdvancedDashboard(!showAdvancedDashboard);
+              if (!showAdvancedDashboard) {
+                setActiveFilter(null);
+                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
+              }
+            }}
+            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+          >
+            {showAdvancedDashboard ? "Hide" : "Show"} Dashboard <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        {showAdvancedDashboard && (
+          <div className="p-5 space-y-4">
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search containers..."
+                  value={containerFilters.search}
+                  onChange={(e) => setContainerFilters(prev => ({ ...prev, search: e.target.value }))}
+                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                />
+              </div>
+              
+              <select
+                value={containerFilters.status}
+                onChange={(e) => setContainerFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+              >
+                <option value="">All Status</option>
+                <option value="Loaded">Loaded</option>
+                <option value="Insea">In Sea</option>
+                <option value="Delivered">Delivered</option>
+              </select>
+
+              <select
+                value={containerFilters.workflowStatus}
+                onChange={(e) => setContainerFilters(prev => ({ ...prev, workflowStatus: e.target.value }))}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+              >
+                <option value="">All Workflow Status</option>
+                <option value="WHATSAPP">WhatsApp</option>
+                <option value="MAIL">Mail</option>
+                <option value="SIMS">SIMS</option>
+                <option value="PIMS">PIMS</option>
+                <option value="CHECKLIST">Checklist</option>
+                <option value="LOADING SHEET">Loading Sheet</option>
+                <option value="BIFURCATION">Bifurcation</option>
+                <option value="PACKING LIST">Packing List</option>
+                <option value="INVOICE">Invoice</option>
+                <option value="BOE">BOE</option>
+                <option value="DUTY CALCULATOR">Duty Calculator</option>
+                <option value="PURCHASE SELL">Purchase Sell</option>
+                <option value="WAREHOUSE PLAN">Warehouse Plan</option>
+                <option value="ACCOUNT">Account</option>
+              </select>
+
+              <select
+                value={containerFilters.dateRange}
+                onChange={(e) => setContainerFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+              >
+                <option value="">All Dates</option>
+                <option value="next10">Next 10 Days</option>
+                <option value="next15">Next 15 Days</option>
+                <option value="thisMonth">This Month</option>
+              </select>
+
+              <button
+                onClick={() => {
+                  setActiveFilter(null);
+                  setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
+                }}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium flex items-center gap-2"
+              >
+                <X className="w-4 h-4" /> Clear Filters
+              </button>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  setActiveFilter({ type: 'arriving', days: 10 });
+                  setContainerFilters(prev => ({ ...prev, dateRange: 'next10' }));
+                }}
+                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+              >
+                Next 10 Days
+              </button>
+              <button
+                onClick={() => {
+                  setActiveFilter({ type: 'arriving', days: 15 });
+                  setContainerFilters(prev => ({ ...prev, dateRange: 'next15' }));
+                }}
+                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+              >
+                Next 15 Days
+              </button>
+              <button
+                onClick={() => {
+                  setActiveFilter({ type: 'status', status: 'Loaded' });
+                  setContainerFilters(prev => ({ ...prev, status: 'Loaded' }));
+                }}
+                className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
+              >
+                Loaded Containers
+              </button>
+              <button
+                onClick={() => {
+                  setActiveFilter({ type: 'status', status: 'Insea' });
+                  setContainerFilters(prev => ({ ...prev, status: 'Insea' }));
+                }}
+                className="px-4 py-2 bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition-colors text-sm font-medium"
+              >
+                In Sea Containers
+              </button>
+            </div>
+
+            {/* Active Filter Badge */}
+            {activeFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600">Active Filter:</span>
+                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                  {activeFilter.type === 'arriving' && `Arriving (${activeFilter.days} days)`}
+                  {activeFilter.type === 'status' && `Status: ${activeFilter.status}`}
+                  {activeFilter.type === 'duty' && 'Duty Pending'}
+                </span>
+                <button
+                  onClick={() => setActiveFilter(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Container List */}
+            <div className="space-y-3">
+              {loadingContainers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                </div>
+              ) : paginatedContainers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>No containers found</p>
+                </div>
+              ) : (
+                <>
+                  {paginatedContainers.map((container, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
+                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <Package className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-slate-900">{container.containerCode || "N/A"}</p>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              container.status === "Loaded" ? "bg-emerald-100 text-emerald-700" :
+                              container.status === "Insea" ? "bg-sky-100 text-sky-700" :
+                              "bg-violet-100 text-violet-700"
+                            }`}>
+                              {container.status || "N/A"}
+                            </span>
+                            {container.workflowStatus && (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                {container.workflowStatus}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-slate-500">
+                            <span>{container.shippingLine || "N/A"}</span>
+                            <span>•</span>
+                            <span>{container.month || "N/A"}</span>
+                            {container.arrivalDate && (
+                              <>
+                                <span>•</span>
+                                <span>ETA: {new Date(container.arrivalDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-slate-900">
+                          ₹{((container.finalAmount || 0) / 1000).toFixed(1)}K
+                        </p>
+                        <p className="text-xs text-amber-600">
+                          Duty: ₹{((container.duty || 0) / 1000).toFixed(1)}K
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/container-summary/${container.summaryId}`);
+                        }}
+                        className="ml-4 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <p className="text-sm text-slate-600">
+                        Showing {(currentPage - 1) * containersPerPage + 1} to {Math.min(currentPage * containersPerPage, filteredContainers.length)} of {filteredContainers.length} containers
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="px-3 py-1 text-sm text-slate-600">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages}
+                          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content Grid */}
@@ -441,7 +828,7 @@ function AdminDashboard({ user, dashboardData }) {
                     <div
                       key={index}
                       className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}/view`)}
+                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">

@@ -25,6 +25,7 @@ import {
   Check,
   User,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import API from "@/lib/api";
 
@@ -64,6 +65,8 @@ export default function ContainerSummaryPage() {
   const [summary, setSummary] = useState(null);
   const [containers, setContainers] = useState([]);
   const [formData, setFormData] = useState({ month: "", status: "DRAFT" });
+  const [fieldErrors, setFieldErrors] = useState({}); // { "containers.0.containerNo": "must be a string", ... }
+  const [validationErrors, setValidationErrors] = useState([]); // Array of error messages
 
   useEffect(() => {
     fetchData();
@@ -85,6 +88,7 @@ export default function ContainerSummaryPage() {
           eta: formatDateForInput(c.eta),
           invoiceDate: formatDateForInput(c.invoiceDate),
           deliveryDate: formatDateForInput(c.deliveryDate),
+          containerNo: c.containerNo != null ? String(c.containerNo) : (c.containerNoField != null ? String(c.containerNoField) : ""),
         }));
         setContainers(transformed);
       }
@@ -113,16 +117,76 @@ export default function ContainerSummaryPage() {
     setContainers(prev => prev.map((c, i) => 
       i === index ? { ...c, [field]: value } : c
     ));
+    // Clear error for this field when user starts typing
+    const errorKey = `containers.${index}.${field}`;
+    if (fieldErrors[errorKey]) {
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        return newErrors;
+      });
+    }
+  };
+
+  // Helper function to get error for a specific field
+  const getFieldError = (containerIndex, fieldName) => {
+    const errorKey = `containers.${containerIndex}.${fieldName}`;
+    return fieldErrors[errorKey];
+  };
+
+  // Helper function to check if a container has any errors
+  const hasContainerErrors = (containerIndex) => {
+    return Object.keys(fieldErrors).some(key => key.startsWith(`containers.${containerIndex}.`));
+  };
+
+  // Helper function to render input with error styling
+  const renderInputWithError = (containerIndex, fieldName, inputProps, label) => {
+    const error = getFieldError(containerIndex, fieldName);
+    return (
+      <div>
+        <label className={`text-xs font-semibold text-slate-600 mb-1 block ${error ? 'text-red-600' : ''}`}>
+          {label}
+          {error && (
+            <span className="text-red-600 ml-1 text-xs">({error})</span>
+          )}
+        </label>
+        {isEditing ? (
+          <>
+            <input
+              {...inputProps}
+              className={`w-full p-2 bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 outline-none text-sm ${
+                error 
+                  ? 'border-red-300 focus:ring-red-500' 
+                  : 'border-slate-200 focus:ring-blue-500'
+              }`}
+            />
+            {error && (
+              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {error}
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900">
+            {inputProps.value || "-"}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleSave = async () => {
     setSaving(true);
+    setFieldErrors({});
+    setValidationErrors([]);
+    
     try {
       const payload = {
         month: formData.month,
         status: formData.status,
-        containers: containers.map(c => ({
-          containerCode: c.containerCode,
+        containers: containers.map((c, index) => ({
+          containerCode: c.containerCode || "",
           ctn: Number(c.ctn) || 0,
           loadingDate: c.loadingDate || null,
           eta: c.eta || null,
@@ -132,8 +196,8 @@ export default function ContainerSummaryPage() {
           cfs: Number(c.cfs) || 21830,
           shippingLine: c.shippingLine || "",
           bl: c.bl || "",
-          containerNo: c.containerNo || "",
-          containerNoField: c.containerNo || "",
+          containerNo: c.containerNo != null ? String(c.containerNo) : "",
+          containerNoField: c.containerNo != null ? String(c.containerNo) : "",
           sims: c.sims || "",
           status: c.status || "Loaded",
           invoiceNo: c.invoiceNo || "",
@@ -149,10 +213,55 @@ export default function ContainerSummaryPage() {
       if (res.data.success) {
         toast.success("Summary saved successfully!");
         setIsEditing(false);
+        setFieldErrors({});
+        setValidationErrors([]);
         fetchData();
       }
     } catch (error) {
-      toast.error("Failed to save summary");
+      // Parse validation errors from response
+      const errorData = error.response?.data;
+      
+      if (errorData?.errors && Array.isArray(errorData.errors)) {
+        // Map errors to field paths
+        const errors = {};
+        const errorMessages = [];
+        
+        errorData.errors.forEach((err) => {
+          // Handle field paths like "containers.0.containerNo" or "containers[0].containerNo"
+          let field = err.field || err.path || "";
+          const message = err.message || err.msg || "Invalid value";
+          
+          // Normalize field path: containers[0].containerNo -> containers.0.containerNo
+          field = field.replace(/\[(\d+)\]/g, '.$1');
+          
+          if (field) {
+            errors[field] = message;
+            // Extract readable field name for error message
+            const fieldParts = field.split('.');
+            const fieldName = fieldParts[fieldParts.length - 1];
+            const containerIndex = fieldParts.length > 1 && fieldParts[1] !== undefined 
+              ? `Container ${parseInt(fieldParts[1]) + 1}` 
+              : '';
+            errorMessages.push(`${containerIndex ? containerIndex + ' - ' : ''}${fieldName}: ${message}`);
+          } else {
+            errorMessages.push(message);
+          }
+        });
+        
+        setFieldErrors(errors);
+        setValidationErrors(errorMessages);
+        
+        // Show detailed error toast
+        toast.error(
+          `Validation failed: ${errorMessages.slice(0, 3).join(", ")}${errorMessages.length > 3 ? ` and ${errorMessages.length - 3} more...` : ""}`,
+          { duration: 5000 }
+        );
+      } else {
+        // Generic error
+        const errorMessage = errorData?.message || error.message || "Failed to save summary";
+        toast.error(errorMessage);
+        setValidationErrors([errorMessage]);
+      }
     } finally {
       setSaving(false);
     }
@@ -321,12 +430,44 @@ export default function ContainerSummaryPage() {
           </div>
         </div>
 
+        {/* Validation Errors Banner */}
+        {validationErrors.length > 0 && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-red-900 mb-2">Validation Errors</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                  {validationErrors.map((error, idx) => (
+                    <li key={idx}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setValidationErrors([]);
+                  setFieldErrors({});
+                }}
+                className="text-red-400 hover:text-red-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Containers List */}
         <div className="space-y-4">
           {containers.map((container, index) => {
             const calculated = calculateContainerFields(container);
+            const containerHasErrors = hasContainerErrors(index);
             return (
-              <div key={index} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div 
+                key={index} 
+                className={`bg-white rounded-xl shadow-sm border overflow-hidden ${
+                  containerHasErrors ? 'border-red-300 border-2' : 'border-slate-200'
+                }`}
+              >
                 {/* Container Header */}
                 <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-4">
                   <div className="flex items-center justify-between">
@@ -379,15 +520,32 @@ export default function ContainerSummaryPage() {
                         <Package className="w-3 h-3" /> Basic Info
                       </h4>
                       <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Container Code *</label>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">
+                          Container Code *
+                          {getFieldError(index, 'containerCode') && (
+                            <span className="text-red-600 ml-1">({getFieldError(index, 'containerCode')})</span>
+                          )}
+                        </label>
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={container.containerCode}
-                            onChange={(e) => handleContainerChange(index, 'containerCode', e.target.value)}
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                            placeholder="e.g. IMPAK-10"
-                          />
+                          <>
+                            <input
+                              type="text"
+                              value={container.containerCode}
+                              onChange={(e) => handleContainerChange(index, 'containerCode', e.target.value)}
+                              className={`w-full p-2 bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 outline-none text-sm ${
+                                getFieldError(index, 'containerCode') 
+                                  ? 'border-red-300 focus:ring-red-500' 
+                                  : 'border-slate-200 focus:ring-blue-500'
+                              }`}
+                              placeholder="e.g. IMPAK-10"
+                            />
+                            {getFieldError(index, 'containerCode') && (
+                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                {getFieldError(index, 'containerCode')}
+                              </p>
+                            )}
+                          </>
                         ) : (
                           <div className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900">
                             {container.containerCode || "-"}
@@ -426,18 +584,72 @@ export default function ContainerSummaryPage() {
                         )}
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">BL No</label>
+                        <label className={`text-xs font-semibold mb-1 block ${
+                          getFieldError(index, 'bl') ? 'text-red-600' : 'text-slate-600'
+                        }`}>
+                          BL No
+                          {getFieldError(index, 'bl') && (
+                            <span className="text-red-600 ml-1 text-xs">({getFieldError(index, 'bl')})</span>
+                          )}
+                        </label>
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={container.bl}
-                            onChange={(e) => handleContainerChange(index, 'bl', e.target.value)}
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                            placeholder="Bill of Lading"
-                          />
+                          <>
+                            <input
+                              type="text"
+                              value={container.bl || ""}
+                              onChange={(e) => handleContainerChange(index, 'bl', e.target.value)}
+                              className={`w-full p-2 bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 outline-none text-sm ${
+                                getFieldError(index, 'bl') 
+                                  ? 'border-red-300 focus:ring-red-500' 
+                                  : 'border-slate-200 focus:ring-blue-500'
+                              }`}
+                              placeholder="Bill of Lading"
+                            />
+                            {getFieldError(index, 'bl') && (
+                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                {getFieldError(index, 'bl')}
+                              </p>
+                            )}
+                          </>
                         ) : (
                           <div className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900">
                             {container.bl || "-"}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className={`text-xs font-semibold mb-1 block ${
+                          getFieldError(index, 'containerNo') ? 'text-red-600' : 'text-slate-600'
+                        }`}>
+                          Container No
+                          {getFieldError(index, 'containerNo') && (
+                            <span className="text-red-600 ml-1 text-xs">({getFieldError(index, 'containerNo')})</span>
+                          )}
+                        </label>
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={container.containerNo || ""}
+                              onChange={(e) => handleContainerChange(index, 'containerNo', e.target.value)}
+                              className={`w-full p-2 bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 outline-none text-sm ${
+                                getFieldError(index, 'containerNo') 
+                                  ? 'border-red-300 focus:ring-red-500' 
+                                  : 'border-slate-200 focus:ring-blue-500'
+                              }`}
+                              placeholder="Container Number"
+                            />
+                            {getFieldError(index, 'containerNo') && (
+                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                {getFieldError(index, 'containerNo')}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <div className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900">
+                            {container.containerNo || "-"}
                           </div>
                         )}
                       </div>

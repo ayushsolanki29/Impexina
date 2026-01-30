@@ -16,6 +16,7 @@ import {
   AlertCircle,
   ChevronRight,
   RefreshCw,
+  History,
 } from "lucide-react";
 import API from "@/lib/api";
 
@@ -728,6 +729,31 @@ export default function ContainerSummaryList() {
             </div>
           </div>
         )}
+
+        {/* Audit Logs Card */}
+        <div className="mt-8 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-lg border border-indigo-200 p-6 hover:shadow-xl transition-all cursor-pointer"
+          onClick={() => router.push("/dashboard/container-summary/audit-logs")}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <History className="w-8 h-8 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">
+                  Audit Logs
+                </h3>
+                <p className="text-sm text-gray-600">
+                  View complete audit trail of all changes made to container summaries
+                </p>
+                <p className="text-xs text-indigo-600 mt-2 font-medium">
+                  See which user updated what and when →
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-6 h-6 text-indigo-600" />
+          </div>
+        </div>
 
         {/* Recent Activity */}
         {summaries.length > 0 && (

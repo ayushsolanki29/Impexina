@@ -265,6 +265,24 @@ const dashboardController = {
         message: 'Failed to fetch dashboard widgets'
       });
     }
+  },
+
+  // Get all activities from all modules
+  getAllActivities: async (req, res) => {
+    try {
+      const result = await dashboardService.getAllActivities(req.query);
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination
+      });
+    } catch (error) {
+      console.error('Error fetching all activities:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to fetch activities'
+      });
+    }
   }
 };
 
