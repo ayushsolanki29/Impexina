@@ -96,6 +96,41 @@ const renameSheet = async (req, res) => {
   }
 };
 
+// ===== TRF Transaction Functions =====
+
+// Add TRF transaction
+const addTrfTransaction = async (req, res) => {
+  try {
+    const result = await clientsService.addTrfTransaction(req.params.id, req.body);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Update TRF transaction
+const updateTrfTransaction = async (req, res) => {
+  try {
+    const result = await clientsService.updateTrfTransaction(req.params.txnId, req.body);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Delete TRF transaction
+const deleteTrfTransaction = async (req, res) => {
+  try {
+    await clientsService.deleteTrfTransaction(req.params.txnId);
+    res.json({ success: true, message: "TRF Transaction deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getClients,
   getClientLedger,
@@ -104,5 +139,8 @@ module.exports = {
   deleteTransaction,
   getContainerSuggestions,
   getClientContainers,
-  renameSheet
+  renameSheet,
+  addTrfTransaction,
+  updateTrfTransaction,
+  deleteTrfTransaction
 };

@@ -645,6 +645,7 @@ model ClientTransaction {
   particulars String
   billingType String // 'cbm', 'weight', 'flat'
   quantity    Float?
+  weight      Float?
   rate        Float?
   sheetName   String?
 
@@ -678,6 +679,40 @@ model ClientTransaction {
 
   @@index([clientId, transactionDate])
   @@index([containerCode])
+}
+
+// TRF (Transfer) Transactions - Yellow Sheet
+model ClientTrfTransaction {
+  id              String   @id @default(uuid())
+  clientId        String
+  transactionDate DateTime @default(now())
+  
+  // TRF-specific fields based on yellow sheet columns
+  particular      String?
+  amount          Float    @default(0)
+  booking         Float    @default(0)
+  rate            Float    @default(0)
+  total           Float    @default(0)
+  paid            Float    @default(0)
+  balance         Float    @default(0)
+  
+  // Payment details
+  paymentMode     String?  // HDFC IGPL, INR, CASH, BALANCE, etc.
+  paymentDate     DateTime?
+  
+  // Sheet reference
+  sheetName       String?
+  
+  // Audit fields
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@index([clientId, transactionDate])
+  @@index([sheetName])
 }
 
 model ClientContainerLink {
@@ -1091,6 +1126,7 @@ model Client {
   updatedAt        DateTime         @updatedAt
   clientActivities ClientActivity[]
   transactions     ClientTransaction[]
+  trfTransactions  ClientTrfTransaction[]
   containers       ClientContainerLink[]
   upiBankLimit     String?
 

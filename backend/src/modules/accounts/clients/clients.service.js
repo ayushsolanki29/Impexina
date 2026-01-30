@@ -53,11 +53,19 @@ const AccountClientsService = {
     if (containerCode) where.containerCode = containerCode;
     if (sheetName) where.sheetName = sheetName;
 
+    // TRF transactions filter
+    const trfWhere = { clientId };
+    if (sheetName) trfWhere.sheetName = sheetName;
+
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       include: {
         transactions: {
           where,
+          orderBy: { transactionDate: 'desc' }
+        },
+        trfTransactions: {
+          where: trfWhere,
           orderBy: { transactionDate: 'desc' }
         }
       }
@@ -82,24 +90,6 @@ const AccountClientsService = {
         ...client,
         availableSheets: Array.from(sheets).sort()
     };
-
-    if (!client) throw new Error("Client not found");
-
-    // Calculate totals
-    const totalExpense = client.transactions
-      .filter(t => t.type === 'EXPENSE')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalPaid = client.transactions
-      .filter(t => t.type === 'PAYMENT')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    return {
-      ...client,
-      totalExpense,
-      totalPaid,
-      balance: totalExpense - totalPaid
-    };
   },
 
   // Add transaction
@@ -122,6 +112,7 @@ const AccountClientsService = {
         paid: parseFloat(cleanData.paid || 0),
         balance: parseFloat(cleanData.amount || 0) - parseFloat(cleanData.paid || 0),
         quantity: cleanData.quantity ? parseFloat(cleanData.quantity) : undefined,
+        weight: cleanData.weight ? parseFloat(cleanData.weight) : undefined,
         rate: cleanData.rate ? parseFloat(cleanData.rate) : undefined,
         transactionDate: new Date(cleanData.transactionDate),
         deliveryDate: cleanData.deliveryDate ? new Date(cleanData.deliveryDate) : undefined,
@@ -144,10 +135,11 @@ const AccountClientsService = {
          // This is complex without current state, simplified:
          // Ideally front-end sends full payload or we allow partials. 
          // For Excel view, usually specific fields update.
-         if (data.amount) updateData.amount = parseFloat(data.amount);
-         if (data.paid) updateData.paid = parseFloat(data.paid);
-         if (data.quantity) updateData.quantity = parseFloat(data.quantity);
-         if (data.rate) updateData.rate = parseFloat(data.rate);
+        if (data.amount) updateData.amount = parseFloat(data.amount);
+        if (data.paid) updateData.paid = parseFloat(data.paid);
+        if (data.quantity) updateData.quantity = parseFloat(data.quantity);
+        if (data.weight !== undefined) updateData.weight = data.weight ? parseFloat(data.weight) : null;
+        if (data.rate) updateData.rate = parseFloat(data.rate);
          if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
          if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
          if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
@@ -260,6 +252,82 @@ const AccountClientsService = {
             data: {
                 sheetName: newSheetName.toUpperCase()
             }
+        });
+    },
+
+    // ===== TRF Transaction Functions =====
+
+    // Add TRF transaction
+    addTrfTransaction: async (clientId, data) => {
+        // Validate client exists
+        const client = await prisma.client.findUnique({
+            where: { id: clientId }
+        });
+        if (!client) throw new Error("Client not found");
+
+        // Clean data
+        const { isNew, id, ...cleanData } = data;
+
+        // Calculate total and balance
+        const amount = parseFloat(cleanData.amount || 0);
+        const booking = parseFloat(cleanData.booking || 0);
+        const rate = parseFloat(cleanData.rate || 0);
+        const paid = parseFloat(cleanData.paid || 0);
+        const total = rate > 0 ? (amount + booking) * rate : (amount + booking);
+        const balance = total - paid;
+
+        return prisma.clientTrfTransaction.create({
+            data: {
+                clientId,
+                particular: cleanData.particular || "",
+                amount,
+                booking,
+                rate,
+                total,
+                paid,
+                balance,
+                transactionDate: cleanData.transactionDate ? new Date(cleanData.transactionDate) : new Date(),
+                paymentDate: cleanData.paymentDate ? new Date(cleanData.paymentDate) : undefined,
+                paymentMode: cleanData.paymentMode || undefined,
+                sheetName: cleanData.sheetName ? cleanData.sheetName.toUpperCase() : undefined
+            }
+        });
+    },
+
+    // Update TRF transaction
+    updateTrfTransaction: async (id, data) => {
+        const { isNew, id: _id, ...updateData } = data;
+
+        // Calculate total and balance if relevant fields changed
+        if (data.amount !== undefined || data.booking !== undefined || data.rate !== undefined || data.paid !== undefined) {
+            const amount = parseFloat(data.amount || 0);
+            const booking = parseFloat(data.booking || 0);
+            const rate = parseFloat(data.rate || 0);
+            const paid = parseFloat(data.paid || 0);
+            
+            updateData.amount = amount;
+            updateData.booking = booking;
+            updateData.rate = rate;
+            updateData.paid = paid;
+            updateData.total = rate > 0 ? (amount + booking) * rate : (amount + booking);
+            updateData.balance = updateData.total - paid;
+        }
+
+        if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
+        if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
+        if (updateData.paymentMode === "") updateData.paymentMode = null;
+        if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
+
+        return prisma.clientTrfTransaction.update({
+            where: { id },
+            data: updateData
+        });
+    },
+
+    // Delete TRF transaction
+    deleteTrfTransaction: async (id) => {
+        return prisma.clientTrfTransaction.delete({
+            where: { id }
         });
     }
 };

@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
+import AccountsPreviewModal from "./_components/PreviewModal";
 
 // --- Components ---
 
@@ -14,6 +15,46 @@ const HeaderMetric = ({ label, value, colorClass = "text-gray-900" }) => (
         <span className={`text-2xl  tracking-tight ${colorClass}`}>{value}</span>
     </div>
 );
+
+// Tab Switch Component
+const TabSwitch = ({ activeTab, onChange }) => {
+    return (
+        <div className="relative flex bg-slate-100 rounded-xl p-1 gap-1">
+            {/* Sliding Background */}
+            <div 
+                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-all duration-300 ease-out ${
+                    activeTab === 'expense' 
+                        ? 'left-1 bg-blue-500 shadow-lg shadow-blue-500/30' 
+                        : 'left-[calc(50%+2px)] bg-amber-500 shadow-lg shadow-amber-500/30'
+                }`}
+            />
+            
+            <button
+                onClick={() => onChange('expense')}
+                className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${
+                    activeTab === 'expense' 
+                        ? 'text-white' 
+                        : 'text-slate-500 hover:text-slate-700'
+                }`}
+            >
+                <FileSpreadsheet className="w-4 h-4" />
+                EXPENSE
+            </button>
+            
+            <button
+                onClick={() => onChange('trf')}
+                className={`relative z-10 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${
+                    activeTab === 'trf' 
+                        ? 'text-white' 
+                        : 'text-slate-500 hover:text-slate-700'
+                }`}
+            >
+                <ArrowRightLeft className="w-4 h-4" />
+                TRF
+            </button>
+        </div>
+    );
+};
 
 // Minimal Editable Cell
 const EditableCell = ({ 
@@ -55,6 +96,7 @@ export default function ExcelLedgerPage() {
   const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
+  const [trfTransactions, setTrfTransactions] = useState([]);
   const [availableSheets, setAvailableSheets] = useState([]);
   const [sheetName, setSheetName] = useState("");
   const [formattedContainer, setFormattedContainer] = useState("");
@@ -63,6 +105,8 @@ export default function ExcelLedgerPage() {
   const [defaultCbm, setDefaultCbm] = useState("");
   const [defaultWeight, setDefaultWeight] = useState("");
   const [mixLimit, setMixLimit] = useState(5);
+  const [activeTab, setActiveTab] = useState('expense');
+  const [showPreview, setShowPreview] = useState(false);
   
   useEffect(() => {
     fetchData();
@@ -163,6 +207,11 @@ export default function ExcelLedgerPage() {
         setClient(res.data);
         const mapTxns = (res.data.transactions || []).map(t => ({ ...t, isNew: false }));
         setTransactions(mapTxns);
+        
+        // Fetch TRF transactions
+        const trfTxns = (res.data.trfTransactions || []).map(t => ({ ...t, isNew: false }));
+        setTrfTransactions(trfTxns);
+        
         setAvailableSheets(res.data.availableSheets || []);
 
         // Naming Logic & Container Prefetch
@@ -368,6 +417,142 @@ export default function ExcelLedgerPage() {
       setTransactions(updated);
   };
 
+  // ===== TRF Sheet Functions =====
+  const lastSavedTrfData = useRef({});
+
+  const handleUpdateTrfRow = (rowIndex, field, value) => {
+      const updated = [...trfTransactions];
+      updated[rowIndex] = { ...updated[rowIndex], [field]: value };
+      
+      // Auto-calculate total: amount * rate (or just amount if no rate)
+      if (field === 'amount' || field === 'rate' || field === 'booking') {
+          const amt = parseFloat(updated[rowIndex].amount || 0);
+          const booking = parseFloat(updated[rowIndex].booking || 0);
+          const rate = parseFloat(updated[rowIndex].rate || 0);
+          updated[rowIndex].total = rate > 0 ? (amt + booking) * rate : (amt + booking);
+      }
+      
+      // Calculate balance
+      if (field === 'total' || field === 'paid') {
+          const total = parseFloat(updated[rowIndex].total || 0);
+          const paid = parseFloat(updated[rowIndex].paid || 0);
+          updated[rowIndex].balance = total - paid;
+      }
+      
+      setTrfTransactions(updated);
+  };
+
+  const saveTrfRow = async (rowIndex) => {
+      const txn = trfTransactions[rowIndex];
+      if (!txn) return;
+
+      const { isNew, id: txnId, ...dataToSave } = txn;
+      
+      const currentStateString = JSON.stringify(dataToSave);
+      if (lastSavedTrfData.current[txnId] === currentStateString && !isNew) {
+          return;
+      }
+
+      try {
+          let res;
+          const payload = {
+              ...dataToSave,
+              transactionDate: dataToSave.transactionDate ? new Date(dataToSave.transactionDate) : new Date(),
+              paymentDate: dataToSave.paymentDate ? new Date(dataToSave.paymentDate) : undefined,
+              sheetName: querySheetName || sheetName || ""
+          };
+
+          if (isNew) {
+              res = await post(`/accounts/clts/${id}/trf-transactions`, payload);
+              const updated = [...trfTransactions];
+              updated[rowIndex] = { ...res.data, isNew: false };
+              setTrfTransactions(updated);
+              lastSavedTrfData.current[res.data.id] = JSON.stringify(res.data);
+              toast.success("TRF Row Added", { duration: 2000 });
+          } else {
+              res = await put(`/accounts/clts/${id}/trf-transactions/${txnId}`, payload);
+              lastSavedTrfData.current[txnId] = currentStateString;
+              toast.success("TRF Row Updated", { duration: 2000 });
+          }
+      } catch (e) {
+          console.error(e);
+          toast.error("Failed to save TRF row: " + (e.response?.data?.message || e.message));
+      }
+  };
+
+  const handleAddTrfRow = () => {
+      const newTxn = {
+          id: `temp-trf-${Date.now()}`,
+          isNew: true,
+          particular: "",
+          transactionDate: new Date().toISOString().split('T')[0],
+          amount: "",
+          booking: "",
+          rate: "",
+          total: "",
+          paid: "",
+          paymentDate: "",
+          paymentMode: "",
+          clientId: id,
+          sheetName: querySheetName || ""
+      };
+      setTrfTransactions(prev => [...prev, newTxn]);
+      
+      setTimeout(() => {
+          const lastIdx = trfTransactions.length;
+          const el = document.getElementById(`trf-cell-${lastIdx}-particular`);
+          if (el) el.focus();
+      }, 50);
+  };
+
+  const handleDeleteTrfRow = async (rowIndex) => {
+      const txn = trfTransactions[rowIndex];
+      if (!confirm("Delete this TRF row?")) return;
+      
+      if (!txn.isNew) {
+          try {
+              await del(`/accounts/clts/${id}/trf-transactions/${txn.id}`);
+              toast.success("Deleted");
+          } catch(e) {
+              toast.error("Failed to delete");
+              return;
+          }
+      }
+      const updated = trfTransactions.filter((_, i) => i !== rowIndex);
+      setTrfTransactions(updated);
+  };
+
+  const handleTrfKeyDown = (e, rowIndex, colKey) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+          e.preventDefault();
+          handleAddTrfRow();
+          return;
+      }
+      
+      if (e.ctrlKey && e.key === 's') {
+          e.preventDefault();
+          saveTrfRow(rowIndex);
+          toast.success("Saved");
+          return;
+      }
+
+      if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const nextEl = document.getElementById(`trf-cell-${rowIndex + 1}-${colKey}`);
+          if (nextEl) nextEl.focus();
+      } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prevEl = document.getElementById(`trf-cell-${rowIndex - 1}-${colKey}`);
+          if (prevEl) prevEl.focus();
+      } else if (e.key === 'Enter') {
+          e.preventDefault();
+          saveTrfRow(rowIndex);
+          const nextEl = document.getElementById(`trf-cell-${rowIndex + 1}-${colKey}`);
+          if (nextEl) nextEl.focus();
+          else handleAddTrfRow();
+      }
+  };
+
   const handleRenameSheet = async (newName) => {
       const capsName = newName.toUpperCase();
       try {
@@ -431,9 +616,15 @@ export default function ExcelLedgerPage() {
       }
   };
 
+  // Expense totals
   const totalAmount = transactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
   const totalPaid = transactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
   const balance = totalAmount - totalPaid;
+
+  // TRF totals
+  const trfTotalAmount = trfTransactions.reduce((sum, t) => sum + (parseFloat(t.total) || 0), 0);
+  const trfTotalPaid = trfTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
+  const trfBalance = trfTotalAmount - trfTotalPaid;
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-slate-300" /></div>;
   if (!client) return <div className="p-12 text-center text-slate-500">Client not found</div>;
@@ -564,98 +755,297 @@ export default function ExcelLedgerPage() {
            </div>
         </div>
         
-         <div className="flex items-center gap-10">
-             <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
-             <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
-             <div className="flex flex-col items-end">
-                 <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                 <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
-                     ₹{balance.toLocaleString()}
+         <div className="flex items-center gap-6">
+             {/* Preview Button */}
+             <button
+                 onClick={() => setShowPreview(true)}
+                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
+                 title="Preview Account Sheets"
+             >
+                 <Eye className="w-4 h-4" />
+                 Preview
+             </button>
+             
+             <div className="h-8 w-px bg-slate-200" />
+             
+             {/* Tab Switch */}
+             <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
+             
+             <div className="h-8 w-px bg-slate-200" />
+             
+             {/* Dynamic Metrics based on active tab */}
+             {activeTab === 'expense' ? (
+                 <>
+                     <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
+                     <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                     <div className="flex flex-col items-end">
+                         <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                         <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
+                             ₹{balance.toLocaleString()}
+                         </div>
+                     </div>
+                 </>
+             ) : (
+                 <>
+                     <HeaderMetric label="Total" value={`₹${trfTotalAmount.toLocaleString()}`} />
+                     <HeaderMetric label="Paid" value={`₹${trfTotalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                     <div className="flex flex-col items-end">
+                         <span className="text-[10px]  uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                         <div className={`text-2xl  tracking-tight px-3 py-1 rounded-xl shadow-sm ${trfBalance > 0 ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
+                             ₹{trfBalance.toLocaleString()}
+                         </div>
+                     </div>
+                 </>
+             )}
+         </div>
+      </div>
+
+      {/* Animated Table Area */}
+      <div className="flex-1 overflow-auto relative">
+          {/* EXPENSE Sheet (Blue) */}
+          <div 
+              className={`absolute inset-0 transition-all duration-500 ease-out ${
+                  activeTab === 'expense' 
+                      ? 'opacity-100 translate-x-0' 
+                      : 'opacity-0 -translate-x-full pointer-events-none'
+              }`}
+          >
+             <div className="min-w-[1200px] h-full overflow-auto">
+                 {/* Header Row - Blue Theme */}
+                 <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-white z-10 grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] border-b border-blue-100">
+                     {['Container', 'Delivery', 'Particulars', 'CBM', 'Weight', 'Rate', 'Total', 'Paid', 'Payment Date', 'Mode', ''].map((h, i) => (
+                         <div key={i} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-blue-600 ${['CBM', 'Weight', 'Rate', 'Total', 'Paid'].includes(h) ? 'text-right' : ''}`}>
+                             {h}
+                         </div>
+                     ))}
+                 </div>
+
+                 {/* Data Rows */}
+                 <div className="divide-y divide-slate-50">
+                     {transactions.map((txn, idx) => (
+                         <div 
+                            key={txn.id} 
+                            className={`grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] hover:bg-blue-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
+                         >
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`cell-${idx}-containerCode`} 
+                                    value={txn.containerCode} 
+                                    onChange={v => handleUpdateRow(idx, 'containerCode', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')} 
+                                    onBlur={() => handleContainerBlur(idx, txn.containerCode)}
+                                    placeholder="--" 
+                                    className="text-slate-600 font-medium" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1"><input id={`cell-${idx}-deliveryDate`} type="date" value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 font-medium rounded transition-all" /></div>
+                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-particulars`} value={txn.particulars} onChange={v => handleUpdateRow(idx, 'particulars', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} placeholder="Description" className="text-slate-900 font-bold" /></div>
+                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-quantity`} value={txn.quantity?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'quantity', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} className="text-right text-slate-600 font-semibold" /></div>
+                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-weight`} value={txn.weight?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'weight', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'weight')} className="text-right text-slate-500" /></div>
+                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-rate`} value={txn.rate?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'rate', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} className="text-right text-slate-500" /></div>
+                             
+                             {/* Total Column with Blue Bg */}
+                             <div className="px-2 py-1 bg-blue-50/50 border-x border-blue-100/50">
+                                 <EditableCell 
+                                    id={`cell-${idx}-amount`}
+                                    value={txn.amount} 
+                                    type="number" 
+                                    onChange={v => handleUpdateRow(idx, 'amount', v)} 
+                                    onKeyDown={(e) => handleKeyDown(e, idx, 'amount')}
+                                    className="text-right font-bold text-slate-900 bg-transparent" 
+                                 />
+                             </div>
+                             
+                             <div className="px-2 py-1"><EditableCell id={`cell-${idx}-paid`} value={txn.paid?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'paid', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} className="text-right text-emerald-600 font-bold" /></div>
+                             <div className="px-2 py-1"><input id={`cell-${idx}-paymentDate`} type="date" value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" /></div>
+                             <div className="px-2 py-1">
+                                 <select id={`cell-${idx}-paymentMode`} value={txn.paymentMode || ''} onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all">
+                                     <option value="">-</option>
+                                     <option value="CASH">Cash</option>
+                                     <option value="CHEQUE">Cheque</option>
+                                     <option value="UPI">UPI</option>
+                                     <option value="BANK_TRANSFER">Bank</option>
+                                 </select>
+                             </div>
+                             <div className="px-2 py-1 flex items-center justify-center gap-1">
+                                 <button onClick={() => saveRow(idx)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Save Row">
+                                     <Check className="w-4 h-4" />
+                                 </button>
+                                 <button onClick={() => handleDeleteRow(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
+                                     <Trash2 className="w-4 h-4" />
+                                 </button>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
+                 
+                 {/* Add Row Button Area */}
+                 <div className="p-4 border-t border-slate-50 bg-blue-50/20">
+                     <button onClick={handleAddRow} className="flex items-center gap-2 text-sm font-medium text-blue-500 hover:text-blue-700 transition-colors">
+                         <Plus className="w-4 h-4" />
+                         Add Row (Ctrl + Enter)
+                     </button>
                  </div>
              </div>
-         </div>
+          </div>
+
+          {/* TRF Sheet (Yellow/Amber) */}
+          <div 
+              className={`absolute inset-0 transition-all duration-500 ease-out ${
+                  activeTab === 'trf' 
+                      ? 'opacity-100 translate-x-0' 
+                      : 'opacity-0 translate-x-full pointer-events-none'
+              }`}
+          >
+             <div className="min-w-[1100px] h-full overflow-auto">
+                 {/* Header Row - Yellow/Amber Theme */}
+                 <div className="sticky top-0 bg-gradient-to-r from-amber-50 to-white z-10 grid grid-cols-[1fr_100px_100px_100px_80px_120px_120px_100px_100px_50px] border-b border-amber-200">
+                     {['Particular', 'Date', 'Amount', 'Booking', 'Rate', 'Total', 'Paid', 'Date', 'Mode', ''].map((h, i) => (
+                         <div key={i} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-amber-700 ${['Amount', 'Booking', 'Rate', 'Total', 'Paid'].includes(h) ? 'text-right' : ''}`}>
+                             {h}
+                         </div>
+                     ))}
+                 </div>
+
+                 {/* TRF Data Rows */}
+                 <div className="divide-y divide-amber-50">
+                     {trfTransactions.map((txn, idx) => (
+                         <div 
+                            key={txn.id} 
+                            className={`grid grid-cols-[1fr_100px_100px_100px_80px_120px_120px_100px_100px_50px] hover:bg-amber-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-amber-50/10' : ''}`}
+                         >
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-particular`} 
+                                    value={txn.particular} 
+                                    onChange={v => handleUpdateTrfRow(idx, 'particular', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'particular')} 
+                                    placeholder="Description" 
+                                    className="text-slate-900 font-bold" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <input 
+                                    id={`trf-cell-${idx}-transactionDate`} 
+                                    type="date" 
+                                    value={txn.transactionDate ? new Date(txn.transactionDate).toISOString().split('T')[0] : ''} 
+                                    onChange={e => handleUpdateTrfRow(idx, 'transactionDate', e.target.value)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'transactionDate')} 
+                                    className="w-full bg-slate-50 border border-slate-100/60 hover:border-amber-300 hover:bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-500/5 outline-none p-2 text-sm text-slate-500 font-medium rounded transition-all" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-amount`} 
+                                    value={txn.amount?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateTrfRow(idx, 'amount', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'amount')} 
+                                    className="text-right text-slate-600 font-semibold" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-booking`} 
+                                    value={txn.booking?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateTrfRow(idx, 'booking', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'booking')} 
+                                    className="text-right text-slate-500" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-rate`} 
+                                    value={txn.rate?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateTrfRow(idx, 'rate', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'rate')} 
+                                    className="text-right text-slate-500" 
+                                 />
+                             </div>
+                             
+                             {/* Total Column with Yellow Bg */}
+                             <div className="px-2 py-1 bg-amber-100/50 border-x border-amber-200/50">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-total`}
+                                    value={txn.total?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateTrfRow(idx, 'total', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'total')}
+                                    className="text-right font-bold text-slate-900 bg-transparent" 
+                                 />
+                             </div>
+                             
+                             <div className="px-2 py-1">
+                                 <EditableCell 
+                                    id={`trf-cell-${idx}-paid`} 
+                                    value={txn.paid?.toString()} 
+                                    type="number" 
+                                    onChange={v => handleUpdateTrfRow(idx, 'paid', v)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paid')} 
+                                    className="text-right text-emerald-600 font-bold" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <input 
+                                    id={`trf-cell-${idx}-paymentDate`} 
+                                    type="date" 
+                                    value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} 
+                                    onChange={e => handleUpdateTrfRow(idx, 'paymentDate', e.target.value)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paymentDate')} 
+                                    className="w-full bg-slate-50 border border-slate-100/60 hover:border-amber-300 hover:bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" 
+                                 />
+                             </div>
+                             <div className="px-2 py-1">
+                                 <select 
+                                    id={`trf-cell-${idx}-paymentMode`} 
+                                    value={txn.paymentMode || ''} 
+                                    onChange={e => handleUpdateTrfRow(idx, 'paymentMode', e.target.value)} 
+                                    onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paymentMode')} 
+                                    className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-amber-300 hover:bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all"
+                                 >
+                                     <option value="">-</option>
+                                     <option value="HDFC IGPL">HDFC IGPL</option>
+                                     <option value="INR">INR</option>
+                                     <option value="CASH">Cash</option>
+                                     <option value="UPI">UPI</option>
+                                     <option value="BANK_TRANSFER">Bank</option>
+                                     <option value="BALANCE">Balance</option>
+                                 </select>
+                             </div>
+                             <div className="px-2 py-1 flex items-center justify-center gap-1">
+                                 <button onClick={() => saveTrfRow(idx)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Save Row">
+                                     <Check className="w-4 h-4" />
+                                 </button>
+                                 <button onClick={() => handleDeleteTrfRow(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
+                                     <Trash2 className="w-4 h-4" />
+                                 </button>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
+                 
+                 {/* Add TRF Row Button Area */}
+                 <div className="p-4 border-t border-amber-100 bg-amber-50/20">
+                     <button onClick={handleAddTrfRow} className="flex items-center gap-2 text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors">
+                         <Plus className="w-4 h-4" />
+                         Add TRF Row (Ctrl + Enter)
+                     </button>
+                 </div>
+             </div>
+          </div>
       </div>
 
-      {/* Clean Table Area */}
-      <div className="flex-1 overflow-auto">
-         <div className="min-w-[1200px]">
-             {/* Header Row */}
-             <div className="sticky top-0 bg-white z-10 grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] border-b border-slate-100">
-                 {['Container', 'Delivery', 'Particulars', 'CBM', 'Weight', 'Rate', 'Total', 'Paid', 'Payment Date', 'Mode', ''].map((h, i) => (
-                     <div key={i} className={`px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-slate-400 ${['CBM', 'Weight', 'Rate', 'Total', 'Paid'].includes(h) ? 'text-right' : ''}`}>
-                         {h}
-                     </div>
-                 ))}
-             </div>
-
-             {/* Data Rows */}
-             <div className="divide-y divide-slate-50">
-                 {transactions.map((txn, idx) => (
-                     <div 
-                        key={txn.id} 
-                        className={`grid grid-cols-[120px_100px_1fr_80px_100px_100px_120px_120px_100px_100px_50px] hover:bg-slate-50/80 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/5' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
-                     >
-                         <div className="px-2 py-1">
-                             <EditableCell 
-                                id={`cell-${idx}-containerCode`} 
-                                value={txn.containerCode} 
-                                onChange={v => handleUpdateRow(idx, 'containerCode', v)} 
-                                onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')} 
-                                onBlur={() => handleContainerBlur(idx, txn.containerCode)}
-                                placeholder="--" 
-                                className="text-slate-600 font-medium" 
-                             />
-                         </div>
-                         <div className="px-2 py-1"><input id={`cell-${idx}-deliveryDate`} type="date" value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 font-medium rounded transition-all" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-particulars`} value={txn.particulars} onChange={v => handleUpdateRow(idx, 'particulars', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')} placeholder="Description" className="text-slate-900 font-bold" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-quantity`} value={txn.quantity?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'quantity', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')} className="text-right text-slate-600 font-semibold" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-weight`} value={txn.weight?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'weight', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'weight')} className="text-right text-slate-500" /></div>
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-rate`} value={txn.rate?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'rate', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'rate')} className="text-right text-slate-500" /></div>
-                         
-                         {/* Total Column with Yellow Bg */}
-                         <div className="px-2 py-1 bg-yellow-50/50 border-x border-yellow-100/50">
-                             <EditableCell 
-                                id={`cell-${idx}-amount`}
-                                value={txn.amount} 
-                                type="number" 
-                                onChange={v => handleUpdateRow(idx, 'amount', v)} 
-                                onKeyDown={(e) => handleKeyDown(e, idx, 'amount')}
-                                className="text-right font-bold text-slate-900 bg-transparent" 
-                             />
-                         </div>
-                         
-                         <div className="px-2 py-1"><EditableCell id={`cell-${idx}-paid`} value={txn.paid?.toString()} type="number" onChange={v => handleUpdateRow(idx, 'paid', v)} onKeyDown={(e) => handleKeyDown(e, idx, 'paid')} className="text-right text-emerald-600 font-bold" /></div>
-                         <div className="px-2 py-1"><input id={`cell-${idx}-paymentDate`} type="date" value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''} onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')} className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all" /></div>
-                         <div className="px-2 py-1">
-                             <select id={`cell-${idx}-paymentMode`} value={txn.paymentMode || ''} onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')} className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all">
-                                 <option value="">-</option>
-                                 <option value="CASH">Cash</option>
-                                 <option value="CHEQUE">Cheque</option>
-                                 <option value="UPI">UPI</option>
-                                 <option value="BANK_TRANSFER">Bank</option>
-                             </select>
-                         </div>
-                         <div className="px-2 py-1 flex items-center justify-center gap-1">
-                             <button onClick={() => saveRow(idx)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Save Row">
-                                 <Check className="w-4 h-4" />
-                             </button>
-                             <button onClick={() => handleDeleteRow(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
-                                 <Trash2 className="w-4 h-4" />
-                             </button>
-                         </div>
-                     </div>
-                 ))}
-             </div>
-             
-             {/* Add Row Button Area */}
-             <div className="p-4 border-t border-slate-50 bg-slate-50/30">
-                 <button onClick={handleAddRow} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
-                     <Plus className="w-4 h-4" />
-                     Add Row (Ctrl + Enter)
-                 </button>
-             </div>
-         </div>
-      </div>
+      {/* Preview Modal */}
+      <AccountsPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        client={client}
+        expenseTransactions={transactions}
+        trfTransactions={trfTransactions}
+        sheetName={sheetName}
+      />
     </div>
   );
 }
