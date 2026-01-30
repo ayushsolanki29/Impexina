@@ -484,7 +484,7 @@ export default function ContainerSummaryList() {
                   className="bg-white rounded-lg shadow border hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer"
                   onClick={() =>
                     router.push(
-                      `/dashboard/container-summary/${summary.id}/view`
+                      `/dashboard/container-summary/${summary.id}`
                     )
                   }
                 >
@@ -582,25 +582,13 @@ export default function ContainerSummaryList() {
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(
-                            `/dashboard/container-summary/${summary.id}/view`
-                          );
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(
-                            `/dashboard/container-summary/${summary.id}/edit`
+                            `/dashboard/container-summary/${summary.id}`
                           );
                         }}
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
-                        <Edit className="w-4 h-4" />
-                        Edit
+                        <Eye className="w-4 h-4" />
+                        View & Edit
                       </button>
                     </div>
 
@@ -754,7 +742,7 @@ export default function ContainerSummaryList() {
                   className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
                   onClick={() =>
                     router.push(
-                      `/dashboard/container-summary/${summary.id}/view`
+                      `/dashboard/container-summary/${summary.id}`
                     )
                   }
                 >

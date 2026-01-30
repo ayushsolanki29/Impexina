@@ -586,6 +586,8 @@ model ContainerInSummary {
   invoiceDate  DateTime?
   location     String?
   deliveryDate DateTime?
+  shipper      String?
+  workflowStatus String? // WHATSAPP, MAIL, SIMS, PIMS, CHECKLIST, LOADING SHEET, BIFURCATION, PACKING LIST, INVOICE, BOE, DUTY CALCULATOR, PURCHASE SELL, WAREHOUSE PLAN, ACCOUNT
 
   // Relations
   summary ContainerSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)

@@ -94,6 +94,8 @@ const containerSummaryService = {
                 invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
                 location: container.location || "",
                 deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
+                shipper: container.shipper || "",
+                workflowStatus: container.workflowStatus || "",
               };
             }),
           },
@@ -383,6 +385,8 @@ const containerSummaryService = {
               invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
               location: container.location || "",
               deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
+              shipper: container.shipper || "",
+              workflowStatus: container.workflowStatus || "",
             };
           }),
         });

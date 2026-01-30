@@ -40,6 +40,8 @@ const EMPTY_CONTAINER = {
   invoiceDate: "",
   location: "",
   deliveryDate: "",
+  shipper: "",
+  workflowStatus: "",
 };
 
 export default function ContainerSummaryEditor() {
@@ -100,6 +102,8 @@ export default function ContainerSummaryEditor() {
               invoiceDate: container.invoiceDate ? new Date(container.invoiceDate).toISOString().split("T")[0] : "",
               location: container.location || "",
               deliveryDate: container.deliveryDate ? new Date(container.deliveryDate).toISOString().split("T")[0] : "",
+              shipper: container.shipper || "",
+              workflowStatus: container.workflowStatus || "",
               // Calculated fields for display
               inr: container.inr || 0,
               duty: container.duty || 0,
@@ -366,6 +370,8 @@ export default function ContainerSummaryEditor() {
           invoiceDate: container.invoiceDate || null,
           location: container.location || "",
           deliveryDate: container.deliveryDate || null,
+          shipper: container.shipper || "",
+          workflowStatus: container.workflowStatus || "",
         })),
       };
 
@@ -445,6 +451,7 @@ export default function ContainerSummaryEditor() {
           "BL",
           "CONTAINER NO.",
           "SIMS",
+          "SHIPPER",
           "STATUS",
         ];
 
@@ -474,7 +481,8 @@ export default function ContainerSummaryEditor() {
             container.bl || "",
             container.containerNo || "",
             container.sims || "",
-            container.status || "Loaded",
+            container.shipper || "",
+            container.workflowStatus || "",
           ];
         });
 
@@ -1112,6 +1120,50 @@ export default function ContainerSummaryEditor() {
                         placeholder="SIMS status"
                         disabled={saving}
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Shipper *
+                      </label>
+                      <input
+                        type="text"
+                        value={container.shipper}
+                        onChange={(e) =>
+                          handleContainerChange(index, "shipper", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        placeholder="Shipper name"
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Status *
+                      </label>
+                      <select
+                        value={container.workflowStatus}
+                        onChange={(e) =>
+                          handleContainerChange(index, "workflowStatus", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        disabled={saving}
+                      >
+                        <option value="">Select Status</option>
+                        <option value="WHATSAPP">WhatsApp</option>
+                        <option value="MAIL">Mail</option>
+                        <option value="SIMS">SIMS</option>
+                        <option value="PIMS">PIMS</option>
+                        <option value="CHECKLIST">Checklist</option>
+                        <option value="LOADING SHEET">Loading Sheet</option>
+                        <option value="BIFURCATION">Bifurcation</option>
+                        <option value="PACKING LIST">Packing List</option>
+                        <option value="INVOICE">Invoice</option>
+                        <option value="BOE">BOE</option>
+                        <option value="DUTY CALCULATOR">Duty Calculator</option>
+                        <option value="PURCHASE SELL">Purchase Sell</option>
+                        <option value="WAREHOUSE PLAN">Warehouse Plan</option>
+                        <option value="ACCOUNT">Account</option>
+                      </select>
                     </div>
                   </div>
                 </div>

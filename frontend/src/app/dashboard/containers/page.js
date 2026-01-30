@@ -925,7 +925,7 @@ export default function ContainerDashboard() {
                         <tr className="bg-blue-50">
                           <td colSpan={11} className="px-6 py-4">
                             <div className="bg-white rounded-lg border p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                                 <div>
                                   <h4 className="text-sm font-semibold text-gray-900 mb-3">Financial Details</h4>
                                   <div className="space-y-2 text-sm">
@@ -967,6 +967,36 @@ export default function ContainerDashboard() {
                                 </div>
 
                                 <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Location & Invoice</h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Location/Port:</span>
+                                      <span className="text-gray-900 font-medium">{container.location || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Invoice No:</span>
+                                      <span className="text-gray-900 font-medium">{container.invoiceNo || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Invoice Date:</span>
+                                      <span className="text-gray-900 font-medium">{formatDate(container.invoiceDate) || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Delivery Date:</span>
+                                      <span className="text-gray-900 font-medium">{formatDate(container.deliveryDate) || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Shipper:</span>
+                                      <span className="text-gray-900 font-medium">{container.shipper || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Status:</span>
+                                      <span className="text-gray-900 font-medium">{container.workflowStatus || "-"}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
                                   <h4 className="text-sm font-semibold text-gray-900 mb-3">Documents</h4>
                                   <div className="space-y-2 text-sm">
                                     <div className="flex justify-between items-center">
@@ -976,6 +1006,10 @@ export default function ContainerDashboard() {
                                     <div className="flex justify-between items-center">
                                       <span className="text-gray-600">SIMS:</span>
                                       <span className="text-gray-900 font-medium">{container.sims || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Container No:</span>
+                                      <span className="text-gray-900 font-medium">{container.containerNoField || "-"}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                       <span className="text-gray-600">Created By:</span>
@@ -988,27 +1022,20 @@ export default function ContainerDashboard() {
                                   <h4 className="text-sm font-semibold text-gray-900 mb-3">Actions</h4>
                                   <div className="space-y-2">
                                     <button
-                                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}/view`)}
+                                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}`)}
                                       className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                                     >
                                       <Eye className="w-3 h-3" />
-                                      View Full Summary
-                                    </button>
-                                    <button
-                                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}/edit`)}
-                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
-                                    >
-                                      <Edit className="w-3 h-3" />
-                                      Edit Summary
+                                      View Summary
                                     </button>
                                     <button
                                       onClick={() => {
                                         navigator.clipboard.writeText(container.containerCode || "");
-                                        toast.success("Container code copied to clipboard!");
+                                        toast.success("Container code copied!");
                                       }}
                                       className="w-full px-4 py-2.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 transition-colors"
                                     >
-                                      Copy Container Code
+                                      Copy Code
                                     </button>
                                   </div>
                                 </div>
@@ -1106,12 +1133,40 @@ export default function ContainerDashboard() {
                   {/* Quick Info */}
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">BL No:</span>
-                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.bl || "-"}</span>
+                      <span className="text-gray-600">Location:</span>
+                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.location || "-"}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Created By:</span>
-                      <span className="text-gray-900 font-medium">{container.summaryCreatedBy || "-"}</span>
+                      <span className="text-gray-600">Invoice No:</span>
+                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.invoiceNo || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Invoice Date:</span>
+                      <span className="text-gray-900 font-medium">{formatDate(container.invoiceDate) || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Delivery Date:</span>
+                      <span className="text-gray-900 font-medium">{formatDate(container.deliveryDate) || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Shipper:</span>
+                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.shipper || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        container.workflowStatus ? "bg-blue-100 text-blue-700" : "text-gray-500"
+                      }`}>
+                        {container.workflowStatus || "-"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">SIMS:</span>
+                      <span className="text-gray-900 font-medium">{container.sims || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">BL No:</span>
+                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.bl || "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -1120,18 +1175,11 @@ export default function ContainerDashboard() {
                 <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
                   <div className="flex gap-2">
                     <button
-                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}/view`)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium"
+                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}`)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                       <Eye className="w-4 h-4" />
-                      View
-                    </button>
-                    <button
-                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}/edit`)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit
+                      View Summary
                     </button>
                   </div>
                 </div>
