@@ -18,6 +18,7 @@ import {
   Edit,
   Trash2,
   Eye,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { tukaramAPI } from "@/services/tukaram.service";
@@ -133,14 +134,23 @@ export default function TukaramSheetsPage() {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <FolderOpen className="w-6 h-6 text-blue-600" />
-                TukaramJI Account Sheets
-              </h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Manage container-wise account sheets with charges, scanning, and DC tracking.
-              </p>
+            <div className="flex items-start gap-4">
+              <button
+                onClick={() => router.push("/dashboard/accounts")}
+                className="mt-1 p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Back to Accounts"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                  <FolderOpen className="w-6 h-6 text-blue-600" />
+                  TukaramJI Account Sheets
+                </h1>
+                <p className="text-sm text-slate-600 mt-1">
+                  Manage container-wise account sheets with charges, scanning, and DC tracking.
+                </p>
+              </div>
             </div>
             <button
               onClick={handleCreateSheet}

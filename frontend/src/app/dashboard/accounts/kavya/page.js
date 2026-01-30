@@ -9,7 +9,6 @@ import {
   Calendar,
   Archive,
   Lock,
-  Unlock,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -22,9 +21,9 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
-import { dineshbhaiAPI } from "@/services/dineshbhai.service";
+import { kavyaAPI } from "@/services/kavya.service";
 
-export default function DineshbhaiSheetsPage() {
+export default function KavyaSheetsPage() {
   const router = useRouter();
   const [sheets, setSheets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +50,7 @@ export default function DineshbhaiSheetsPage() {
         page: 1,
         limit: 100,
       };
-      const data = await dineshbhaiAPI.getSheets(params);
+      const data = await kavyaAPI.getSheets(params);
       setSheets(data.data.data.sheets || []);
     } catch (error) {
       toast.error(error.message || "Failed to load sheets");
@@ -62,7 +61,7 @@ export default function DineshbhaiSheetsPage() {
 
   const loadDashboardStats = async () => {
     try {
-      const data = await dineshbhaiAPI.getDashboardOverview();
+      const data = await kavyaAPI.getDashboardOverview();
       setDashboardStats(data.data.data);
     } catch (error) {
       console.error("Failed to load dashboard stats:", error);
@@ -71,7 +70,7 @@ export default function DineshbhaiSheetsPage() {
 
   const loadYears = async () => {
     try {
-      const data = await dineshbhaiAPI.getSheets({ limit: 1000 });
+      const data = await kavyaAPI.getSheets({ limit: 1000 });
       const uniqueYears = [
         ...new Set(data.data.data.sheets.map((s) => s.year).filter(Boolean)),
       ].sort((a, b) => b - a);
@@ -83,15 +82,15 @@ export default function DineshbhaiSheetsPage() {
 
   const handleCreateSheet = async () => {
     try {
-      const titleData = await dineshbhaiAPI.generateDefaultTitle();
+      const titleData = await kavyaAPI.generateDefaultTitle();
       const defaultTitle = titleData.data.data.title;
 
-      const sheet = await dineshbhaiAPI.createSheet({
+      const sheet = await kavyaAPI.createSheet({
         title: defaultTitle,
       });
 
       toast.success("Sheet created successfully");
-      router.push(`/dashboard/accounts/dinesh/${sheet.data.data.id}`);
+      router.push(`/dashboard/accounts/kavya/${sheet.data.data.id}`);
     } catch (error) {
       toast.error(error.message || "Failed to create sheet");
     }
@@ -101,7 +100,7 @@ export default function DineshbhaiSheetsPage() {
     if (!confirm(`Are you sure you want to archive "${sheetTitle}"?`)) return;
 
     try {
-      await dineshbhaiAPI.deleteSheet(sheetId);
+      await kavyaAPI.deleteSheet(sheetId);
       toast.success("Sheet archived successfully");
       loadSheets();
       loadDashboardStats();
@@ -112,11 +111,11 @@ export default function DineshbhaiSheetsPage() {
 
   const handleExportSheet = async (sheetId, sheetTitle) => {
     try {
-      const blob = await dineshbhaiAPI.exportSheet(sheetId);
+      const blob = await kavyaAPI.exportSheet(sheetId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${sheetTitle.replace(/\s+/g, "_")}_export_${new Date()
+      a.download = `KAVYA_SHEET_${sheetTitle.replace(/\s+/g, "_")}_export_${new Date()
         .toISOString()
         .slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
@@ -145,17 +144,17 @@ export default function DineshbhaiSheetsPage() {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <FolderOpen className="w-6 h-6 text-emerald-600" />
-                  Dineshbhai Ledger
+                  <FolderOpen className="w-6 h-6 text-pink-600" />
+                  Kavya Account Sheets
                 </h1>
                 <p className="text-sm text-slate-600 mt-1">
-                  Manage central logistics booking ledgers and supplier payment tracking.
+                  Manage container-wise account sheets with CBM, duty, and payment tracking.
                 </p>
               </div>
             </div>
             <button
               onClick={handleCreateSheet}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-sm"
+              className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-5 py-2.5 rounded-lg shadow-sm"
             >
               <Plus className="w-4 h-4" />
               New Sheet
@@ -178,7 +177,7 @@ export default function DineshbhaiSheetsPage() {
                     {dashboardStats.totals.totalSheets}
                   </div>
                 </div>
-                <FileText className="w-8 h-8 text-blue-500" />
+                <FileText className="w-8 h-8 text-pink-500" />
               </div>
               <div className="mt-2 text-xs text-slate-500">
                 Active: {dashboardStats.totals.activeSheets} • Archived:{" "}
@@ -212,7 +211,7 @@ export default function DineshbhaiSheetsPage() {
                         ₹{dashboardStats.currentMonth.total.toLocaleString()}
                       </div>
                     </div>
-                    <TrendingUp className="w-8 h-8 text-emerald-500" />
+                    <TrendingUp className="w-8 h-8 text-pink-500" />
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
                     Paid: ₹{dashboardStats.currentMonth.paid.toLocaleString()}
@@ -251,7 +250,7 @@ export default function DineshbhaiSheetsPage() {
                 <input
                   type="text"
                   placeholder="Search sheets by title or description..."
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -259,7 +258,7 @@ export default function DineshbhaiSheetsPage() {
             </div>
             <div className="flex gap-3">
               <select
-                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
                 value={yearFilter}
                 onChange={(e) => setYearFilter(e.target.value)}
               >
@@ -271,7 +270,7 @@ export default function DineshbhaiSheetsPage() {
                 ))}
               </select>
               <select
-                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
@@ -307,14 +306,14 @@ export default function DineshbhaiSheetsPage() {
           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-slate-900">
-              Dineshbhai Ledger
+              Kavya Account Sheets
             </h3>
             <p className="text-slate-500 text-sm mb-4">
-              Create your first logistics sheet to get started
+              Create your first account sheet to get started
             </p>
             <button
               onClick={handleCreateSheet}
-              className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+              className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700"
             >
               <Plus className="w-4 h-4 inline mr-2" />
               Create Sheet
@@ -330,13 +329,13 @@ export default function DineshbhaiSheetsPage() {
                     ? "border-slate-200 opacity-80"
                     : sheet.status === "LOCKED"
                     ? "border-amber-200"
-                    : "border-emerald-200"
+                    : "border-pink-200"
                 }`}
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700">
+                      <h3 className="font-semibold text-slate-900 group-hover:text-pink-700">
                         {sheet.title}
                       </h3>
                       {sheet.status === "LOCKED" && (
@@ -394,7 +393,7 @@ export default function DineshbhaiSheetsPage() {
                       <div className="text-[10px] uppercase font-bold text-slate-400">
                         Paid
                       </div>
-                      <div className="font-medium text-emerald-700">
+                      <div className="font-medium text-pink-700">
                         ₹{sheet.summary.totalPaid.toLocaleString()}
                       </div>
                     </div>
@@ -406,7 +405,7 @@ export default function DineshbhaiSheetsPage() {
                         className={`font-bold ${
                           sheet.summary.balance > 0
                             ? "text-amber-600"
-                            : "text-emerald-600"
+                            : "text-pink-600"
                         }`}
                       >
                         ₹{sheet.summary.balance.toLocaleString()}
@@ -423,7 +422,7 @@ export default function DineshbhaiSheetsPage() {
                     <div
                       className={`text-xs px-2 py-1 rounded-full ${
                         sheet.status === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          ? "bg-pink-50 text-pink-700 border border-pink-100"
                           : sheet.status === "ARCHIVED"
                           ? "bg-slate-100 text-slate-600 border border-slate-200"
                           : "bg-amber-50 text-amber-700 border border-amber-100"
@@ -436,9 +435,9 @@ export default function DineshbhaiSheetsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() =>
-                        router.push(`/dashboard/accounts/dinesh/${sheet.id}`)
+                        router.push(`/dashboard/accounts/kavya/${sheet.id}`)
                       }
-                      className="flex-1 py-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center justify-center gap-1"
+                      className="flex-1 py-2 text-sm text-pink-600 hover:text-pink-700 font-medium flex items-center justify-center gap-1"
                     >
                       <Eye className="w-4 h-4" />
                       Open
@@ -447,7 +446,7 @@ export default function DineshbhaiSheetsPage() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => handleExportSheet(sheet.id, sheet.title)}
-                        className="p-2 text-slate-400 hover:text-blue-600"
+                        className="p-2 text-slate-400 hover:text-pink-600"
                         title="Export"
                       >
                         <Download className="w-4 h-4" />
@@ -455,20 +454,7 @@ export default function DineshbhaiSheetsPage() {
                       {sheet.status !== "ARCHIVED" && (
                         <>
                           <button
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/accounts/dinesh/${sheet.id}/edit`
-                              )
-                            }
-                            className="p-2 text-slate-400 hover:text-emerald-600"
-                            title="Edit"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleDeleteSheet(sheet.id, sheet.title)
-                            }
+                            onClick={() => handleDeleteSheet(sheet.id, sheet.title)}
                             className="p-2 text-slate-400 hover:text-red-600"
                             title="Archive"
                           >

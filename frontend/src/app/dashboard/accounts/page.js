@@ -97,6 +97,14 @@ export default function AccountsHub() {
       color: "bg-cyan-50 text-cyan-600",
       border: "border-cyan-200 hover:border-cyan-400",
     },
+    {
+      title: "Kavya Accounts",
+      desc: "Container-wise account sheets with CBM, duty, and payment tracking.",
+      path: "/dashboard/accounts/kavya",
+      icon: FileText,
+      color: "bg-pink-50 text-pink-600",
+      border: "border-pink-200 hover:border-pink-400",
+    },
   ];
 
   const handleVerify = async (e) => {

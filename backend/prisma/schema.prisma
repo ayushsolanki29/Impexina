@@ -1741,3 +1741,78 @@ model TukaramSheetEntry {
   @@index([loadingDate])
   @@index([deliveryDate])
 }
+
+// Kavya Account Sheet Models
+enum KavyaSheetStatus {
+  ACTIVE
+  ARCHIVED
+  LOCKED
+}
+
+model KavyaSheet {
+  id          String  @id @default(uuid())
+  title       String  @unique
+  description String?
+
+  // Status
+  status   KavyaSheetStatus @default(ACTIVE)
+  isLocked Boolean          @default(false)
+
+  // Metadata
+  month Int? // 1-12 for filtering
+  year  Int? // 2025, 2026, etc
+  tags  String[]
+
+  // Opening Balance
+  openingBalance Float @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entries KavyaSheetEntry[]
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([month, year])
+  @@index([status])
+}
+
+model KavyaSheetEntry {
+  id      String     @id @default(uuid())
+  sheetId String
+  sheet   KavyaSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  // Entry data based on KAVYA SHEET
+  containerCode  String?
+  loadingDate    DateTime?
+  deliveryDate   DateTime?
+  shippingMark   String?
+  particular     String?   // PARTICULARS (like "RTGS RECD", "30CTN TEA TABLE", "GST INV NO. 1354")
+  rateCbmWeight  Float     @default(0) // RATE -CBM / Weight
+  cbmKg          Float     @default(0) // CBM/KG
+  dutyFvb        Float     @default(0) // DUTY - FVB
+  total          Float     @default(0)
+  paid           Float     @default(0)
+  paymentDate    DateTime?
+
+  // Calculated fields
+  balance Float @default(0) // total - paid
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // For simplicity, store creator/updater as strings
+  createdBy String?
+  updatedBy String?
+
+  @@index([sheetId])
+  @@index([containerCode])
+  @@index([loadingDate])
+  @@index([deliveryDate])
+  @@index([shippingMark])
+}

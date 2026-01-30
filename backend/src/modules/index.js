@@ -47,6 +47,7 @@ router.use("/accounts/david", davidSheet);
 router.use("/accounts/collection", paymentCollection);
 router.use("/accounts/shipping", ShippingRoutes);
 router.use("/accounts/tukaram", require("./accounts/tukaram/tukaram.routes"));
+router.use("/accounts/kavya", require("./accounts/kavya/kavya.routes"));
 router.use("/clients", ClientsRoutes);
 router.use("/expenses/mumbai-ledger", mumbaiLedger);
 router.use("/expenses/ahmedabad-petty-cash", ahmedabadPettyCashRoutes);
