@@ -11,7 +11,7 @@ import {
   User, Clock, CheckCircle, XCircle, Edit,
   Eye, Download, RefreshCw, X
 } from 'lucide-react';
-import AppFooter from '@/components/AppFooter';
+
 
 const MODULE_LABELS = {
   'container-summary': { label: 'Container Summary', icon: Package, color: 'bg-blue-100 text-blue-700 border-blue-200' },
@@ -415,8 +415,7 @@ export default function ActivitiesPage() {
           )}
         </div>
 
-        {/* Footer */}
-        <AppFooter />
+    
       </div>
     </div>
   );

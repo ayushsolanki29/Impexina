@@ -811,8 +811,9 @@ export default function SidebarAdvanced({
       ) : (
         <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
           <button
+          title="View Profile"
             onClick={() => navTo("/dashboard/profile")}
-            className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors group"
+            className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors group"
           >
             <div
               className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
@@ -849,7 +850,7 @@ export default function SidebarAdvanced({
                     {currentUser.role?.toLowerCase().replace("_", " ")}
                   </div>
                 </div>
-                <Settings className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+
               </div>
             )}
           </button>
