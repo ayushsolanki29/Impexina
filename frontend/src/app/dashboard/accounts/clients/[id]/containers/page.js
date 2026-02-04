@@ -1,10 +1,85 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Package, Search, Calendar, CheckCircle2, Circle, Plus, ChevronRight, LayoutGrid, Sparkles, ArrowRight } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Search, Calendar, CheckCircle2, Circle, Plus, ChevronRight, LayoutGrid, Sparkles, ArrowRight, ChevronsUpDown, Check, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get } from "@/lib/api";
+
+// Reusable Combobox Component
+const Combobox = ({ value, onChange, options, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt =>
+    opt.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full md:w-64" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer hover:border-blue-400 transition-all text-sm shadow-sm"
+      >
+        <span className={value ? "text-slate-900 font-medium" : "text-slate-400"}>
+          {value || placeholder}
+        </span>
+        <ChevronsUpDown className="w-4 h-4 text-slate-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              className="w-full px-2 py-1 text-sm outline-none placeholder:text-slate-300 font-medium"
+              placeholder="Search origin..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {filteredOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
+                  value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                }`}
+              >
+                {opt}
+                {value === opt && <Check className="w-3 h-3" />}
+              </button>
+            ))}
+            
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center font-medium uppercase tracking-widest">
+                No Ports found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ClientContainersPage() {
   const { id } = useParams();
@@ -14,16 +89,39 @@ export default function ClientContainersPage() {
   const [loading, setLoading] = useState(true);
   const [clientName, setClientName] = useState("");
   const [search, setSearch] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [origins, setOrigins] = useState([]);
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
   useEffect(() => {
     fetchContainers();
-  }, [id]);
+  }, [id, origin, dateRange.from, dateRange.to]);
+
+  useEffect(() => {
+    fetchOrigins();
+  }, []);
+
+  const fetchOrigins = async () => {
+    try {
+      const res = await get('/containers/origins');
+      if (res.success) {
+        setOrigins(res.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch origins", error);
+    }
+  };
 
   const fetchContainers = async () => {
     try {
       setLoading(true);
       // Fetch containers
-      const res = await get(`/accounts/clts/${id}/containers`);
+      const params = new URLSearchParams({
+        ...(origin && { origin }),
+        ...(dateRange.from && { dateFrom: dateRange.from }),
+        ...(dateRange.to && { dateTo: dateRange.to }),
+      });
+      const res = await get(`/accounts/clts/${id}/containers?${params.toString()}`);
       if (res.success) {
         setContainers(res.data.containers || []);
         setBlankSheets(res.data.blankSheets || []);
@@ -148,6 +246,60 @@ export default function ClientContainersPage() {
               <ArrowRight className="w-4 h-4" />
             </div>
           </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8 items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex-1 w-full md:w-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Find in current results..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-transparent focus-within:border-blue-200 transition-all">
+            <Calendar className="w-4 h-4 text-slate-400" />
+            <input 
+              type="date" 
+              className="bg-transparent text-xs font-bold text-slate-600 outline-none hover:text-blue-600 transition-colors"
+              value={dateRange.from}
+              onChange={(e) => setDateRange(prev => ({...prev, from: e.target.value}))}
+            />
+            <span className="text-slate-300 font-bold px-1">/</span>
+            <input 
+              type="date" 
+              className="bg-transparent text-xs font-bold text-slate-600 outline-none hover:text-blue-600 transition-colors"
+              value={dateRange.to}
+              onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
+            />
+          </div>
+
+          <Combobox 
+            options={origins}
+            value={origin}
+            onChange={(val) => setOrigin(val)}
+            placeholder="All Origins"
+          />
+
+          {(search || origin || dateRange.from || dateRange.to) && (
+             <button 
+                onClick={() => {
+                  setSearch("");
+                  setOrigin("");
+                  setDateRange({ from: "", to: "" });
+                }}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                title="Clear all filters"
+             >
+                <X className="w-5 h-5" />
+             </button>
+          )}
         </div>
 
         {/* Workspaces List */}

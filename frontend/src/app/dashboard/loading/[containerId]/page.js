@@ -76,6 +76,10 @@ export default function LoadingSheetPage() {
   const [markSuggestions, setMarkSuggestions] = useState([]);
   const [clientSuggestions, setClientSuggestions] = useState([]);
 
+  // Direct paste on hover state
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, index: null });
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -118,6 +122,65 @@ export default function LoadingSheetPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [shippingMark, clientName, items, showPreview]);
+
+  // Global paste listener for hover functionality
+  useEffect(() => {
+    const handleGlobalPaste = (e) => {
+      // Check if we are hovering over a cell and not typing in an input/textarea (which has its own handler)
+      // Actually, user wants it to work when hovering, so we prioritize the hovered cell.
+      if (hoveredIndex !== null) {
+        const clipboardItems = e.clipboardData.items;
+        for (let i = 0; i < clipboardItems.length; i++) {
+          if (clipboardItems[i].type.indexOf("image") !== -1) {
+            const file = clipboardItems[i].getAsFile();
+            handlePhotoUpload(hoveredIndex, file);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => window.removeEventListener("paste", handleGlobalPaste);
+  }, [hoveredIndex]);
+
+  // Handle right-click context menu paste
+  const handlePasteFromMenu = async (index) => {
+    try {
+      setContextMenu(prev => ({ ...prev, visible: false }));
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith("image/")) {
+            const blob = await item.getType(type);
+            const file = new File([blob], "pasted_image.png", { type });
+            handlePhotoUpload(index, file);
+            return;
+          }
+        }
+      }
+      toast.info("No image found in clipboard");
+    } catch (err) {
+      console.error("Paste failed", err);
+      toast.error("Clipboard access denied. Please click 'Allow' when prompted.");
+    }
+  };
+
+  const onCellContextMenu = (e, index) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      index
+    });
+  };
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(prev => ({ ...prev, visible: false }));
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, []);
 
   useEffect(() => {
     fetchContainerData();
@@ -269,8 +332,8 @@ export default function LoadingSheetPage() {
     setItems(newItems);
   };
 
-  const handlePhotoUpload = async (index, event) => {
-    const file = event?.target?.files?.[0];
+  const handlePhotoUpload = async (index, fileOrEvent) => {
+    const file = fileOrEvent instanceof File ? fileOrEvent : fileOrEvent?.target?.files?.[0];
 
     if (!file) {
       toast.error("No file selected", {
@@ -1013,7 +1076,22 @@ export default function LoadingSheetPage() {
                       <td className="px-1 py-1 border-r border-slate-200 text-center">
                         <div className="flex justify-center">
                           {item.photo ? (
-                            <div className="relative group w-9 h-9">
+                            <div 
+                              className="relative group w-9 h-9"
+                              onMouseEnter={() => setHoveredIndex(idx)}
+                              onMouseLeave={() => setHoveredIndex(null)}
+                              onContextMenu={(e) => onCellContextMenu(e, idx)}
+                              onPaste={(e) => {
+                                const items = e.clipboardData.items;
+                                for (let i = 0; i < items.length; i++) {
+                                  if (items[i].type.indexOf("image") !== -1) {
+                                    const file = items[i].getAsFile();
+                                    handlePhotoUpload(idx, file);
+                                    break;
+                                  }
+                                }
+                              }}
+                            >
                               <img
                                 src={getImageUrl(item.photo)}
                                 alt="Item"
@@ -1031,7 +1109,38 @@ export default function LoadingSheetPage() {
                               </button>
                             </div>
                           ) : (
-                            <label className="w-9 h-9 flex items-center justify-center border border-dashed border-slate-300 rounded cursor-pointer hover:border-blue-500 text-slate-400 hover:text-blue-500 transition-colors">
+                            <label 
+                              className="w-9 h-9 flex items-center justify-center border border-dashed border-slate-300 rounded cursor-pointer hover:border-blue-500 text-slate-400 hover:text-blue-500 transition-colors relative"
+                              onMouseEnter={() => setHoveredIndex(idx)}
+                              onMouseLeave={() => setHoveredIndex(null)}
+                              onContextMenu={(e) => onCellContextMenu(e, idx)}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.add("border-blue-500", "bg-blue-50");
+                              }}
+                              onDragLeave={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                                const file = e.dataTransfer.files[0];
+                                if (file && file.type.startsWith("image/")) {
+                                  handlePhotoUpload(idx, file);
+                                }
+                              }}
+                              onPaste={(e) => {
+                                const items = e.clipboardData.items;
+                                for (let i = 0; i < items.length; i++) {
+                                  if (items[i].type.indexOf("image") !== -1) {
+                                    const file = items[i].getAsFile();
+                                    handlePhotoUpload(idx, file);
+                                    break;
+                                  }
+                                }
+                              }}
+                            >
                               <Upload className="w-4 h-4" />
                               <input
                                 type="file"
@@ -1055,6 +1164,16 @@ export default function LoadingSheetPage() {
                           className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg resize-none h-12 transition-all font-normal text-slate-900 placeholder:text-slate-300"
                           placeholder="Item Description"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
+                          onPaste={(e) => {
+                            const items = e.clipboardData.items;
+                            for (let i = 0; i < items.length; i++) {
+                              if (items[i].type.indexOf("image") !== -1) {
+                                const file = items[i].getAsFile();
+                                handlePhotoUpload(idx, file);
+                                break;
+                              }
+                            }
+                          }}
                           rows={1}
                         />
                       </td>
@@ -1212,6 +1331,23 @@ export default function LoadingSheetPage() {
           </div>
         </div>
       </div>
+
+      {/* Custom Context Menu */}
+      {contextMenu.visible && (
+        <div 
+          className="fixed z-[100] bg-white border border-slate-200 shadow-xl rounded-lg py-1 min-w-[120px]"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handlePasteFromMenu(contextMenu.index)}
+            className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2"
+          >
+            <ImageIcon className="w-4 h-4" />
+            Paste Here
+          </button>
+        </div>
+      )}
     </div>
   );
 }

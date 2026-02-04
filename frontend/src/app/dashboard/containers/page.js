@@ -35,12 +35,88 @@ import {
   Layers,
   Database,
   MoreVertical,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import API from "@/lib/api";
 
 // Define types for better type safety
 
 
+// Reusable Combobox Component
+const Combobox = ({ value, onChange, options, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => 
+    opt?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg flex items-center justify-between cursor-pointer bg-white hover:border-blue-400 transition-all text-sm"
+      >
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>
+          {value || placeholder}
+        </span>
+        <ChevronsUpDown className="w-4 h-4 text-gray-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              type="text"
+              className="w-full px-2 py-1 text-sm outline-none placeholder:text-gray-300"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {filteredOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearch('');
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                  value === opt ? 'bg-gray-50 font-bold text-blue-600' : 'text-gray-700'
+                }`}
+              >
+                {opt}
+                {value === opt && <Check className="w-3 h-3" />}
+              </button>
+            ))}
+            
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-gray-400 text-center">
+                No options found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 export default function ContainerDashboard() {
   const router = useRouter();
   const [containers, setContainers] = useState([]);
@@ -58,6 +134,9 @@ export default function ContainerDashboard() {
     month: "",
     shippingLine: "",
     containerCode: "",
+    origin: "",
+    dateFrom: "",
+    dateTo: "",
   });
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [stats, setStats] = useState({
@@ -259,8 +338,22 @@ export default function ContainerDashboard() {
       const matchesMonth = !filters.month || container.month === filters.month;
       const matchesShippingLine = !filters.shippingLine || container.shippingLine === filters.shippingLine;
       const matchesContainerCode = !filters.containerCode || container.containerCode === filters.containerCode;
+      const matchesOrigin = !filters.origin || container.origin === filters.origin;
+      
+      let matchesDate = true;
+      if (filters.dateFrom || filters.dateTo) {
+        const loadingDate = container.loadingDate ? new Date(container.loadingDate).getTime() : 0;
+        if (filters.dateFrom) {
+          const fromTime = new Date(filters.dateFrom).getTime();
+          if (loadingDate < fromTime) matchesDate = false;
+        }
+        if (filters.dateTo) {
+          const toTime = new Date(filters.dateTo).setHours(23, 59, 59, 999);
+          if (loadingDate > toTime) matchesDate = false;
+        }
+      }
 
-      return matchesSearch && matchesStatus && matchesMonth && matchesShippingLine && matchesContainerCode;
+      return matchesSearch && matchesStatus && matchesMonth && matchesShippingLine && matchesContainerCode && matchesOrigin && matchesDate;
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -298,8 +391,9 @@ export default function ContainerDashboard() {
 
     const shippingLines = [...new Set(containers.map((c) => c.shippingLine).filter(Boolean))].sort();
     const containerCodes = [...new Set(containers.map((c) => c.containerCode).filter(Boolean))].sort();
+    const origins = [...new Set(containers.map((c) => c.origin).filter(Boolean))].sort();
 
-    return { months, shippingLines, containerCodes };
+    return { months, shippingLines, containerCodes, origins };
   }, [containers]);
 
   const exportToCSV = async () => {
@@ -424,6 +518,9 @@ export default function ContainerDashboard() {
       month: "",
       shippingLine: "",
       containerCode: "",
+      origin: "",
+      dateFrom: "",
+      dateTo: "",
     });
   };
 
@@ -749,9 +846,35 @@ export default function ContainerDashboard() {
                 ))}
               </select>
 
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <input 
+                  type="date"
+                  className="bg-transparent text-xs font-semibold outline-none text-gray-700"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                />
+                <span className="text-gray-300">/</span>
+                <input 
+                  type="date"
+                  className="bg-transparent text-xs font-semibold outline-none text-gray-700"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                />
+              </div>
+
+              <div className="lg:col-span-1">
+                <Combobox 
+                  options={uniqueValues.origins}
+                  value={filters.origin}
+                  onChange={(val) => setFilters(prev => ({ ...prev, origin: val }))}
+                  placeholder="All Origins"
+                />
+              </div>
+
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
               >
                 <Filter className="w-4 h-4" />
                 More Filters
@@ -822,6 +945,7 @@ export default function ContainerDashboard() {
                       { key: "shippingLine", label: "Shipping Line" },
                       { key: "dollar", label: "Dollar" },
                       { key: "finalAmount", label: "Final Amount" },
+                      { key: "origin", label: "Origin" },
                       { key: "actions", label: "" },
                     ].map((col) => (
                       <th key={col.key} className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -897,6 +1021,11 @@ export default function ContainerDashboard() {
                           ₹{formatCurrency(container.finalAmount || 0)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                            {container.origin || "N/A"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => toggleRowExpand(index)}
@@ -969,6 +1098,10 @@ export default function ContainerDashboard() {
                                 <div>
                                   <h4 className="text-sm font-semibold text-gray-900 mb-3">Location & Invoice</h4>
                                   <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Origin Port:</span>
+                                      <span className="text-gray-900 font-bold text-blue-600">{container.origin || "-"}</span>
+                                    </div>
                                     <div className="flex justify-between items-center">
                                       <span className="text-gray-600">Location/Port:</span>
                                       <span className="text-gray-900 font-medium">{container.location || "-"}</span>
@@ -1132,6 +1265,10 @@ export default function ContainerDashboard() {
 
                   {/* Quick Info */}
                   <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Origin:</span>
+                      <span className="text-gray-900 font-bold text-blue-600">{container.origin || "N/A"}</span>
+                    </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Location:</span>
                       <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.location || "-"}</span>

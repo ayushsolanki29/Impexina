@@ -17,7 +17,7 @@ const warehouseService = {
     }
 
     // Apply search and date filters
-    if (filters.search || filters.dateFrom || filters.dateTo) {
+    if (filters.search || filters.dateFrom || filters.dateTo || filters.origin) {
       const subWhere = {};
       
       if (filters.search) {
@@ -31,6 +31,10 @@ const warehouseService = {
         subWhere.loadingDate = {};
         if (filters.dateFrom) subWhere.loadingDate.gte = new Date(filters.dateFrom);
         if (filters.dateTo) subWhere.loadingDate.lte = new Date(filters.dateTo);
+      }
+
+      if (filters.origin) {
+        subWhere.origin = { contains: filters.origin, mode: 'insensitive' };
       }
 
       Object.assign(containerWhere, subWhere);
@@ -83,6 +87,7 @@ const warehouseService = {
           containerId: container.id,
           containerCode: container.containerCode,
           loadingDate: container.loadingDate,
+          origin: container.origin || '',
           mark: sheet.shippingMark || 'N/A',
           clientName: sheet.clientName || '',
           ctn: totalCtn,

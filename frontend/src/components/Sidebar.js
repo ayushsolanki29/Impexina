@@ -237,7 +237,7 @@ function SkeletonItem({ isOpen }) {
 
 function UserSkeleton({ isOpen }) {
   return (
-    <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
+    <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-3">
       <div className="w-8 h-8 bg-slate-200 rounded-md animate-pulse" />
       {isOpen && (
         <div className="flex-1">
@@ -447,9 +447,12 @@ export default function SidebarAdvanced({
   };
 
   const handleLogout = () => {
-    clearAuthCookies();
-    toast.info("Logged out successfully");
-    router.push("/auth/login");
+    const confirmLogout = window.confirm("Do you really want to logout?");
+    if (confirmLogout) {
+      clearAuthCookies();
+      toast.info("Logged out successfully");
+      router.push("/auth/login");
+    }
   };
 
   const navTo = (path) => {
@@ -809,14 +812,14 @@ export default function SidebarAdvanced({
       {isLoading ? (
         <UserSkeleton isOpen={open} />
       ) : (
-        <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
+        <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-3">
           <button
           title="View Profile"
             onClick={() => navTo("/dashboard/profile")}
             className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors group"
           >
             <div
-              className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
                 roleColor(currentUser.role, currentUser.isSuper).bg
               } ${roleColor(currentUser.role, currentUser.isSuper).text}`}
             >
@@ -827,17 +830,17 @@ export default function SidebarAdvanced({
               <div className="flex-1 min-w-0 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-700 truncate group-hover:text-slate-900">
+                    <span className="text-[13px] font-semibold text-slate-700 truncate group-hover:text-slate-900 leading-tight">
                       {currentUser.name || "Bennet User"}
                     </span>
                     {currentUser.isSuper && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-900 text-white">
+                      <span className="px-1 py-0 text-[9px] font-bold rounded bg-slate-900 text-white">
                         SUPER
                       </span>
                     )}
                   </div>
                   <div
-                    className={`text-xs truncate capitalize ${
+                    className={`text-[10px] truncate capitalize leading-tight ${
                       currentUser.isSuper
                         ? "text-slate-900 font-medium"
                         : currentUser.role === "ADMIN"
@@ -850,7 +853,6 @@ export default function SidebarAdvanced({
                     {currentUser.role?.toLowerCase().replace("_", " ")}
                   </div>
                 </div>
-
               </div>
             )}
           </button>
@@ -870,11 +872,11 @@ export default function SidebarAdvanced({
         {/* Toggle Button */}
         <button
           onClick={toggleFooter}
-          className="w-full px-4 py-2 flex items-center justify-between hover:bg-slate-100/50 transition-colors group"
+          className="w-full px-4 py-1.5 flex items-center justify-between hover:bg-slate-100/50 transition-colors group"
           title={footerExpanded ? 'Hide footer' : 'Show footer'}
         >
           {open && (
-            <span className="text-[11px] text-slate-500 font-medium">Software Information</span>
+            <span className="text-[10px] text-slate-500 font-medium">Software Info</span>
           )}
           <div className={`flex items-center gap-1 ${open ? '' : 'mx-auto'}`}>
             {open && (
@@ -894,7 +896,7 @@ export default function SidebarAdvanced({
             footerExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
-          <div className="px-4 py-2.5">
+          <div className="px-4 py-1.5">
             {open ? (
               <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
                 <div className="flex items-center gap-1.5">

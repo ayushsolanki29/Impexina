@@ -187,9 +187,23 @@ const AccountClientsService = {
     },
 
     // Get All Containers (for Selection)
-    getClientContainers: async (clientId) => {
+    getClientContainers: async (clientId, filters = {}) => {
+        const { origin, dateFrom, dateTo } = filters;
+        
+        // Build where for Master Container
+        const containerWhere = {};
+        if (origin) {
+            containerWhere.origin = { contains: origin, mode: 'insensitive' };
+        }
+        if (dateFrom || dateTo) {
+            containerWhere.loadingDate = {};
+            if (dateFrom) containerWhere.loadingDate.gte = new Date(dateFrom);
+            if (dateTo) containerWhere.loadingDate.lte = new Date(dateTo);
+        }
+
         // Fetch from Master Container table
         const containers = await prisma.container.findMany({
+            where: containerWhere,
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -217,19 +231,31 @@ const AccountClientsService = {
             }
         });
 
+        // Blank sheets where clause
+        const blankWhere = {
+            clientId,
+            containerCode: null,
+            sheetName: { not: null }
+        };
+
+        if (dateFrom || dateTo) {
+            blankWhere.createdAt = {};
+            if (dateFrom) blankWhere.createdAt.gte = new Date(dateFrom);
+            if (dateTo) blankWhere.createdAt.lte = new Date(dateTo);
+        }
+
         // Enforce CAPS on blank sheets and containers
-        const blankSheets = await prisma.clientTransaction.findMany({
-            where: {
-                clientId,
-                containerCode: null,
-                sheetName: { not: null }
-            },
-            distinct: ['sheetName'],
-            select: {
-                sheetName: true,
-                createdAt: true
-            }
-        });
+        let blankSheets = [];
+        if (!origin) {
+            blankSheets = await prisma.clientTransaction.findMany({
+                where: blankWhere,
+                distinct: ['sheetName'],
+                select: {
+                    sheetName: true,
+                    createdAt: true
+                }
+            });
+        }
         
         return {
             containers: containers.map(c => ({

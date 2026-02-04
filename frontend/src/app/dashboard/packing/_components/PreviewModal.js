@@ -7,6 +7,20 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
 
+// Helper function to get image URL
+const getImageUrl = (photoPath) => {
+  if (!photoPath) return null;
+
+  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
+    return photoPath;
+  }
+
+  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
+  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
+
+  return `${baseUrl}${normalizedPath}`;
+};
+
 export default function PreviewModal({ isOpen, onClose, data, items, container }) {
   const [exporting, setExporting] = useState(false);
   if (!isOpen) return null;
@@ -18,7 +32,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
   const handleDownloadPDF = async () => {
     const element = document.getElementById('print-area-content');
     if (!element) return;
-    
+
     try {
       setExporting(true);
       const canvas = await html2canvas(element, {
@@ -27,13 +41,13 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
         logging: false,
         backgroundColor: '#ffffff'
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
+
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Packing_List_${data.invNo || 'Draft'}.pdf`);
     } catch (error) {
@@ -56,7 +70,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
       [`GST NO.: ${data.sellerGst}`, '', `FROM: ${data.from || container?.origin || ''}`],
       [`EMAIL: ${data.sellerEmail}`, ''],
       [],
-      ['S.N.', 'ITEM NUMBER', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'KG', 'T.KG']
+      ['S.N.', 'MARK', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'KG', 'T.KG']
     ];
 
     items.forEach((item, idx) => {
@@ -85,10 +99,10 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Packing List");
-    
+
     // Auto-width for columns
     const wscols = [
-      {wch: 5}, {wch: 15}, {wch: 40}, {wch: 8}, {wch: 10}, {wch: 8}, {wch: 10}, {wch: 8}, {wch: 10}
+      { wch: 5 }, { wch: 15 }, { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }
     ];
     ws['!cols'] = wscols;
 
@@ -110,7 +124,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={handleDownloadPDF}
               disabled={exporting}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold text-sm shadow-md disabled:opacity-50"
@@ -118,21 +132,21 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
               <Download className="w-4 h-4" />
               {exporting ? 'Generating PDF...' : 'Download PDF'}
             </button>
-            <button 
+            <button
               onClick={handleDownloadExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold text-sm shadow-md"
             >
               <Table className="w-4 h-4" />
               Excel
             </button>
-            <button 
+            <button
               onClick={() => window.print()}
               className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-600 rounded-xl transition-all font-bold text-sm"
             >
               <Printer className="w-4 h-4" />
               Print
             </button>
-            <button 
+            <button
               onClick={onClose}
               className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl transition-all"
             >
@@ -142,16 +156,16 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
         </div>
 
         <div id="print-area" className="flex-1 overflow-y-auto bg-slate-100/50 p-4 md:p-10 print:p-0 print:bg-white flex justify-center">
-          <div 
-            id="print-area-content" 
-            style={{ 
-              backgroundColor: '#ffffff', 
-              color: '#000000', 
-              border: '1px solid #000000' 
+          <div
+            id="print-area-content"
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#000000',
+              border: '1px solid #000000'
             }}
             className="mx-auto w-full max-w-[210mm] min-h-[297mm] print:max-w-none p-0 overflow-hidden font-cambria leading-[1.2]"
           >
-            
+
             {/* Topmost Header (Exporter/Agent) */}
             <div style={{ borderBottom: '1px solid #000000' }} className="py-5">
               <div className="text-center font-bold text-[32px] leading-none mb-1 uppercase tracking-tight">
@@ -178,8 +192,8 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                   </td>
                   <td className="w-[40%] p-4 align-top text-[15px] leading-[1.8]">
                     <div className="p-1 px-4 mb-4" style={{ border: '1px solid #000000' }}>
-                        <div className="font-bold">INV NO.: {data.invNo}</div>
-                        <div className="font-bold">DATE : {new Date(data.invoiceDate).toLocaleDateString('en-GB')}</div>
+                      <div className="font-bold">INV NO.: {data.invNo}</div>
+                      <div className="font-bold">DATE : {new Date(data.invoiceDate).toLocaleDateString('en-GB')}</div>
                     </div>
                     <div className="font-bold uppercase tracking-wide">TO: {data.to || container?.destination || 'NHAVA SHEVA'}</div>
                     <div className="font-bold uppercase tracking-wide">FROM: {data.from || container?.origin || 'CHINA'}</div>
@@ -194,7 +208,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                 <thead>
                   <tr className="font-bold" style={{ borderBottom: '1px solid #000000', backgroundColor: '#f8fafc' }}>
                     <th className="p-1 text-center w-8" style={{ borderRight: '1px solid #000000' }}>S.N.</th>
-                    <th className="p-1 text-center w-24" style={{ borderRight: '1px solid #000000' }}>Item Number</th>
+                    <th className="p-1 text-center w-24" style={{ borderRight: '1px solid #000000' }}>MARK</th>
                     <th className="p-1 text-center w-12" style={{ borderRight: '1px solid #000000' }}>Photo</th>
                     <th className="p-1 text-left" style={{ borderRight: '1px solid #000000' }}>Descriptions</th>
                     <th className="p-1 text-center w-12" style={{ borderRight: '1px solid #000000' }}>Ctn.</th>
@@ -212,10 +226,10 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                       <td className="p-1 text-center font-bold align-top uppercase" style={{ borderRight: '1px solid #000000' }}>{item.itemNumber}</td>
                       <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>
                         {item.photo && (
-                          <img 
-                            src={`${process.env.NEXT_PUBLIC_SERVER_URL}${item.photo}`} 
-                            alt="item" 
-                            className="w-10 h-10 object-contain mx-auto" 
+                          <img
+                            src={getImageUrl(item.photo)}
+                            alt="item"
+                            className="w-10 h-10 object-contain mx-auto"
                           />
                         )}
                       </td>
@@ -261,8 +275,8 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                   <td className="w-[35%] p-3 align-bottom text-center">
                     {data.stampImage && (
                       <div className="relative inline-block mb-1">
-                        <img 
-                          src={`${process.env.NEXT_PUBLIC_SERVER_URL}${data.stampImage}`} 
+                        <img
+                          src={getImageUrl(data.stampImage)}
                           alt="Stamp"
                           style={{
                             width: data.stampSize === 'SM' ? '80px' : data.stampSize === 'LG' ? '180px' : '130px',
@@ -282,7 +296,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
           </div>
         </div>
       </div>
-      
+
       <style jsx global>{`
         #print-area * {
             font-family: "Cambria", "Times New Roman", serif !important;

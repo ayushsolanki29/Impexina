@@ -76,7 +76,7 @@ const getContainerSuggestions = async (req, res) => {
 // Get client containers
 const getClientContainers = async (req, res) => {
   try {
-    const result = await clientsService.getClientContainers(req.params.id);
+    const result = await clientsService.getClientContainers(req.params.id, req.query);
     res.json({ success: true, data: result });
   } catch (error) {
     console.error(error);

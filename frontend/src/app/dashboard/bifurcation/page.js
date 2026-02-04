@@ -7,9 +7,84 @@ import { useRouter } from 'next/navigation';
 import { 
     Loader2, RefreshCw, Settings, ChevronLeft, ChevronRight, 
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History,
-    Users
+    Users, ChevronsUpDown, Check, X
 } from 'lucide-react';
 import Link from 'next/link';
+
+// Reusable Combobox Component
+const Combobox = ({ value, onChange, options, placeholder, onAddNew }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [search, setSearch] = React.useState('');
+    const wrapperRef = React.useRef(null);
+  
+    React.useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+  
+    const filteredOptions = options.filter(opt => 
+      opt.toLowerCase().includes(search.toLowerCase())
+    );
+  
+    return (
+      <div className="relative w-full md:w-64" ref={wrapperRef}>
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full px-4 py-2.5 border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer bg-white hover:border-blue-400 transition-all text-sm"
+        >
+          <span className={value ? "text-slate-600 font-medium" : "text-slate-300"}>
+            {value || placeholder}
+          </span>
+          <ChevronsUpDown className="w-4 h-4 text-slate-400" />
+        </div>
+  
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+            <div className="p-2 border-b border-slate-100">
+              <input
+                type="text"
+                className="w-full px-2 py-1 text-sm outline-none placeholder:text-slate-300"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            
+            <div className="overflow-y-auto flex-1">
+              {filteredOptions.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
+                    value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                  }`}
+                >
+                  {opt}
+                  {value === opt && <Check className="w-3 h-3" />}
+                </button>
+              ))}
+              
+              {filteredOptions.length === 0 && (
+                <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                  No options found
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
 // Enhanced editable cell component with Tab support
 const EditableCell = ({ value, type = "text", onSave, tabIndex, className = "" }) => {
@@ -79,6 +154,8 @@ export default function BifurcationPage() {
     const [expandedContainers, setExpandedContainers] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [dateRange, setDateRange] = useState({ from: '', to: '' });
+    const [origin, setOrigin] = useState('');
+    const [origins, setOrigins] = useState([]);
 
     // Grouping helper
     const groupByContainer = (list) => {
@@ -100,7 +177,8 @@ export default function BifurcationPage() {
                 limit: 10,
                 search: searchTerm,
                 dateFrom: dateRange.from,
-                dateTo: dateRange.to
+                dateTo: dateRange.to,
+                origin: origin
             });
             const response = await API.get(`/bifurcation?${params.toString()}`);
             if (response.data.success) {
@@ -116,7 +194,7 @@ export default function BifurcationPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchTerm, dateRange, pagination.page]);
+    }, [searchTerm, dateRange, origin, pagination.page]);
 
     // Handle Ctrl+S for global refresh/save trigger
     useEffect(() => {
@@ -183,8 +261,23 @@ export default function BifurcationPage() {
     };
 
     useEffect(() => {
+        fetchOrigins();
+    }, []);
+
+    const fetchOrigins = async () => {
+        try {
+            const response = await API.get('/containers/origins');
+            if (response.data.success) {
+                setOrigins(response.data.data);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
-    }, [searchTerm, dateRange.from, dateRange.to]);
+    }, [searchTerm, dateRange.from, dateRange.to, origin]);
 
     const groupedData = groupByContainer(data);
     const containerCodes = Object.keys(groupedData).sort();
@@ -243,7 +336,14 @@ export default function BifurcationPage() {
                         />
                     </div>
                     
-                    <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <Combobox 
+                            options={origins}
+                            value={origin}
+                            onChange={(val) => setOrigin(val)}
+                            placeholder="All Origins"
+                        />
+
                         <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl group focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
                             <Calendar className="w-4 h-4 text-slate-400" />
                             <input 
@@ -260,6 +360,20 @@ export default function BifurcationPage() {
                                 onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
                             />
                         </div>
+                        
+                        {(searchTerm || origin || dateRange.from || dateRange.to) && (
+                            <button 
+                                onClick={() => {
+                                    setSearchTerm('');
+                                    setOrigin('');
+                                    setDateRange({ from: '', to: '' });
+                                }}
+                                className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                title="Clear all filters"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

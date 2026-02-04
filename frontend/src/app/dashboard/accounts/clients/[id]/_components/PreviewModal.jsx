@@ -139,7 +139,7 @@ export default function AccountsPreviewModal({
 
       // Expense Sheet
       const expenseData = [
-        ['CONTAINER', 'DELIVERY', 'PARTICULARS', 'CBM', 'WEIGHT', 'RATE', 'TOTAL', 'PAID', 'PAYMENT DATE', 'MODE'],
+        ['CONTAINER', 'DELIVERY', 'PARTICULARS', 'CBM', 'WEIGHT', 'RATE', 'BASIS', 'TOTAL', 'PAID', 'PAYMENT DATE', 'MODE'],
         ...expenseTransactions.map(t => [
           t.containerCode || '',
           t.deliveryDate ? new Date(t.deliveryDate).toLocaleDateString() : '',
@@ -147,6 +147,7 @@ export default function AccountsPreviewModal({
           t.quantity || '',
           t.weight || '',
           t.rate || '',
+          t.billingType || 'FLAT',
           t.amount || 0,
           t.paid || 0,
           t.paymentDate ? new Date(t.paymentDate).toLocaleDateString() : '',
@@ -296,6 +297,7 @@ export default function AccountsPreviewModal({
                         <th className="px-2 py-2 text-right border-r border-blue-200">CBM</th>
                         <th className="px-2 py-2 text-right border-r border-blue-200">Weight</th>
                         <th className="px-2 py-2 text-right border-r border-blue-200">Rate</th>
+                        <th className="px-2 py-2 text-center border-r border-blue-200">Basis</th>
                         <th className="px-2 py-2 text-right border-r border-blue-200 bg-blue-100">Total</th>
                         <th className="px-2 py-2 text-right border-r border-blue-200">Paid</th>
                         <th className="px-2 py-2 text-left border-r border-blue-200">Date</th>
@@ -324,6 +326,9 @@ export default function AccountsPreviewModal({
                             <td className="px-2 py-2 border-r border-blue-100 text-right text-slate-600">
                               {txn.rate || '-'}
                             </td>
+                            <td className="px-2 py-2 border-r border-blue-100 text-center text-[8px] font-bold text-blue-600 uppercase">
+                              {txn.billingType || 'FLAT'}
+                            </td>
                             <td className="px-2 py-2 border-r border-blue-100 text-right font-bold bg-blue-50">
                               ₹{formatCurrency(txn.amount)}
                             </td>
@@ -347,7 +352,7 @@ export default function AccountsPreviewModal({
                       )}
                       {/* Totals Row */}
                       <tr className="bg-blue-50 font-bold border-t-2 border-blue-300">
-                        <td colSpan="6" className="px-2 py-2 text-right border-r border-blue-200">
+                        <td colSpan="7" className="px-2 py-2 text-right border-r border-blue-200">
                           TOTAL
                         </td>
                         <td className="px-2 py-2 text-right border-r border-blue-200 bg-blue-100">
@@ -359,7 +364,7 @@ export default function AccountsPreviewModal({
                         <td colSpan="2" className="px-2 py-2"></td>
                       </tr>
                       <tr className="bg-amber-50 font-bold">
-                        <td colSpan="6" className="px-2 py-2 text-right border-r border-blue-200">
+                        <td colSpan="7" className="px-2 py-2 text-right border-r border-blue-200">
                           BALANCE
                         </td>
                         <td colSpan="4" className="px-2 py-2 text-right text-amber-700">

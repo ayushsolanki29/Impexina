@@ -577,6 +577,7 @@ model ContainerInSummary {
   // Shipping Info
   shippingLine     String?
   bl               String?
+  origin           String?
 
   containerNoField String? // Actual container number
   sims             String?

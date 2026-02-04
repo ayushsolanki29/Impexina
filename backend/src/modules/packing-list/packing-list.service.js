@@ -15,6 +15,16 @@ const packingListService = {
       ];
     }
 
+    if (query.origin) {
+      where.origin = { contains: query.origin, mode: "insensitive" };
+    }
+
+    if (query.dateFrom || query.dateTo) {
+      where.loadingDate = {};
+      if (query.dateFrom) where.loadingDate.gte = new Date(query.dateFrom);
+      if (query.dateTo) where.loadingDate.lte = new Date(query.dateTo);
+    }
+
     const [containers, total] = await Promise.all([
       prisma.container.findMany({
         where,
@@ -83,7 +93,7 @@ const packingListService = {
     loadingSheets.forEach(sheet => {
       sheet.items.forEach(item => {
         transformedItems.push({
-          itemNumber: item.itemNo || "",
+          itemNumber: item.mark || "",
           particular: item.particular,
           ctn: item.ctn,
           qtyPerCtn: item.pcs,
@@ -104,13 +114,13 @@ const packingListService = {
 
   // Create or Update packing list
   createOrUpdate: async (containerId, data, userId) => {
-    const { 
-      items = [], 
+    const {
+      items = [],
       companyMasterId,
       invNo,
       invoiceNo,
       invoiceDate,
-      ...headerData 
+      ...headerData
     } = data;
 
     // 1. Get container code if not provided

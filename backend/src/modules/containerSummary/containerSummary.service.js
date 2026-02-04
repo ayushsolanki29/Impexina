@@ -87,6 +87,7 @@ const containerSummaryService = {
                 finalAmount: parseFloat(finalAmount.toFixed(2)),
                 shippingLine: container.shippingLine || "",
                 bl: container.bl || "",
+                origin: container.origin || "",
                 containerNoField: container.containerNo || "",
                 sims: container.sims || "",
                 // New Fields
@@ -136,32 +137,48 @@ const containerSummaryService = {
   },
 
   // Get all summaries with pagination
-  getAllSummaries: async ({
-    page = 1,
-    limit = 10,
-    search = "",
-    status,
-    createdBy,
-  }) => {
+    getAllSummaries: async (query = {}) => {
+    const {
+        page = 1,
+        limit = 10,
+        search = "",
+        status,
+        createdBy,
+        origin,
+        dateFrom,
+        dateTo
+    } = query;
     try {
-      const skip = (page - 1) * limit;
+        const skip = (page - 1) * limit;
 
-      const where = {};
+        const where = {};
 
-      if (search) {
+        if (search) {
         where.month = {
-          contains: search,
-          mode: "insensitive",
+            contains: search,
+            mode: "insensitive",
         };
-      }
+        }
 
-      if (status) {
+        if (status) {
         where.status = status;
-      }
+        }
 
-      if (createdBy) {
+        if (createdBy) {
         where.createdBy = createdBy;
-      }
+        }
+
+        if (origin) {
+            where.containers = {
+                some: { origin: { contains: origin, mode: "insensitive" } }
+            };
+        }
+
+        if (dateFrom || dateTo) {
+            if (!where.containers) where.containers = { some: {} };
+            if (dateFrom) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, gte: new Date(dateFrom) };
+            if (dateTo) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, lte: new Date(dateTo) };
+        }
 
       const [summaries, total] = await Promise.all([
         prisma.containerSummary.findMany({
@@ -378,6 +395,7 @@ const containerSummaryService = {
               finalAmount: parseFloat(finalAmount.toFixed(2)),
               shippingLine: container.shippingLine || "",
               bl: container.bl || "",
+              origin: container.origin || "",
               containerNoField: container.containerNo || "",
               sims: container.sims || "",
               // New Fields

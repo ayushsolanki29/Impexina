@@ -7,9 +7,84 @@ import {
     Loader2, RefreshCw, ChevronLeft, ChevronRight, 
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink,
     Truck, FileText, Package, Waves, MapPin, X, Printer,
-    Download, Settings, Info, Briefcase
+    Download, Settings, Info, Briefcase, ChevronsUpDown, Check
 } from 'lucide-react';
 import Link from 'next/link';
+
+// Reusable Combobox Component
+const Combobox = ({ value, onChange, options, placeholder }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [search, setSearch] = React.useState('');
+    const wrapperRef = React.useRef(null);
+  
+    React.useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+  
+    const filteredOptions = options.filter(opt => 
+      opt.toLowerCase().includes(search.toLowerCase())
+    );
+  
+    return (
+      <div className="relative w-full md:w-64" ref={wrapperRef}>
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full px-4 py-2 bg-slate-50/50 border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer hover:border-blue-400 transition-all text-sm shadow-sm"
+        >
+          <span className={value ? "text-slate-900 font-medium" : "text-slate-400"}>
+            {value || placeholder}
+          </span>
+          <ChevronsUpDown className="w-4 h-4 text-slate-400" />
+        </div>
+  
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+            <div className="p-2 border-b border-slate-100">
+              <input
+                type="text"
+                className="w-full px-2 py-1 text-sm outline-none placeholder:text-slate-300 font-medium"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            
+            <div className="overflow-y-auto flex-1">
+              {filteredOptions.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
+                    value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                  }`}
+                >
+                  {opt}
+                  {value === opt && <Check className="w-3 h-3" />}
+                </button>
+              ))}
+              
+              {filteredOptions.length === 0 && (
+                <div className="px-3 py-2 text-xs text-slate-400 text-center font-medium uppercase tracking-widest">
+                  No Ports found
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
 // Preview Modal Component
 // Preview Modal Component
@@ -328,6 +403,8 @@ export default function WarehouseModule() {
     // UI State
     const [expandedContainers, setExpandedContainers] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [origin, setOrigin] = useState('');
+    const [origins, setOrigins] = useState([]);
     const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
     // Grouping helper
@@ -340,6 +417,17 @@ export default function WarehouseModule() {
             groups[item.containerCode].push(item);
         });
         return groups;
+    };
+
+    const fetchOrigins = async () => {
+        try {
+            const response = await API.get('/containers/origins');
+            if (response.data.success) {
+                setOrigins(response.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch origins", error);
+        }
     };
 
     const fetchTransporters = async () => {
@@ -360,6 +448,7 @@ export default function WarehouseModule() {
                 page,
                 limit: 10,
                 search: searchTerm,
+                origin,
                 dateFrom: dateRange.from,
                 dateTo: dateRange.to
             });
@@ -374,7 +463,7 @@ export default function WarehouseModule() {
         } finally {
             setLoading(false);
         }
-    }, [searchTerm, dateRange]);
+    }, [searchTerm, dateRange, origin]);
 
     const handleUpdate = async (sheetId, field, value) => {
         const oldData = [...data];
@@ -406,7 +495,8 @@ export default function WarehouseModule() {
     useEffect(() => {
         fetchData();
         fetchTransporters();
-    }, [searchTerm, dateRange.from, dateRange.to]);
+        fetchOrigins();
+    }, [searchTerm, origin, dateRange.from, dateRange.to]);
 
     const groupedData = groupByContainer(data);
     const containerCodes = Object.keys(groupedData).sort();
@@ -473,6 +563,27 @@ export default function WarehouseModule() {
                             onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
                         />
                     </div>
+
+                    <Combobox 
+                        options={origins}
+                        value={origin}
+                        onChange={(val) => setOrigin(val)}
+                        placeholder="All Origins"
+                    />
+
+                    {(searchTerm || origin || dateRange.from || dateRange.to) && (
+                        <button 
+                            onClick={() => {
+                                setSearchTerm('');
+                                setOrigin('');
+                                setDateRange({ from: '', to: '' });
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Clear all filters"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
 
                 {/* Main Content */}
@@ -505,6 +616,13 @@ export default function WarehouseModule() {
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Loading Date</div>
                                                     <p className="text-sm font-bold text-blue-600">
                                                         {items[0].loadingDate ? new Date(items[0].loadingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="hidden md:block w-px h-8 bg-slate-200"></div>
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Origin</div>
+                                                    <p className="text-sm font-bold text-slate-800 uppercase">
+                                                        {items[0].origin || '-'}
                                                     </p>
                                                 </div>
                                                 <div className="hidden md:block w-px h-8 bg-slate-200"></div>

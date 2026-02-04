@@ -7,6 +7,20 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
 
+// Helper function to get image URL
+const getImageUrl = (photoPath) => {
+  if (!photoPath) return null;
+
+  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
+    return photoPath;
+  }
+
+  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
+  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
+
+  return `${baseUrl}${normalizedPath}`;
+};
+
 export default function InvoicePreviewModal({ isOpen, onClose, data, items, container }) {
   const [exporting, setExporting] = useState(false);
   if (!isOpen) return null;
@@ -18,7 +32,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
   const handleDownloadPDF = async () => {
     const element = document.getElementById('invoice-print-area');
     if (!element) return;
-    
+
     try {
       setExporting(true);
       const canvas = await html2canvas(element, {
@@ -27,13 +41,13 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
         logging: false,
         backgroundColor: '#ffffff'
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
+
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Invoice_${data.invNo || 'Draft'}.pdf`);
     } catch (error) {
@@ -61,7 +75,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
       [data.consigneeAddress],
       [data.consigneeCountry],
       [],
-      ['S.N.', 'ITEM NO.', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'U.PRICE', 'AMOUNT/USD']
+      ['S.N.', 'MARK', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'U.PRICE', 'AMOUNT/USD']
     ];
 
     items.forEach((item, idx) => {
@@ -93,10 +107,10 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Invoice");
-    
+
     // Auto-width for columns
     const wscols = [
-      {wch: 5}, {wch: 12}, {wch: 35}, {wch: 8}, {wch: 10}, {wch: 8}, {wch: 10}, {wch: 10}, {wch: 12}
+      { wch: 5 }, { wch: 12 }, { wch: 35 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }
     ];
     ws['!cols'] = wscols;
 
@@ -106,7 +120,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 md:p-8">
       <div className="bg-white w-full max-w-6xl h-full max-h-[98vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
           <div>
@@ -142,7 +156,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
         {/* Preview Content */}
         <div className="flex-1 overflow-auto p-8 bg-slate-50">
           <div id="invoice-print-area" className="bg-white p-8 max-w-[210mm] mx-auto text-black font-sans text-[10px] leading-tight selection:bg-none">
-            
+
             {/* Header: Company Name & Address */}
             <div className="text-center mb-1">
               <h1 className="text-xl font-bold uppercase tracking-wide">{data.exporterCompanyName || 'YIWU ZHOULAI TRADING CO., LIMITED'}</h1>
@@ -176,10 +190,10 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                 <div className="grid grid-cols-[60px_1fr] gap-x-1">
                   <span className="font-bold">INV NO.:</span>
                   <span className="font-bold">{data.invNo}</span>
-                  
+
                   <span className="font-bold">DATE:</span>
                   <span className="font-bold">{new Date(data.invoiceDate).toLocaleDateString('en-GB')}</span>
-                  
+
                   <span className="font-bold">INDIA</span>
                   <span></span>
 
@@ -195,7 +209,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                 <thead>
                   <tr className="text-center font-bold">
                     <th className="border-r border-b border-black w-8 py-1">S.N.</th>
-                    <th className="border-r border-b border-black w-20 py-1">ITEM NO.</th>
+                    <th className="border-r border-b border-black w-20 py-1">MARK</th>
                     <th className="border-r border-b border-black w-12 py-1">Photo</th>
                     <th className="border-r border-b border-black py-1">Descriptions</th>
                     <th className="border-r border-b border-black w-12 py-1">Ctn.</th>
@@ -213,7 +227,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                       <td className="border-r border-b border-black py-1">{item.itemNumber}</td>
                       <td className="border-r border-b border-black py-1 p-0.5">
                         {item.photo && (
-                          <img src={item.photo} alt="" className="h-6 w-auto mx-auto object-contain" />
+                          <img src={getImageUrl(item.photo)} alt="" className="h-6 w-auto mx-auto object-contain" />
                         )}
                       </td>
                       <td className="border-r border-b border-black py-1 text-left px-1">{item.description}</td>
@@ -235,7 +249,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                     <td className="border-r border-b border-black"></td>
                     <td className="border-b border-black text-center">{totalAmount.toFixed(2)}</td>
                   </tr>
-                  
+
                   {/* Payment Terms Row */}
                   <tr>
                     <td colSpan="10" className="border-b border-black px-1 py-1 font-bold text-left uppercase">
@@ -276,15 +290,15 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
             {/* Signature Section */}
             <div className="flex flex-col items-end mt-8 pr-4">
               <div className="text-center">
-                 <p className="font-bold uppercase mb-8">{data.exporterCompanyName || 'YIWU ZHOULAI TRADING CO., LIMITED'}</p>
-                 {data.stampImage && (
-                    <img 
-                      src={process.env.NEXT_PUBLIC_SERVER_URL + data.stampImage} 
-                      alt="Stamp" 
-                      className="mx-auto -my-12 w-24 h-24 object-contain opacity-80"
-                    />
-                 )}
-                 <p className="font-bold border-t border-black pt-1 px-4 inline-block mt-8">AUTHORIZED SIGNATORY</p>
+                <p className="font-bold uppercase mb-8">{data.exporterCompanyName || 'YIWU ZHOULAI TRADING CO., LIMITED'}</p>
+                {data.stampImage && (
+                  <img
+                    src={getImageUrl(data.stampImage)}
+                    alt="Stamp"
+                    className="mx-auto -my-12 w-24 h-24 object-contain opacity-80"
+                  />
+                )}
+                <p className="font-bold border-t border-black pt-1 px-4 inline-block mt-8">AUTHORIZED SIGNATORY</p>
               </div>
             </div>
 

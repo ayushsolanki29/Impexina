@@ -17,8 +17,86 @@ import {
   ChevronRight,
   RefreshCw,
   History,
+  ChevronsUpDown,
+  Check,
+  X,
 } from "lucide-react";
 import API from "@/lib/api";
+
+// Reusable Combobox Component
+const Combobox = ({ value, onChange, options, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => 
+    opt?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full md:w-64" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl flex items-center justify-between cursor-pointer hover:border-blue-400 transition-all text-sm shadow-sm"
+      >
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>
+          {value || placeholder}
+        </span>
+        <ChevronsUpDown className="w-4 h-4 text-gray-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              className="w-full px-2 py-1 text-sm outline-none placeholder:text-slate-300"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {filteredOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearch('');
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
+                  value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                }`}
+              >
+                {opt}
+                {value === opt && <Check className="w-3 h-3" />}
+              </button>
+            ))}
+            
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                No options found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ContainerSummaryList() {
   const router = useRouter();
@@ -30,6 +108,9 @@ export default function ContainerSummaryList() {
   const [deletingId, setDeletingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [originFilter, setOriginFilter] = useState("");
+  const [origins, setOrigins] = useState([]);
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
   // Pagination
   const [pagination, setPagination] = useState({
@@ -57,7 +138,22 @@ export default function ContainerSummaryList() {
   useEffect(() => {
     loadSummaries();
     loadStatistics();
-  }, [pagination.page, searchTerm, statusFilter]);
+  }, [pagination.page, searchTerm, statusFilter, originFilter, dateRange.from, dateRange.to]);
+
+  useEffect(() => {
+    fetchOrigins();
+  }, []);
+
+  const fetchOrigins = async () => {
+    try {
+      const response = await API.get('/containers/origins');
+      if (response.data.success) {
+        setOrigins(response.data.data);
+      }
+    } catch (error) {
+       console.error("Failed to fetch origins");
+    }
+  };
 
   // Load summaries from API
   const loadSummaries = async () => {
@@ -68,6 +164,9 @@ export default function ContainerSummaryList() {
         limit: pagination.limit,
         ...(searchTerm && { search: searchTerm }),
         ...(statusFilter && { status: statusFilter }),
+        ...(originFilter && { origin: originFilter }),
+        ...(dateRange.from && { dateFrom: dateRange.from }),
+        ...(dateRange.to && { dateTo: dateRange.to }),
       };
       // In loadSummaries function, after getting response:
       const response = await API.get("/container-summaries", params);
@@ -254,6 +353,8 @@ export default function ContainerSummaryList() {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("");
+    setOriginFilter("");
+    setDateRange({ from: "", to: "" });
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -428,23 +529,60 @@ export default function ContainerSummaryList() {
                   <option value="ARCHIVED">Archived</option>
                 </select>
 
-                <button
-                  onClick={clearFilters}
-                  disabled={!searchTerm && !statusFilter}
-                  className="px-4 py-2.5 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  <Filter className="w-4 h-4" />
-                  Clear
-                </button>
               </div>
             </div>
 
-            {(searchTerm || statusFilter) && (
+            <div className="flex flex-col md:flex-row gap-4 mt-4 pt-4 border-t border-gray-100">
+              <Combobox 
+                options={origins}
+                value={originFilter}
+                onChange={(val) => {
+                  setOriginFilter(val);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                placeholder="All Origins"
+              />
+
+              <div className="flex items-center gap-3 bg-white border border-gray-200 px-4 py-2.5 rounded-xl group focus-within:ring-2 focus-within:ring-blue-500 transition-all w-full md:w-auto shadow-sm">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <input 
+                    type="date" 
+                    className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                    value={dateRange.from}
+                    onChange={(e) => {
+                      setDateRange(prev => ({...prev, from: e.target.value}));
+                      setPagination((prev) => ({ ...prev, page: 1 }));
+                    }}
+                />
+                <span className="text-slate-200 font-black">/</span>
+                <input 
+                    type="date" 
+                    className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                    value={dateRange.to}
+                    onChange={(e) => {
+                      setDateRange(prev => ({...prev, to: e.target.value}));
+                      setPagination((prev) => ({ ...prev, page: 1 }));
+                    }}
+                />
+              </div>
+
+              {(searchTerm || statusFilter || originFilter || dateRange.from || dateRange.to) && (
+                <button 
+                  onClick={clearFilters}
+                  className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all shadow-sm bg-white border border-red-100 self-start md:self-auto"
+                  title="Clear all filters"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {(searchTerm || statusFilter || originFilter || dateRange.from || dateRange.to) && (
               <div className="mt-3 text-sm text-gray-600">
-                Showing {summaries.length} of {pagination.total} summaries
+                Found {pagination.total} results
                 {searchTerm && ` for "${searchTerm}"`}
-                {statusFilter &&
-                  ` with status "${getStatusText(statusFilter)}"`}
+                {statusFilter && ` with status "${getStatusText(statusFilter)}"`}
+                {originFilter && ` from "${originFilter}"`}
               </div>
             )}
           </div>
