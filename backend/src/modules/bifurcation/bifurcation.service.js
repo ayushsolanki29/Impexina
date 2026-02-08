@@ -7,11 +7,21 @@ const bifurcationService = {
     const limit = parseInt(filters.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // 1. Get the "MIX ITEM" limit from settings
-    const setting = await prisma.systemSetting.findUnique({
-      where: { key: 'BIFURCATION_ITEM_LIMIT' }
+    // 1. Get the settings
+    const settings = await prisma.systemSetting.findMany({
+      where: {
+        key: { in: ['BIFURCATION_ITEM_LIMIT', 'BIFURCATION_WT_VERY_HIGH', 'BIFURCATION_WT_HIGH'] }
+      }
     });
-    const mixLimit = setting ? parseInt(setting.value) : 5;
+
+    const settingsMap = settings.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {});
+
+    const mixLimit = settingsMap['BIFURCATION_ITEM_LIMIT'] ? parseInt(settingsMap['BIFURCATION_ITEM_LIMIT']) : 5;
+    const weightVeryHighThreshold = settingsMap['BIFURCATION_WT_VERY_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_VERY_HIGH']) : 69;
+    const weightHighThreshold = settingsMap['BIFURCATION_WT_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_HIGH']) : 75;
 
     // 2. Fetch Containers first to paginate grouped data correctly
     const containerWhere = {
@@ -25,7 +35,7 @@ const bifurcationService = {
     // Apply search and date filters if provided
     if (filters.search || filters.dateFrom || filters.dateTo || filters.origin) {
       const subWhere = {};
-      
+
       if (filters.search) {
         subWhere.OR = [
           { containerCode: { contains: filters.search, mode: 'insensitive' } },
@@ -70,7 +80,7 @@ const bifurcationService = {
         // Calculate Product Description
         const distinctParticulars = [...new Set(sheet.items.map(i => i.particular).filter(Boolean))];
         let productDescription = distinctParticulars.join(', ');
-        
+
         if (distinctParticulars.length > mixLimit) {
           productDescription = 'MIX ITEM';
         }
@@ -112,7 +122,7 @@ const bifurcationService = {
       });
     });
 
-    return { 
+    return {
       data: reportData,
       pagination: {
         page,
@@ -121,7 +131,9 @@ const bifurcationService = {
         totalPages: Math.ceil(totalContainers / limit)
       },
       settings: {
-        mixLimit
+        mixLimit,
+        weightVeryHighThreshold,
+        weightHighThreshold
       }
     };
   },
@@ -137,8 +149,8 @@ const bifurcationService = {
 
     // We need the containerId for the record
     const sheet = await prisma.loadingSheet.findUnique({
-        where: { id: loadingSheetId },
-        select: { containerId: true }
+      where: { id: loadingSheetId },
+      select: { containerId: true }
     });
 
     if (!sheet) throw new Error("Loading Sheet not found");
@@ -208,7 +220,7 @@ const bifurcationService = {
     const { bifurcationId, containerId, search, page = 1, limit = 20 } = filters;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const where = {};
-    
+
     if (bifurcationId) where.bifurcationId = bifurcationId;
     if (containerId) {
       where.bifurcation = { containerId };
@@ -230,10 +242,10 @@ const bifurcationService = {
       where,
       include: {
         user: { select: { name: true, username: true } },
-        bifurcation: { 
-            include: {
-                container: { select: { containerCode: true } }
-            }
+        bifurcation: {
+          include: {
+            container: { select: { containerCode: true } }
+          }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -272,15 +284,15 @@ const bifurcationService = {
     const containers = activities
       .map(a => a.bifurcation?.container)
       .filter(Boolean);
-    
+
     // De-duplicate by id
     const uniqueMap = new Map();
     containers.forEach(c => uniqueMap.set(c.id, c));
-    
+
     return Array.from(uniqueMap.values()).map(c => ({
       containerId: c.id,
       containerCode: c.containerCode
-    })).sort((a, b) => 
+    })).sort((a, b) =>
       a.containerCode.localeCompare(b.containerCode)
     );
   },
@@ -327,13 +339,13 @@ const bifurcationService = {
       const locations = new Set();
       let totalCtn = 0;
       let shippingLine = '';
-      
+
       container.loadingSheets.forEach(sheet => {
         if (sheet.bifurcation) {
           if (sheet.bifurcation.invoiceNo) invoices.add(sheet.bifurcation.invoiceNo);
           if (sheet.bifurcation.to) locations.add(sheet.bifurcation.to);
         }
-        
+
         // Sum up cartons from items
         const sheetCtn = sheet.items.reduce((sum, item) => sum + (item.ctn || 0), 0);
         totalCtn += sheetCtn;
@@ -354,6 +366,26 @@ const bifurcationService = {
         shippingLine // If available in future
       };
     });
+  },
+
+  // Get unique from/to locations for suggestions
+  getUniqueLocations: async () => {
+    const froms = await prisma.bifurcation.findMany({
+      where: { from: { not: null, not: "" } },
+      select: { from: true },
+      distinct: ['from']
+    });
+
+    const tos = await prisma.bifurcation.findMany({
+      where: { to: { not: null, not: "" } },
+      select: { to: true },
+      distinct: ['to']
+    });
+
+    return {
+      froms: froms.map(f => f.from).sort(),
+      tos: tos.map(t => t.to).sort()
+    };
   }
 };
 

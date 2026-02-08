@@ -24,7 +24,7 @@ const settingsController = {
     try {
       const { key } = req.params;
       const setting = await settingsService.getSetting(key);
-      
+
       if (!setting) {
         return res.status(404).json({ success: false, message: "Setting not found" });
       }
@@ -45,13 +45,13 @@ const settingsController = {
   updateSetting: async (req, res) => {
     try {
       const { key, value, description } = req.body;
-      
+
       if (!key) {
         return res.status(400).json({ success: false, message: "Setting key is required" });
       }
 
       const setting = await settingsService.updateSetting(key, value, description);
-      
+
       // Don't expose sensitive settings
       if (setting.key.includes("KEYPHRASE") || setting.key.includes("PASSWORD")) {
         setting.value = "***";
@@ -78,13 +78,13 @@ const settingsController = {
   // Update bifurcation settings
   updateBifurcationSettings: async (req, res) => {
     try {
-      const { mixLimit } = req.body;
-      
-      if (!mixLimit || mixLimit < 1) {
-        return res.status(400).json({ success: false, message: "Mix limit must be at least 1" });
-      }
+      const { mixLimit, weightVeryHighThreshold, weightHighThreshold } = req.body;
 
-      const settings = await settingsService.updateBifurcationSettings(mixLimit);
+      const settings = await settingsService.updateBifurcationSettings({
+        mixLimit,
+        weightVeryHighThreshold,
+        weightHighThreshold
+      });
       res.json({ success: true, data: settings });
     } catch (error) {
       console.error("Update Bifurcation Settings Error:", error);
@@ -96,7 +96,7 @@ const settingsController = {
   setAccountsKeyphrase: async (req, res) => {
     try {
       const { keyphrase } = req.body;
-      
+
       if (!keyphrase) {
         return res.status(400).json({ success: false, message: "Keyphrase is required" });
       }
@@ -113,7 +113,7 @@ const settingsController = {
   verifyAccountsAccess: async (req, res) => {
     try {
       const { input } = req.body;
-      
+
       if (!input) {
         return res.status(400).json({ success: false, message: "Password or keyphrase is required" });
       }

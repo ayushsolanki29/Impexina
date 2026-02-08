@@ -9,6 +9,7 @@ router.get('/', bifurcationController.getReport);
 router.get('/activities', bifurcationController.getActivities);
 router.get('/activities/containers', bifurcationController.getActivityContainers);
 router.get('/containers/suggestions', bifurcationController.getContainerSuggestions);
+router.get('/locations', bifurcationController.getLocations);
 router.post('/settings', bifurcationController.updateSetting);
 router.post('/:loadingSheetId', bifurcationController.updateDetails);
 

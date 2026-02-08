@@ -23,12 +23,12 @@ const settingsService = {
   updateSetting: async (key, value, description = null) => {
     const setting = await prisma.systemSetting.upsert({
       where: { key },
-      update: { 
+      update: {
         value: value.toString(),
         ...(description && { description })
       },
-      create: { 
-        key, 
+      create: {
+        key,
         value: value.toString(),
         ...(description && { description })
       },
@@ -41,23 +41,62 @@ const settingsService = {
     const mixLimit = await prisma.systemSetting.findUnique({
       where: { key: "BIFURCATION_ITEM_LIMIT" },
     });
+    const weightVeryHigh = await prisma.systemSetting.findUnique({
+      where: { key: "BIFURCATION_WT_VERY_HIGH" },
+    });
+    const weightHigh = await prisma.systemSetting.findUnique({
+      where: { key: "BIFURCATION_WT_HIGH" },
+    });
     return {
       mixLimit: mixLimit ? parseInt(mixLimit.value) : 5,
+      weightVeryHighThreshold: weightVeryHigh ? parseFloat(weightVeryHigh.value) : 69,
+      weightHighThreshold: weightHigh ? parseFloat(weightHigh.value) : 75,
     };
   },
 
   // Update bifurcation settings
-  updateBifurcationSettings: async (mixLimit) => {
-    await prisma.systemSetting.upsert({
-      where: { key: "BIFURCATION_ITEM_LIMIT" },
-      update: { value: mixLimit.toString() },
-      create: { 
-        key: "BIFURCATION_ITEM_LIMIT",
-        value: mixLimit.toString(),
-        description: "Product layout limit for bifurcation reports. Descriptions collapse to 'MIX ITEM' for marks exceeding this limit."
-      },
-    });
-    return { mixLimit: parseInt(mixLimit) };
+  updateBifurcationSettings: async ({ mixLimit, weightVeryHighThreshold, weightHighThreshold }) => {
+    if (mixLimit) {
+      await prisma.systemSetting.upsert({
+        where: { key: "BIFURCATION_ITEM_LIMIT" },
+        update: { value: mixLimit.toString() },
+        create: {
+          key: "BIFURCATION_ITEM_LIMIT",
+          value: mixLimit.toString(),
+          description: "Product layout limit for bifurcation reports."
+        },
+      });
+    }
+
+    if (weightVeryHighThreshold) {
+      await prisma.systemSetting.upsert({
+        where: { key: "BIFURCATION_WT_VERY_HIGH" },
+        update: { value: weightVeryHighThreshold.toString() },
+        create: {
+          key: "BIFURCATION_WT_VERY_HIGH",
+          value: weightVeryHighThreshold.toString(),
+          description: "Weight threshold for Red highlighting (Very High Risk)."
+        },
+      });
+    }
+
+    if (weightHighThreshold) {
+      await prisma.systemSetting.upsert({
+        where: { key: "BIFURCATION_WT_HIGH" },
+        update: { value: weightHighThreshold.toString() },
+        create: {
+          key: "BIFURCATION_WT_HIGH",
+          value: weightHighThreshold.toString(),
+          description: "Weight threshold for Yellow highlighting (High Risk)."
+        },
+      });
+    }
+
+    return {
+      mixLimit: mixLimit ? parseInt(mixLimit) : undefined,
+      weightVeryHighThreshold: weightVeryHighThreshold ? parseFloat(weightVeryHighThreshold) : undefined,
+      weightHighThreshold: weightHighThreshold ? parseFloat(weightHighThreshold) : undefined,
+    };
   },
 
   // Set accounts keyphrase
@@ -68,11 +107,11 @@ const settingsService = {
 
     // Hash the keyphrase
     const hashedKeyphrase = await bcrypt.hash(keyphrase, 10);
-    
+
     await prisma.systemSetting.upsert({
       where: { key: "ACCOUNTS_KEYPHRASE_HASH" },
       update: { value: hashedKeyphrase },
-      create: { 
+      create: {
         key: "ACCOUNTS_KEYPHRASE_HASH",
         value: hashedKeyphrase,
         description: "Hashed keyphrase for accounts module access"
@@ -90,14 +129,14 @@ const settingsService = {
     await prisma.systemSetting.upsert({
       where: { key: "ACCOUNTS_PASSWORD" },
       update: { value: password },
-      create: { 
+      create: {
         key: "ACCOUNTS_PASSWORD",
         value: password,
         description: "Generated password for accounts module (derived from keyphrase)"
       },
     });
 
-    return { 
+    return {
       success: true,
       password, // Return the generated password
       message: "Keyphrase set successfully. Use the generated password to access accounts."

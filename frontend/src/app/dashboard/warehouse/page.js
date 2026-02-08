@@ -88,8 +88,9 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
 
 // Preview Modal Component
 // Preview Modal Component
-const WarehousePreviewModal = ({ isOpen, onClose, data }) => {
+const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
     const [showFinancials, setShowFinancials] = useState(true);
+    const { weightVeryHighThreshold = 69, weightHighThreshold = 75 } = settings;
 
     if (!isOpen) return null;
 
@@ -209,6 +210,7 @@ const WarehousePreviewModal = ({ isOpen, onClose, data }) => {
                                                 <>
                                                     <th className="px-3 py-2 text-center">Inv #</th>
                                                     <th className="px-3 py-2 text-right">GST</th>
+                                                    <th className="px-3 py-2 text-center">LR</th>
                                                 </>
                                             )}
                                         </tr>
@@ -245,7 +247,14 @@ const WarehousePreviewModal = ({ isOpen, onClose, data }) => {
                                                         <td className="px-3 py-2 text-slate-600 font-medium truncate max-w-[150px]">{item.product}</td>
                                                         <td className="px-3 py-2 text-center text-blue-600 font-semibold text-[9px] truncate max-w-[100px]">{item.transporter || '-'}</td>
                                                         <td className="px-3 py-2 text-right font-medium text-slate-600">{item.totalCbm?.toFixed(3)}</td>
-                                                        <td className="px-3 py-2 text-right font-medium text-slate-600">{item.totalWt?.toFixed(0)}</td>
+                                                        <td className={`px-3 py-2 text-right font-bold ${parseFloat(item.totalWt) < weightVeryHighThreshold
+                                                                ? 'text-red-600 bg-red-50/50 rounded'
+                                                                : parseFloat(item.totalWt) < weightHighThreshold
+                                                                    ? 'text-amber-600 bg-amber-50/50 rounded'
+                                                                    : 'text-slate-600'
+                                                            }`}>
+                                                            {item.totalWt?.toFixed(0)}
+                                                        </td>
                                                         <td className="px-3 py-2 text-center text-slate-500">
                                                             {item.loadingDate ? new Date(item.loadingDate).toLocaleDateString('en-GB') : '-'}
                                                         </td>
@@ -256,7 +265,10 @@ const WarehousePreviewModal = ({ isOpen, onClose, data }) => {
                                                             <>
                                                                 <td className="px-3 py-2 text-center font-bold text-slate-600">{item.invoiceNo || '-'}</td>
                                                                 <td className="px-3 py-2 text-right font-medium text-slate-600">
-                                                                    {item.gstAmount ? `₹${item.gstAmount}` : '-'}
+                                                                    {item.gstAmount ? `₹${item.gstAmount.toLocaleString('en-IN')}` : '-'}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center font-bold text-slate-600">
+                                                                    {item.lrNo ? <Check className="w-3 h-3 mx-auto text-emerald-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
                                                                 </td>
                                                             </>
                                                         )}
@@ -612,6 +624,7 @@ export default function WarehouseModule() {
     const [transporters, setTransporters] = useState([]);
     const [previewContainerCode, setPreviewContainerCode] = useState(null);
     const [selectedImagesContainer, setSelectedImagesContainer] = useState(null);
+    const [settings, setSettings] = useState({ weightVeryHighThreshold: 69, weightHighThreshold: 75 });
 
     // UI State
     const [expandedContainers, setExpandedContainers] = useState({});
@@ -669,6 +682,9 @@ export default function WarehouseModule() {
             if (response.data.success) {
                 setData(response.data.data);
                 setPagination(response.data.pagination);
+                if (response.data.settings) {
+                    setSettings(response.data.settings);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -721,6 +737,7 @@ export default function WarehouseModule() {
                     isOpen={!!previewContainerCode}
                     onClose={() => setPreviewContainerCode(null)}
                     data={previewContainerCode ? groupedData[previewContainerCode] || [] : []}
+                    settings={settings}
                 />
 
                 <ReferenceImagesSidebar
@@ -907,6 +924,7 @@ export default function WarehouseModule() {
                                                             <th className="px-5 py-3 text-right">Delivery</th>
                                                             <th className="px-5 py-3 text-right">Inv No</th>
                                                             <th className="px-5 py-3 text-right">GST Amt</th>
+                                                            <th className="px-5 py-3 text-center">LR</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100">
@@ -944,8 +962,13 @@ export default function WarehouseModule() {
                                                                             <td className="px-5 py-4 text-right">
                                                                                 <span className="font-bold text-green-500 text-xs">{item.totalCbm.toFixed(3)}</span>
                                                                             </td>
-                                                                            <td className="px-5 py-4 text-right">
-                                                                                <span className="font-bold text-orange-500 text-xs">{item.totalWt.toFixed(2)}</span>
+                                                                            <td className={`px-5 py-4 text-right transition-all ${parseFloat(item.totalWt) < settings.weightVeryHighThreshold
+                                                                                    ? 'text-red-600 font-black bg-red-50/50 rounded-lg'
+                                                                                    : parseFloat(item.totalWt) < settings.weightHighThreshold
+                                                                                        ? 'text-amber-600 font-black bg-amber-50/50 rounded-lg'
+                                                                                        : 'text-orange-500 font-bold'
+                                                                                }`}>
+                                                                                <span className="text-xs">{item.totalWt.toFixed(2)}</span>
                                                                             </td>
 
                                                                             <td className="px-5 py-4 text-xs font-bold text-slate-700">{item.from}</td>
@@ -971,7 +994,10 @@ export default function WarehouseModule() {
                                                                             </td>
 
                                                                             <td className="px-5 py-4 text-right">
-                                                                                <span className="text-xs font-bold text-slate-400">₹ {item.gstAmount || '0'}</span>
+                                                                                <span className="text-xs font-bold text-slate-400">₹ {(item.gstAmount || 0).toLocaleString('en-IN')}</span>
+                                                                            </td>
+                                                                            <td className="px-5 py-4 text-center">
+                                                                                {item.lrNo ? <Check className="w-3.5 h-3.5 mx-auto text-emerald-500" /> : <X className="w-3.5 h-3.5 mx-auto text-slate-200" />}
                                                                             </td>
                                                                         </tr>
                                                                     ))}

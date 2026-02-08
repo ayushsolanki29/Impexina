@@ -7,6 +7,22 @@ const warehouseService = {
     const limit = parseInt(filters.limit) || 10;
     const skip = (page - 1) * limit;
 
+    // Fetch settings for highlighting
+    const settings = await prisma.systemSetting.findMany({
+      where: {
+        key: { in: ['BIFURCATION_ITEM_LIMIT', 'BIFURCATION_WT_VERY_HIGH', 'BIFURCATION_WT_HIGH'] }
+      }
+    });
+
+    const settingsMap = settings.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {});
+
+    const mixLimit = settingsMap['BIFURCATION_ITEM_LIMIT'] ? parseInt(settingsMap['BIFURCATION_ITEM_LIMIT']) : 5;
+    const weightVeryHighThreshold = settingsMap['BIFURCATION_WT_VERY_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_VERY_HIGH']) : 69;
+    const weightHighThreshold = settingsMap['BIFURCATION_WT_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_HIGH']) : 75;
+
     // Fetch Containers first
     const containerWhere = {
       status: { not: 'ARCHIVED' }
@@ -19,7 +35,7 @@ const warehouseService = {
     // Apply search and date filters
     if (filters.search || filters.dateFrom || filters.dateTo || filters.origin) {
       const subWhere = {};
-      
+
       if (filters.search) {
         subWhere.OR = [
           { containerCode: { contains: filters.search, mode: 'insensitive' } },
@@ -65,7 +81,7 @@ const warehouseService = {
         // Calculate Product Description (using same logic as bifurcation)
         const distinctParticulars = [...new Set(sheet.items.map(i => i.particular).filter(Boolean))];
         let productDescription = distinctParticulars.join(', ');
-        
+
         // Items are limited for display, though we don't have the setting here yet, let's just join them
         if (distinctParticulars.length > 5) {
           productDescription = 'MIX ITEM';
@@ -96,7 +112,7 @@ const warehouseService = {
           containerTotalCbm: parseFloat(containerTotalCbm.toFixed(3)),
           totalWt: parseFloat(totalWt.toFixed(2)),
           containerTotalWt: parseFloat(containerTotalWt.toFixed(2)),
-          
+
           // Data from bifurcation (read-only in warehouse plan)
           deliveryDate: sheet.bifurcation?.deliveryDate || null,
           invoiceNo: sheet.bifurcation?.invoiceNo || '',
@@ -105,20 +121,25 @@ const warehouseService = {
           from: sheet.bifurcation?.from || '',
           to: sheet.bifurcation?.to || '',
           lrNo: sheet.bifurcation?.lrNo ?? false,
-          
+
           // Only transporter is from warehouse model
           transporter: sheet.warehouse?.transporter || ''
         });
       });
     });
 
-    return { 
+    return {
       data: reportData,
       pagination: {
         page,
         limit,
         total: totalContainers,
         totalPages: Math.ceil(totalContainers / limit)
+      },
+      settings: {
+        mixLimit,
+        weightVeryHighThreshold,
+        weightHighThreshold
       }
     };
   },
@@ -133,8 +154,8 @@ const warehouseService = {
     });
 
     const sheet = await prisma.loadingSheet.findUnique({
-        where: { id: loadingSheetId },
-        select: { containerId: true }
+      where: { id: loadingSheetId },
+      select: { containerId: true }
     });
 
     if (!sheet) throw new Error("Loading Sheet not found");
@@ -158,16 +179,16 @@ const warehouseService = {
       let newVal = result[field];
 
       if (String(oldVal) !== String(newVal)) {
-          await prisma.warehouseActivity.create({
-            data: {
-              warehouseId: result.id,
-              userId,
-              type: existing ? 'UPDATE' : 'CREATE',
-              field,
-              oldValue: existing ? String(oldVal) : null,
-              newValue: String(newVal)
-            }
-          });
+        await prisma.warehouseActivity.create({
+          data: {
+            warehouseId: result.id,
+            userId,
+            type: existing ? 'UPDATE' : 'CREATE',
+            field,
+            oldValue: existing ? String(oldVal) : null,
+            newValue: String(newVal)
+          }
+        });
       }
     }
 
@@ -178,7 +199,7 @@ const warehouseService = {
     const { warehouseId, containerId, search, page = 1, limit = 20 } = filters;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const where = {};
-    
+
     if (warehouseId) where.warehouseId = warehouseId;
     if (containerId) {
       where.warehouse = { containerId };
@@ -199,10 +220,10 @@ const warehouseService = {
       where,
       include: {
         user: { select: { name: true, username: true } },
-        warehouse: { 
-            include: {
-                container: { select: { containerCode: true } }
-            }
+        warehouse: {
+          include: {
+            container: { select: { containerCode: true } }
+          }
         }
       },
       orderBy: { createdAt: 'desc' },

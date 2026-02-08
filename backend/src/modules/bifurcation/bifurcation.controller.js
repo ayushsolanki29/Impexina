@@ -5,9 +5,9 @@ const bifurcationController = {
     try {
       const filters = req.query;
       const result = await bifurcationService.getBifurcationReport(filters);
-      res.json({ 
-        success: true, 
-        data: result.data, 
+      res.json({
+        success: true,
+        data: result.data,
         pagination: result.pagination,
         settings: result.settings
       });
@@ -22,7 +22,7 @@ const bifurcationController = {
       const { loadingSheetId } = req.params;
       const data = req.body;
       const userId = req.user.id;
-      
+
       const result = await bifurcationService.upsertBifurcation(loadingSheetId, data, userId);
       res.json({ success: true, data: result });
     } catch (error) {
@@ -35,8 +35,8 @@ const bifurcationController = {
     try {
       const filters = req.query;
       const result = await bifurcationService.getBifurcationActivities(filters);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         data: result.data,
         pagination: result.pagination
       });
@@ -73,6 +73,16 @@ const bifurcationController = {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error('Container Suggestions Error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  getLocations: async (req, res) => {
+    try {
+      const result = await bifurcationService.getUniqueLocations();
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error('Bifurcation Locations Error:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
