@@ -62,6 +62,9 @@ model User {
   containerActivities   ContainerActivity[]
   invoiceActivities     InvoiceActivity[]
   warehouseActivities   WarehouseActivity[]
+
+  uploadedContainerImages ContainerImage[] @relation("uploadedImages")
+  deletedContainerImages  ContainerImage[] @relation("deletedImages")
 }
 
 model Module {
@@ -126,6 +129,7 @@ model Container {
 
   activities ContainerActivity[]
   warehouses Warehouse[]
+  referenceImages ContainerImage[]
 }
 
 model LoadingSheet {
@@ -206,6 +210,27 @@ model WarehouseActivity {
   details  Json?
 
   createdAt DateTime @default(now())
+}
+
+model ContainerImage {
+  id            String    @id @default(uuid())
+  containerId   String
+  container     Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  
+  imageUrl      String
+  fileName      String?
+  
+  uploadedById  Int
+  uploadedBy    User      @relation("uploadedImages", fields: [uploadedById], references: [id])
+  
+  deletedById   Int?
+  deletedBy     User?     @relation("deletedImages", fields: [deletedById], references: [id])
+  deletedAt     DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([containerId])
 }
 
 model BifurcationActivity {

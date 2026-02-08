@@ -74,8 +74,8 @@ const containerService = {
         // but for list view, we have everything in the container model now.
         include: {
           loadingSheets: {
-             // Only select minimal fields if just counting clients, but we have clientCount now.
-             select: { shippingMark: true } 
+            // Only select minimal fields if just counting clients, but we have clientCount now.
+            select: { shippingMark: true }
           }
         }
       }),
@@ -158,10 +158,10 @@ const containerService = {
         const itemCtn = item.ctn || 0;
         const itemCbm = item.cbm || 0;
         const itemWt = item.wt || 0;
-        
+
         // If your item model stores accurate tCbm/tWt use that, otherwise calc:
         // Use simpler calc for safety if unsure where tCbm comes from
-        totalCbm += (itemCtn * itemCbm); 
+        totalCbm += (itemCtn * itemCbm);
         totalWt += (itemCtn * itemWt);
       });
     });
@@ -207,7 +207,7 @@ const containerService = {
     });
 
     if (container.createdAt instanceof Date) {
-        // Just checking if we have the record
+      // Just checking if we have the record
     }
 
     if (!container) {
@@ -234,11 +234,11 @@ const containerService = {
       changes.push({ field: 'origin', old: container.origin, new: origin });
     }
     if (loadingDate) {
-        const newDate = new Date(loadingDate).toISOString().split('T')[0];
-        const oldDate = container.loadingDate ? new Date(container.loadingDate).toISOString().split('T')[0] : null;
-        if (newDate !== oldDate) {
-            changes.push({ field: 'loadingDate', old: oldDate, new: newDate });
-        }
+      const newDate = new Date(loadingDate).toISOString().split('T')[0];
+      const oldDate = container.loadingDate ? new Date(container.loadingDate).toISOString().split('T')[0] : null;
+      if (newDate !== oldDate) {
+        changes.push({ field: 'loadingDate', old: oldDate, new: newDate });
+      }
     }
     if (status && status !== container.status) {
       changes.push({ field: 'status', old: container.status, new: status });
@@ -256,7 +256,7 @@ const containerService = {
 
     // Log Activities
     if (userId && changes.length > 0) {
-      await Promise.all(changes.map(change => 
+      await Promise.all(changes.map(change =>
         prisma.containerActivity.create({
           data: {
             containerId: id,
@@ -278,7 +278,7 @@ const containerService = {
     const { containerId, search, page = 1, limit = 20 } = filters;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const where = {};
-    
+
     if (containerId) where.containerId = containerId;
     if (search) {
       where.OR = [
@@ -327,14 +327,14 @@ const containerService = {
 
     // Log before delete (optional, but good for audit)
     if (userId) {
-        await prisma.containerActivity.create({
-            data: {
-                containerId: id,
-                userId,
-                type: "DELETE",
-                newValue: container.containerCode
-            }
-        });
+      await prisma.containerActivity.create({
+        data: {
+          containerId: id,
+          userId,
+          type: "DELETE",
+          newValue: container.containerCode
+        }
+      });
     }
 
     await prisma.container.delete({
@@ -343,6 +343,55 @@ const containerService = {
 
     return { message: "Container deleted successfully" };
   },
+
+  // Reference Images
+  addReferenceImage: async (containerId, imageUrl, fileName, userId) => {
+    return await prisma.containerImage.create({
+      data: {
+        containerId,
+        imageUrl,
+        fileName,
+        uploadedById: userId
+      },
+      include: {
+        uploadedBy: { select: { name: true } }
+      }
+    });
+  },
+
+  deleteReferenceImage: async (imageId, userId) => {
+    return await prisma.containerImage.update({
+      where: { id: imageId },
+      data: {
+        deletedById: userId,
+        deletedAt: new Date()
+      }
+    });
+  },
+
+  getReferenceImages: async (containerId) => {
+    return await prisma.containerImage.findMany({
+      where: {
+        containerId,
+        deletedAt: null
+      },
+      include: {
+        uploadedBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  },
+
+  getImageHistory: async (containerId) => {
+    return await prisma.containerImage.findMany({
+      where: { containerId },
+      include: {
+        uploadedBy: { select: { name: true } },
+        deletedBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
 };
 
 module.exports = containerService;

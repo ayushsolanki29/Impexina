@@ -126,7 +126,51 @@ const containerController = {
       });
     }
   },
-};
 
+  // Reference Images
+  uploadReferenceImage: async (req, res) => {
+    try {
+      if (!req.body.imageUrl) {
+        return res.status(400).json({ success: false, message: "Image URL is required" });
+      }
+      const image = await containerService.addReferenceImage(
+        req.params.id,
+        req.body.imageUrl,
+        req.body.fileName,
+        req.user.id
+      );
+      res.status(201).json({ success: true, data: image });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  deleteReferenceImage: async (req, res) => {
+    try {
+      await containerService.deleteReferenceImage(req.params.imageId, req.user.id);
+      res.json({ success: true, message: "Image deleted successfully" });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  getReferenceImages: async (req, res) => {
+    try {
+      const images = await containerService.getReferenceImages(req.params.id);
+      res.json({ success: true, data: images });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  getImageHistory: async (req, res) => {
+    try {
+      const history = await containerService.getImageHistory(req.params.id);
+      res.json({ success: true, data: history });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+};
 
 module.exports = containerController;

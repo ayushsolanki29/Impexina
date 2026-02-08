@@ -67,7 +67,7 @@ function LoginForm() {
       });
 
       if (res.success) {
-        toast.success("Welcome back!");
+        // toast.success("Welcome back!");
         setTimeout(() => {
           router.push("/dashboard");
         }, 300);

@@ -15,4 +15,10 @@ router.get("/:id", containerController.getById);
 router.patch("/:id", containerController.update);
 router.delete("/:id", containerController.delete);
 
+// Reference Images
+router.post("/:id/images", containerController.uploadReferenceImage);
+router.get("/:id/images", containerController.getReferenceImages);
+router.get("/:id/images/history", containerController.getImageHistory);
+router.delete("/:id/images/:imageId", containerController.deleteReferenceImage);
+
 module.exports = router;
