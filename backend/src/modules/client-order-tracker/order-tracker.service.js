@@ -14,10 +14,10 @@ class OrderTrackerService {
     } = filters;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build where conditions
     const where = {};
-    
+
     if (search) {
       where.OR = [
         { shippingMark: { contains: search, mode: 'insensitive' } },
@@ -25,19 +25,19 @@ class OrderTrackerService {
         { supplier: { contains: search, mode: 'insensitive' } }
       ];
     }
-    
+
     if (status) {
       where.status = status;
     }
-    
+
     if (shippingCode) {
       where.shippingCode = { contains: shippingCode, mode: 'insensitive' };
     }
-    
+
     if (supplier) {
       where.supplier = { contains: supplier, mode: 'insensitive' };
     }
-    
+
     const [orders, total] = await Promise.all([
       prisma.orderTracker.findMany({
         where,
@@ -61,7 +61,7 @@ class OrderTrackerService {
       }),
       prisma.orderTracker.count({ where })
     ]);
-    
+
     return {
       orders,
       pagination: {
@@ -92,19 +92,20 @@ class OrderTrackerService {
         }
       }
     });
-    
+
     if (!order) {
       throw new Error('Order not found');
     }
-    
+
     return order;
   }
 
   // Create order
   async createOrder(data, userId) {
+    const sanitizedData = this._sanitizeData(data);
     const order = await prisma.orderTracker.create({
       data: {
-        ...data,
+        ...sanitizedData,
         createdById: userId,
         updatedById: userId
       },
@@ -117,7 +118,7 @@ class OrderTrackerService {
         }
       }
     });
-    
+
     return order;
   }
 
@@ -126,19 +127,19 @@ class OrderTrackerService {
     if (!Array.isArray(ordersData) || ordersData.length === 0) {
       throw new Error('Please provide an array of orders');
     }
-    
+
     // Add createdBy and updatedBy to each order
     const ordersWithUser = ordersData.map(order => ({
-      ...order,
+      ...this._sanitizeData(order),
       createdById: userId,
       updatedById: userId
     }));
-    
+
     const result = await prisma.orderTracker.createMany({
       data: ordersWithUser,
       skipDuplicates: false
     });
-    
+
     return {
       count: result.count,
       message: `${result.count} orders created successfully`
@@ -150,19 +151,20 @@ class OrderTrackerService {
     const order = await prisma.orderTracker.findUnique({
       where: { id }
     });
-    
+
     if (!order) {
       throw new Error('Order not found');
     }
-    
+
+    const sanitizedData = this._sanitizeData(updates);
     const updatedOrder = await prisma.orderTracker.update({
       where: { id },
       data: {
-        ...updates,
+        ...sanitizedData,
         updatedById: userId
       }
     });
-    
+
     return updatedOrder;
   }
 
@@ -171,15 +173,15 @@ class OrderTrackerService {
     const order = await prisma.orderTracker.findUnique({
       where: { id }
     });
-    
+
     if (!order) {
       throw new Error('Order not found');
     }
-    
+
     await prisma.orderTracker.delete({
       where: { id }
     });
-    
+
     return { success: true };
   }
 
@@ -188,11 +190,11 @@ class OrderTrackerService {
     const order = await prisma.orderTracker.findUnique({
       where: { id }
     });
-    
+
     if (!order) {
       throw new Error('Order not found');
     }
-    
+
     const updatedOrder = await prisma.orderTracker.update({
       where: { id },
       data: {
@@ -200,7 +202,7 @@ class OrderTrackerService {
         updatedById: userId
       }
     });
-    
+
     return updatedOrder;
   }
 
@@ -233,7 +235,7 @@ class OrderTrackerService {
         _sum: { totalAmount: true }
       })
     ]);
-    
+
     return {
       totalOrders,
       statusCounts: {
@@ -262,7 +264,7 @@ class OrderTrackerService {
       },
       orderBy: { shippingMark: 'asc' }
     });
-    
+
     return orders;
   }
 
@@ -280,7 +282,7 @@ class OrderTrackerService {
       take: 50,
       orderBy: { shippingMark: 'asc' }
     });
-    
+
     return orders;
   }
 
@@ -289,11 +291,11 @@ class OrderTrackerService {
     const orders = await prisma.orderTracker.findMany({
       orderBy: { shippingMark: 'asc' }
     });
-    
+
     if (format === 'csv') {
       // Convert to CSV
       const csvRows = [];
-      
+
       // Add header
       const headers = [
         'Shipping Mark', 'Supplier', 'Product', 'Quantity', 'CTN',
@@ -302,7 +304,7 @@ class OrderTrackerService {
         'Shipping Code', 'Status', 'LR No'
       ];
       csvRows.push(headers.join(','));
-      
+
       // Add data rows
       orders.forEach(order => {
         const row = [
@@ -329,13 +331,13 @@ class OrderTrackerService {
           }
           return value;
         });
-        
+
         csvRows.push(row.join(','));
       });
-      
+
       return csvRows.join('\n');
     }
-    
+
     // Default JSON format
     return orders;
   }
@@ -347,11 +349,11 @@ class OrderTrackerService {
         shippingCode: shippingCode
       }
     });
-    
+
     if (orders.length === 0) {
       throw new Error('No orders found with this shipping code');
     }
-    
+
     // Update all orders with the same shipping code
     const result = await prisma.orderTracker.updateMany({
       where: {
@@ -362,7 +364,7 @@ class OrderTrackerService {
         updatedById: userId
       }
     });
-    
+
     return {
       count: result.count,
       message: `${result.count} orders updated successfully`
@@ -373,7 +375,7 @@ class OrderTrackerService {
     const sheetData = {
       name: data.name,
       month: data.month,
-      createdBy: userId, 
+      createdBy: userId,
       updatedBy: String(userId)
     };
 
@@ -416,14 +418,14 @@ class OrderTrackerService {
 
     // Calculate totals dynamically if not relying on stored fields
     const enrichedSheets = await Promise.all(sheets.map(async (sheet) => {
-       const aggregations = await prisma.orderTracker.aggregate({
-         where: { sheetId: sheet.id },
-         _sum: { totalAmount: true }
-       });
-       return {
-         ...sheet,
-         totalAmount: aggregations._sum.totalAmount || 0
-       };
+      const aggregations = await prisma.orderTracker.aggregate({
+        where: { sheetId: sheet.id },
+        _sum: { totalAmount: true }
+      });
+      return {
+        ...sheet,
+        totalAmount: aggregations._sum.totalAmount || 0
+      };
     }));
 
     return enrichedSheets;
@@ -495,66 +497,99 @@ class OrderTrackerService {
     return sheet;
   }
 
+  // Helper to clean data for Prisma (e.g. convert empty strings to null for date fields)
+  _sanitizeData(data) {
+    const dates = ['orderDate', 'paymentDate', 'deliveryDate', 'loadingDate', 'arrivalDate'];
+    const numbers = ['quantity', 'ctn', 'totalAmount', 'deposit', 'balanceAmount'];
+    const sanitized = { ...data };
+
+    dates.forEach(field => {
+      if (sanitized[field] === "" || sanitized[field] === undefined) {
+        sanitized[field] = null;
+      } else if (sanitized[field]) {
+        // Ensure valid ISO format if possible
+        const date = new Date(sanitized[field]);
+        if (!isNaN(date.getTime())) {
+          sanitized[field] = date.toISOString();
+        } else {
+          sanitized[field] = null; // Fallback for invalid dates
+        }
+      }
+    });
+
+    numbers.forEach(field => {
+      if (sanitized[field] === "" || sanitized[field] === undefined) {
+        sanitized[field] = 0;
+      } else {
+        sanitized[field] = parseFloat(sanitized[field]) || 0;
+      }
+    });
+
+    return sanitized;
+  }
+
   // Update Sheet Orders (Bulk Save)
   async updateSheetOrders(sheetId, ordersData, userId) {
-      // Transaction to ensure data integrity
-      return await prisma.$transaction(async (tx) => {
-         // 1. Process updates and creations
-         for (const order of ordersData) {
-            // Sanitize data: remove frontend keys and system fields
-            const { 
-                id, 
-                _key, 
-                isNew, 
-                createdAt, 
-                updatedAt, 
-                createdBy, 
-                updatedBy, 
-                sheetId: _, 
-                ...dbData 
-            } = order;
+    // Transaction to ensure data integrity
+    return await prisma.$transaction(async (tx) => {
+      // 1. Process updates and creations
+      for (const order of ordersData) {
+        // Sanitize data: remove frontend keys and system fields
+        const {
+          id,
+          _key,
+          isNew,
+          createdAt,
+          updatedAt,
+          createdBy,
+          updatedBy,
+          sheetId: _,
+          ...dbData
+        } = order;
 
-            if (id && !String(id).startsWith('temp_')) {
-               // Update existing
-               await tx.orderTracker.update({
-                  where: { id: id },
-                  data: {
-                    ...dbData,
-                    sheetId, 
-                    updatedById: userId
-                  }
-               });
-            } else {
-               // Create new
-               await tx.orderTracker.create({
-                  data: {
-                     ...dbData,
-                     sheetId,
-                     createdById: userId,
-                     updatedById: userId
-                  }
-               });
-            }
-         }
+        const sanitizedData = this._sanitizeData(dbData);
 
-         // 2. Update Sheet Totals
-         const aggregations = await tx.orderTracker.aggregate({
-            where: { sheetId },
-            _count: { id: true },
-            _sum: { totalAmount: true }
-         });
-
-         const updatedSheet = await tx.orderSheet.update({
-            where: { id: sheetId },
+        if (id && !String(id).startsWith('temp_')) {
+          // Update existing
+          await tx.orderTracker.update({
+            where: { id: id },
             data: {
-               totalOrders: aggregations._count.id,
-               totalAmount: aggregations._sum.totalAmount || 0,
-               updatedBy: String(userId) // Ensure string format matches schema expectations if changed
+              ...sanitizedData,
+              sheetId,
+              updatedById: userId
             }
-         });
+          });
+        } else {
+          // Create new
+          await tx.orderTracker.create({
+            data: {
+              ...sanitizedData,
+              sheetId,
+              createdById: userId,
+              updatedById: userId
+            }
+          });
+        }
+      }
 
-         return updatedSheet;
+      // 2. Update Sheet Totals
+      const aggregations = await tx.orderTracker.aggregate({
+        where: { sheetId },
+        _count: { id: true },
+        _sum: { totalAmount: true }
       });
+
+      const updatedSheet = await tx.orderSheet.update({
+        where: { id: sheetId },
+        data: {
+          totalOrders: aggregations._count.id,
+          totalAmount: aggregations._sum.totalAmount || 0,
+          updatedBy: String(userId) // Ensure string format matches schema expectations if changed
+        }
+      });
+
+      return updatedSheet;
+    });
   }
 
   // Delete Sheet

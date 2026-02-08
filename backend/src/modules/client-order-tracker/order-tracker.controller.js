@@ -6,7 +6,7 @@ const orderTrackerController = {
     try {
       const filters = req.query;
       const result = await orderTrackerService.getAllOrders(filters);
-      
+
       res.json({
         success: true,
         data: result
@@ -25,7 +25,7 @@ const orderTrackerController = {
     try {
       const { id } = req.params;
       const order = await orderTrackerService.getOrderById(id);
-      
+
       res.json({
         success: true,
         data: order
@@ -50,9 +50,9 @@ const orderTrackerController = {
     try {
       const userId = req.user.id;
       const orderData = req.body;
-      
+
       const order = await orderTrackerService.createOrder(orderData, userId);
-      
+
       res.status(201).json({
         success: true,
         message: 'Order created successfully',
@@ -72,16 +72,16 @@ const orderTrackerController = {
     try {
       const userId = req.user.id;
       const { orders } = req.body;
-      
+
       if (!Array.isArray(orders) || orders.length === 0) {
         return res.status(400).json({
           success: false,
           message: 'Please provide an array of orders'
         });
       }
-      
+
       const result = await orderTrackerService.createMultipleOrders(orders, userId);
-      
+
       res.status(201).json({
         success: true,
         message: result.message,
@@ -102,9 +102,9 @@ const orderTrackerController = {
       const { id } = req.params;
       const updates = req.body;
       const userId = req.user.id;
-      
+
       const updatedOrder = await orderTrackerService.updateOrder(id, updates, userId);
-      
+
       res.json({
         success: true,
         message: 'Order updated successfully',
@@ -129,9 +129,9 @@ const orderTrackerController = {
   deleteOrder: async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       await orderTrackerService.deleteOrder(id);
-      
+
       res.json({
         success: true,
         message: 'Order deleted successfully'
@@ -157,16 +157,16 @@ const orderTrackerController = {
       const { id } = req.params;
       const { status } = req.body;
       const userId = req.user.id;
-      
+
       if (!status) {
         return res.status(400).json({
           success: false,
           message: 'Status is required'
         });
       }
-      
+
       const updatedOrder = await orderTrackerService.updateStatus(id, status, userId);
-      
+
       res.json({
         success: true,
         message: 'Order status updated successfully',
@@ -191,7 +191,7 @@ const orderTrackerController = {
   getStats: async (req, res) => {
     try {
       const stats = await orderTrackerService.getStats();
-      
+
       res.json({
         success: true,
         data: stats
@@ -209,16 +209,16 @@ const orderTrackerController = {
   getOrdersByShippingCode: async (req, res) => {
     try {
       const { shippingCode } = req.params;
-      
+
       if (!shippingCode) {
         return res.status(400).json({
           success: false,
           message: 'Shipping code is required'
         });
       }
-      
+
       const orders = await orderTrackerService.getOrdersByShippingCode(shippingCode);
-      
+
       res.json({
         success: true,
         data: orders
@@ -236,16 +236,16 @@ const orderTrackerController = {
   searchOrders: async (req, res) => {
     try {
       const { query } = req.query;
-      
+
       if (!query) {
         return res.status(400).json({
           success: false,
           message: 'Search query is required'
         });
       }
-      
+
       const orders = await orderTrackerService.searchOrders(query);
-      
+
       res.json({
         success: true,
         data: orders
@@ -263,15 +263,15 @@ const orderTrackerController = {
   exportOrders: async (req, res) => {
     try {
       const { format = 'json' } = req.query;
-      
+
       const exportData = await orderTrackerService.exportOrders(format);
-      
+
       if (format === 'csv') {
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename=orders.csv');
         return res.send(exportData);
       }
-      
+
       res.json({
         success: true,
         data: exportData
@@ -291,16 +291,16 @@ const orderTrackerController = {
       const { shippingCode } = req.params;
       const updates = req.body;
       const userId = req.user.id;
-      
+
       if (!shippingCode) {
         return res.status(400).json({
           success: false,
           message: 'Shipping code is required'
         });
       }
-      
+
       const result = await orderTrackerService.bulkUpdateByShippingCode(shippingCode, updates, userId);
-      
+
       res.json({
         success: true,
         message: result.message,
@@ -323,53 +323,56 @@ const orderTrackerController = {
 
   // Create Sheet
   createSheet: async (req, res) => {
-     try {
-        const result = await orderTrackerService.createSheet(req.body, req.user.id);
-        res.status(201).json({ success: true, data: result });
-     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-     }
+    try {
+      const result = await orderTrackerService.createSheet(req.body, req.user.id);
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
   },
 
   // Get All Sheets
   getAllSheets: async (req, res) => {
-     try {
-        const result = await orderTrackerService.getAllSheets();
-        res.json({ success: true, data: result });
-     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-     }
+    try {
+      const result = await orderTrackerService.getAllSheets();
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
   },
 
   // Get Single Sheet
   getSheetById: async (req, res) => {
-     try {
-        const result = await orderTrackerService.getSheetById(req.params.id);
-        res.json({ success: true, data: result });
-     } catch (error) {
-        res.status(404).json({ success: false, message: error.message });
-     }
+    try {
+      const result = await orderTrackerService.getSheetById(req.params.id);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(404).json({ success: false, message: error.message });
+    }
   },
 
   // Update Sheet Orders
   updateSheetOrders: async (req, res) => {
-     try {
-        const result = await orderTrackerService.updateSheetOrders(req.params.id, req.body.orders, req.user.id);
-        res.json({ success: true, data: result, message: "Sheet saved successfully" });
-     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Failed to save sheet" });
-     }
+    try {
+      const result = await orderTrackerService.updateSheetOrders(req.params.id, req.body.orders, req.user.id);
+      res.json({ success: true, data: result, message: "Sheet saved successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to save sheet"
+      });
+    }
   },
 
   // Delete Sheet
   deleteSheet: async (req, res) => {
-     try {
-        await orderTrackerService.deleteSheet(req.params.id);
-        res.json({ success: true, message: "Sheet deleted" });
-     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-     }
+    try {
+      await orderTrackerService.deleteSheet(req.params.id);
+      res.json({ success: true, message: "Sheet deleted" });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
   },
 
   // Get clients for suggestions
