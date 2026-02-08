@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-} from "lucide-react";
 import { Loader2 } from "lucide-react";
 import API from "@/lib/api";
 import ContainerSummaryForm from "../_components/ContainerSummaryForm";
