@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Package,
@@ -43,6 +43,12 @@ import {
   ChevronRight,
   Search,
   Eye,
+  ChevronsUpDown,
+  Check,
+  GripVertical,
+  Settings2,
+  EyeOff,
+  RotateCcw,
 } from "lucide-react";
 import {
   AreaChart,
@@ -60,8 +66,12 @@ import {
   Legend,
 } from "recharts";
 import API from "@/lib/api";
+import { CustomizationProvider, useCustomization } from "./contexts/CustomizationContext";
+import CustomizationPanel from "./components/shared/CustomizationPanel";
+import CustomizableSection from "./components/shared/CustomizableSection";
+import CustomizableWidget from "./components/shared/CustomizableWidget";
+import DashboardHeader from "./components/shared/DashboardHeader";
 
-// Chart Colors
 const CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
 // ========================
@@ -167,17 +177,15 @@ function PersonalTodos({ userId }) {
             {todos.map((todo) => (
               <div
                 key={todo.id}
-                className={`group flex items-start gap-2 p-2 rounded-lg text-sm ${
-                  todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
-                }`}
+                className={`group flex items-start gap-2 p-2 rounded-lg text-sm ${todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
+                  }`}
               >
                 <button
                   onClick={() => toggleTodo(todo.id)}
-                  className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
-                    todo.completed
-                      ? "bg-emerald-500 border-emerald-500 text-white"
-                      : "border-slate-300"
-                  }`}
+                  className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${todo.completed
+                    ? "bg-emerald-500 border-emerald-500 text-white"
+                    : "border-slate-300"
+                    }`}
                 >
                   {todo.completed && <CheckCircle className="w-3 h-3" />}
                 </button>
@@ -208,15 +216,103 @@ function PersonalTodos({ userId }) {
 }
 
 // ========================
+// REUSABLE COMBOBOX COMPONENT
+// ========================
+const Combobox = ({ value, onChange, options, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    (opt || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer bg-white hover:border-indigo-400 transition-colors text-sm"
+      >
+        <span className={value ? "text-slate-900" : "text-slate-400"}>
+          {value || placeholder}
+        </span>
+        <ChevronsUpDown className="w-4 h-4 text-slate-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              className="w-full px-2 py-1 text-sm outline-none placeholder:text-slate-400"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            <button
+              onClick={() => {
+                onChange("");
+                setIsOpen(false);
+                setSearch("");
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 flex items-center gap-2 italic"
+            >
+              All Origins
+            </button>
+            {filteredOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${value === opt ? "bg-indigo-50 font-medium text-indigo-600" : "text-slate-700"
+                  }`}
+              >
+                {opt}
+                {value === opt && <Check className="w-3 h-3" />}
+              </button>
+            ))}
+
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                No options found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ========================
 // ADMIN DASHBOARD COMPONENT
 // ========================
 function AdminDashboard({ user, dashboardData }) {
   const router = useRouter();
+  const { setShowSettingsPanel, getVisibleSections, reorderSections } = useCustomization();
+
   const [containerStats, setContainerStats] = useState(null);
   const [upcomingContainers, setUpcomingContainers] = useState([]);
   const [userTaskSummary, setUserTaskSummary] = useState([]);
   const [loadingContainers, setLoadingContainers] = useState(true);
-  
+
   // Advanced Container Dashboard State
   const [allContainers, setAllContainers] = useState([]);
   const [filteredContainers, setFilteredContainers] = useState([]);
@@ -226,15 +322,30 @@ function AdminDashboard({ user, dashboardData }) {
     status: "",
     dateRange: "",
     workflowStatus: "",
+    origin: "",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [showAdvancedDashboard, setShowAdvancedDashboard] = useState(false);
+  const [origins, setOrigins] = useState([]);
+  const [isCustomizing, setIsCustomizing] = useState(false);
   const containersPerPage = 10;
 
   useEffect(() => {
     loadContainerData();
     loadUserTaskSummary();
+    fetchOrigins();
   }, []);
+
+  const fetchOrigins = async () => {
+    try {
+      const response = await API.get("/containers/origins");
+      if (response.data.success) {
+        setOrigins(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching origins:", error);
+    }
+  };
 
   const loadContainerData = async () => {
     try {
@@ -242,7 +353,7 @@ function AdminDashboard({ user, dashboardData }) {
       const summariesRes = await API.get("/container-summaries", { limit: 100 });
       if (summariesRes.data.success) {
         const summaries = summariesRes.data.data.summaries || [];
-        
+
         // Get all containers from summaries (load all, not just first 10)
         const allContainersData = [];
         for (const summary of summaries) {
@@ -262,23 +373,23 @@ function AdminDashboard({ user, dashboardData }) {
             console.error("Error loading summary detail:", e);
           }
         }
-        
+
         setAllContainers(allContainersData);
-        
+
         // Use allContainersData for calculations
         const allContainers = allContainersData;
 
         // Calculate stats
         const now = new Date();
         const next15Days = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
-        
+
         const arriving15Days = allContainers.filter((c) => {
           if (!c.arrivalDate) return false;
           const arrival = new Date(c.arrivalDate);
           return arrival >= now && arrival <= next15Days && c.status !== "Delivered";
         });
 
-        const pendingDuty = allContainers.filter((c) => 
+        const pendingDuty = allContainers.filter((c) =>
           c.status !== "Delivered" && (c.duty > 0 || c.finalAmount > 0)
         );
 
@@ -296,7 +407,7 @@ function AdminDashboard({ user, dashboardData }) {
           delivered: allContainers.filter((c) => c.status === "Delivered").length,
         });
 
-        setUpcomingContainers(arriving15Days.slice(0, 6).sort((a, b) => 
+        setUpcomingContainers(arriving15Days.slice(0, 6).sort((a, b) =>
           new Date(a.arrivalDate) - new Date(b.arrivalDate)
         ));
       }
@@ -314,7 +425,7 @@ function AdminDashboard({ user, dashboardData }) {
         // Handle both array and users property
         const users = Array.isArray(res.data.data) ? res.data.data : res.data.data.users || [];
         // Filter out users with 0 tasks assigned (e.g., Super Admin, System Admin)
-        const filteredUsers = users.filter((u) => 
+        const filteredUsers = users.filter((u) =>
           (u.stats?.totalAssignments || 0) > 0
         );
         setUserTaskSummary(filteredUsers.slice(0, 5));
@@ -357,7 +468,7 @@ function AdminDashboard({ user, dashboardData }) {
   // Filter containers based on active filters
   useEffect(() => {
     let filtered = [...allContainers];
-    
+
     // Apply active filter from card click
     if (activeFilter) {
       if (activeFilter.type === 'arriving') {
@@ -372,12 +483,12 @@ function AdminDashboard({ user, dashboardData }) {
       } else if (activeFilter.type === 'status') {
         filtered = filtered.filter((c) => c.status === activeFilter.status);
       } else if (activeFilter.type === 'duty') {
-        filtered = filtered.filter((c) => 
+        filtered = filtered.filter((c) =>
           c.status !== "Delivered" && (c.duty > 0 || c.finalAmount > 0)
         );
       }
     }
-    
+
     // Apply manual filters
     if (containerFilters.search) {
       const searchLower = containerFilters.search.toLowerCase();
@@ -388,15 +499,19 @@ function AdminDashboard({ user, dashboardData }) {
         c.month?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     if (containerFilters.status) {
       filtered = filtered.filter((c) => c.status === containerFilters.status);
     }
-    
+
     if (containerFilters.workflowStatus) {
       filtered = filtered.filter((c) => c.workflowStatus === containerFilters.workflowStatus);
     }
-    
+
+    if (containerFilters.origin) {
+      filtered = filtered.filter((c) => c.origin === containerFilters.origin);
+    }
+
     if (containerFilters.dateRange) {
       const now = new Date();
       let startDate, endDate;
@@ -410,7 +525,7 @@ function AdminDashboard({ user, dashboardData }) {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       }
-      
+
       if (startDate && endDate) {
         filtered = filtered.filter((c) => {
           if (!c.arrivalDate) return false;
@@ -419,7 +534,7 @@ function AdminDashboard({ user, dashboardData }) {
         });
       }
     }
-    
+
     setFilteredContainers(filtered);
     setCurrentPage(1); // Reset to first page when filters change
   }, [allContainers, activeFilter, containerFilters]);
@@ -430,6 +545,463 @@ function AdminDashboard({ user, dashboardData }) {
     (currentPage - 1) * containersPerPage,
     currentPage * containersPerPage
   );
+
+  const handleDragStart = (e, index) => {
+    if (!isCustomizing) return;
+    e.dataTransfer.setData('dragIndex', index);
+    e.target.style.opacity = '0.4';
+  };
+
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    const dragIndex = parseInt(e.dataTransfer.getData('dragIndex'));
+    if (isNaN(dragIndex) || dragIndex === dropIndex) return;
+
+    // Use the customization context to reorder sections
+    reorderSections(dragIndex, dropIndex);
+  };
+
+  const renderSection = (id) => {
+    switch (id) {
+      case 'ALERTS':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Containers Arriving - FIRST */}
+            <div
+              className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-300"
+              onClick={() => {
+                setShowAdvancedDashboard(true);
+                setActiveFilter({ type: 'arriving', days: 15 });
+                setContainerFilters({ search: "", status: "", dateRange: "next15", workflowStatus: "", origin: "" });
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-lg bg-indigo-50">
+                  <Ship className="w-5 h-5 text-indigo-600" />
+                </div>
+                <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                  Next 15 Days
+                </span>
+              </div>
+              <div className="text-3xl font-bold text-slate-900">
+                {loadingContainers ? "..." : containerStats?.arriving15Days || 0}
+              </div>
+              <p className="text-sm text-slate-500 mt-1">Containers Arriving</p>
+            </div>
+
+            <div
+              className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
+              onClick={() => {
+                setShowAdvancedDashboard(true);
+                setActiveFilter({ type: 'duty', status: 'pending' });
+                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <DollarSign className="w-5 h-5 text-amber-600" />
+                </div>
+                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                  Pending
+                </span>
+              </div>
+              <div className="text-3xl font-bold text-slate-900">
+                {loadingContainers ? "..." : containerStats?.pendingDuty || 0}
+              </div>
+              <p className="text-sm text-slate-500 mt-1">Duty Payments Due</p>
+            </div>
+
+            <div
+              className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
+              onClick={() => {
+                setShowAdvancedDashboard(true);
+                setActiveFilter({ type: 'duty', status: 'pending' });
+                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-slate-900">
+                ₹{loadingContainers ? "..." : ((containerStats?.totalDutyPending || 0) / 100000).toFixed(1)}L
+              </div>
+              <p className="text-sm text-slate-500 mt-1">Total Duty Pending</p>
+            </div>
+
+            {/* Delivered This Month - LAST */}
+            <div
+              className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-300"
+              onClick={() => {
+                setShowAdvancedDashboard(true);
+                setActiveFilter({ type: 'status', status: 'Delivered' });
+                setContainerFilters({ search: "", status: "Delivered", dateRange: "thisMonth", workflowStatus: "", origin: "" });
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-lg bg-emerald-50">
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-slate-900">
+                {loadingContainers ? "..." : containerStats?.delivered || 0}
+              </div>
+              <p className="text-sm text-slate-500 mt-1">Delivered This Month</p>
+            </div>
+          </div>
+        );
+      case 'CONTAINER_DB':
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
+                Container Dashboard
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAdvancedDashboard(!showAdvancedDashboard);
+                  if (!showAdvancedDashboard) {
+                    setActiveFilter(null);
+                    setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                  }
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+              >
+                {showAdvancedDashboard ? "Hide" : "Show"} Dashboard <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {showAdvancedDashboard && (
+              <div className="p-5 space-y-4">
+                {/* Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search containers..."
+                      value={containerFilters.search}
+                      onChange={(e) => setContainerFilters(prev => ({ ...prev, search: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                    />
+                  </div>
+
+                  <select
+                    value={containerFilters.status}
+                    onChange={(e) => setContainerFilters(prev => ({ ...prev, status: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">All Status</option>
+                    <option value="Loaded">Loaded</option>
+                    <option value="Insea">In Sea</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+
+                  <select
+                    value={containerFilters.workflowStatus}
+                    onChange={(e) => setContainerFilters(prev => ({ ...prev, workflowStatus: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">All Workflow Status</option>
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="MAIL">Mail</option>
+                    <option value="SIMS">SIMS</option>
+                    <option value="PIMS">PIMS</option>
+                    <option value="CHECKLIST">Checklist</option>
+                    <option value="LOADING SHEET">Loading Sheet</option>
+                    <option value="BIFURCATION">Bifurcation</option>
+                    <option value="PACKING LIST">Packing List</option>
+                    <option value="INVOICE">Invoice</option>
+                    <option value="BOE">BOE</option>
+                    <option value="DUTY CALCULATOR">Duty Calculator</option>
+                    <option value="PURCHASE SELL">Purchase Sell</option>
+                    <option value="WAREHOUSE PLAN">Warehouse Plan</option>
+                    <option value="ACCOUNT">Account</option>
+                  </select>
+
+                  <Combobox
+                    value={containerFilters.origin}
+                    onChange={(val) => setContainerFilters((prev) => ({ ...prev, origin: val }))}
+                    options={origins}
+                    placeholder="All Origins"
+                  />
+
+                  <select
+                    value={containerFilters.dateRange}
+                    onChange={(e) => setContainerFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">All Dates</option>
+                    <option value="next10">Next 10 Days</option>
+                    <option value="next15">Next 15 Days</option>
+                    <option value="thisMonth">This Month</option>
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      setActiveFilter(null);
+                      setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                    }}
+                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium flex items-center gap-2"
+                  >
+                    <X className="w-4 h-4" /> Clear Filters
+                  </button>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      setActiveFilter({ type: 'arriving', days: 10 });
+                      setContainerFilters(prev => ({ ...prev, dateRange: 'next10' }));
+                    }}
+                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+                  >
+                    Next 10 Days
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveFilter({ type: 'arriving', days: 15 });
+                      setContainerFilters(prev => ({ ...prev, dateRange: 'next15' }));
+                    }}
+                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+                  >
+                    Next 15 Days
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveFilter({ type: 'status', status: 'Loaded' });
+                      setContainerFilters(prev => ({ ...prev, status: 'Loaded' }));
+                    }}
+                    className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
+                  >
+                    Loaded Containers
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveFilter({ type: 'status', status: 'Insea' });
+                      setContainerFilters(prev => ({ ...prev, status: 'Insea' }));
+                    }}
+                    className="px-4 py-2 bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition-colors text-sm font-medium"
+                  >
+                    In Sea Containers
+                  </button>
+                </div>
+
+                {/* Container List */}
+                <div className="space-y-3">
+                  {loadingContainers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                    </div>
+                  ) : paginatedContainers.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p>No containers found</p>
+                    </div>
+                  ) : (
+                    <>
+                      {paginatedContainers.map((container, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
+                          onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                              <Package className="w-6 h-6 text-indigo-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold text-slate-900">{container.containerCode || "N/A"}</p>
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${container.status === "Loaded" ? "bg-emerald-100 text-emerald-700" :
+                                  container.status === "Insea" ? "bg-sky-100 text-sky-700" :
+                                    "bg-violet-100 text-violet-700"
+                                  }`}>
+                                  {container.status || "N/A"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-4 text-xs text-slate-500">
+                                <span>{container.shippingLine || "N/A"}</span>
+                                <span>•</span>
+                                <span>{container.month || "N/A"}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <button className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case 'CONTENT_GRID':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Alerts & Tasks */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Upcoming Arrivals */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Ship className="w-5 h-5 text-indigo-600" />
+                    Upcoming Arrivals (15 Days)
+                  </h3>
+                  <button
+                    onClick={() => router.push("/dashboard/containers")}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                  >
+                    View All <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  {loadingContainers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                    </div>
+                  ) : upcomingContainers.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      <Ship className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p>No containers arriving in next 15 days</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {upcomingContainers.map((container, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                              <Package className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900">{container.containerCode}</p>
+                              <p className="text-xs text-slate-500">{container.shippingLine || "N/A"}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-slate-900">
+                              {new Date(container.arrivalDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                            </p>
+                            <p className="text-xs text-amber-600">
+                              ₹{((container.duty || 0) / 1000).toFixed(1)}K duty
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* User Task Status */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-purple-600" />
+                    Team Task Status
+                  </h3>
+                  <button
+                    onClick={() => router.push("/dashboard/tasks/reports")}
+                    className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                  >
+                    Reports <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  {userTaskSummary.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p>No task data available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {userTaskSummary.map((user, index) => (
+                        <div key={index} className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600">
+                            {user.user?.name?.charAt(0) || "U"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-medium text-slate-900 truncate">{user.user?.name}</p>
+                              <span className="text-xs text-slate-500">
+                                {user.stats?.totalCompletions || 0}/{user.stats?.totalAssignments || 0}
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className="bg-purple-500 h-full rounded-full transition-all duration-1000"
+                                style={{ width: `${(user.stats?.totalCompletions / (user.stats?.totalAssignments || 1)) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Notes & Links */}
+            <div className="space-y-6">
+              <PersonalTodos userId={user?.id} />
+
+              {/* Quick Links */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <ExternalLink className="w-5 h-5 text-indigo-600" />
+                  Quick Links
+                </h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => router.push("/dashboard/tasks")}
+                    className="w-full p-3 flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors"
+                  >
+                    <ListTodo className="w-5 h-5" />
+                    <span className="font-medium text-sm">My Tasks</span>
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/tasks")}
+                    className="w-full p-3 flex items-center gap-3 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <Clock className="w-5 h-5" />
+                    <span className="font-medium text-sm">Task Hub</span>
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/profile")}
+                    className="w-full p-3 flex items-center gap-3 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span className="font-medium text-sm">My Profile</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 space-y-6 pb-20">
@@ -443,651 +1015,59 @@ function AdminDashboard({ user, dashboardData }) {
             </div>
             <span className="text-xs font-bold tracking-wider opacity-80">{badge.label}</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold mb-1">
-            {getGreeting()}, {user?.name || "Admin"}
-          </h1>
+          <div className="flex items-center justify-between w-full">
+            <h1 className="text-2xl md:text-3xl font-bold">
+              {getGreeting()}, {user?.name || "Admin"}
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsCustomizing(!isCustomizing)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${isCustomizing
+                  ? "bg-amber-400 text-amber-900 shadow-lg scale-105"
+                  : "bg-white/10 hover:bg-white/20 text-white"
+                  }`}
+              >
+                <Settings className={`w-3.5 h-3.5 ${isCustomizing ? "animate-spin" : ""}`} />
+                {isCustomizing ? "DONE CUSTOMIZING" : "CUSTOMIZE LAYOUT"}
+              </button>
+              <button
+                onClick={() => setShowSettingsPanel(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-2"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                WIDGET SETTINGS
+              </button>
+            </div>
+          </div>
           <p className="text-white/70">
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
           </p>
         </div>
       </div>
 
-      {/* Critical Alerts Row - Reordered: Containers Arriving first, Delivered This Month last */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Containers Arriving - FIRST */}
-        <div 
-          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-300"
-          onClick={() => {
-            setShowAdvancedDashboard(true);
-            setActiveFilter({ type: 'arriving', days: 15 });
-            setContainerFilters({ search: "", status: "", dateRange: "next15", workflowStatus: "" });
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-lg bg-indigo-50">
-              <Ship className="w-5 h-5 text-indigo-600" />
-            </div>
-            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-              Next 15 Days
-            </span>
-          </div>
-          <div className="text-3xl font-bold text-slate-900">
-            {loadingContainers ? "..." : containerStats?.arriving15Days || 0}
-          </div>
-          <p className="text-sm text-slate-500 mt-1">Containers Arriving</p>
-        </div>
-
-        <div 
-          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
-          onClick={() => {
-            setShowAdvancedDashboard(true);
-            setActiveFilter({ type: 'duty', status: 'pending' });
-            setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-lg bg-amber-50">
-              <DollarSign className="w-5 h-5 text-amber-600" />
-            </div>
-            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-              Pending
-            </span>
-          </div>
-          <div className="text-3xl font-bold text-slate-900">
-            {loadingContainers ? "..." : containerStats?.pendingDuty || 0}
-          </div>
-          <p className="text-sm text-slate-500 mt-1">Duty Payments Due</p>
-        </div>
-
-        <div 
-          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-300"
-          onClick={() => {
-            setShowAdvancedDashboard(true);
-            setActiveFilter({ type: 'duty', status: 'pending' });
-            setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-lg bg-amber-50">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-900">
-            ₹{loadingContainers ? "..." : ((containerStats?.totalDutyPending || 0) / 100000).toFixed(1)}L
-          </div>
-          <p className="text-sm text-slate-500 mt-1">Total Duty Pending</p>
-        </div>
-
-        {/* Delivered This Month - LAST */}
-        <div 
-          className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-300"
-          onClick={() => {
-            setShowAdvancedDashboard(true);
-            setActiveFilter({ type: 'status', status: 'Delivered' });
-            setContainerFilters({ search: "", status: "Delivered", dateRange: "thisMonth", workflowStatus: "" });
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-lg bg-emerald-50">
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-900">
-            {loadingContainers ? "..." : containerStats?.delivered || 0}
-          </div>
-          <p className="text-sm text-slate-500 mt-1">Delivered This Month</p>
-        </div>
-      </div>
-
-      {/* Advanced Container Dashboard */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-indigo-600" />
-            Container Dashboard
-          </h3>
-          <button
-            onClick={() => {
-              setShowAdvancedDashboard(!showAdvancedDashboard);
-              if (!showAdvancedDashboard) {
-                setActiveFilter(null);
-                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
-              }
-            }}
-            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+      {/* Draggable Sections Container */}
+      <div className="space-y-6">
+        {getVisibleSections().map((section, index) => (
+          <div
+            key={section.id}
+            draggable={isCustomizing}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            className={`relative transition-all duration-300 ${isCustomizing
+              ? "cursor-move border-2 border-dashed border-amber-300 rounded-2xl p-2 bg-amber-50/30 hover:bg-amber-50/50"
+              : ""
+              }`}
           >
-            {showAdvancedDashboard ? "Hide" : "Show"} Dashboard <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        {showAdvancedDashboard && (
-          <div className="p-5 space-y-4">
-            {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search containers..."
-                  value={containerFilters.search}
-                  onChange={(e) => setContainerFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-                />
-              </div>
-              
-              <select
-                value={containerFilters.status}
-                onChange={(e) => setContainerFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-              >
-                <option value="">All Status</option>
-                <option value="Loaded">Loaded</option>
-                <option value="Insea">In Sea</option>
-                <option value="Delivered">Delivered</option>
-              </select>
-
-              <select
-                value={containerFilters.workflowStatus}
-                onChange={(e) => setContainerFilters(prev => ({ ...prev, workflowStatus: e.target.value }))}
-                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-              >
-                <option value="">All Workflow Status</option>
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="MAIL">Mail</option>
-                <option value="SIMS">SIMS</option>
-                <option value="PIMS">PIMS</option>
-                <option value="CHECKLIST">Checklist</option>
-                <option value="LOADING SHEET">Loading Sheet</option>
-                <option value="BIFURCATION">Bifurcation</option>
-                <option value="PACKING LIST">Packing List</option>
-                <option value="INVOICE">Invoice</option>
-                <option value="BOE">BOE</option>
-                <option value="DUTY CALCULATOR">Duty Calculator</option>
-                <option value="PURCHASE SELL">Purchase Sell</option>
-                <option value="WAREHOUSE PLAN">Warehouse Plan</option>
-                <option value="ACCOUNT">Account</option>
-              </select>
-
-              <select
-                value={containerFilters.dateRange}
-                onChange={(e) => setContainerFilters(prev => ({ ...prev, dateRange: e.target.value }))}
-                className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-              >
-                <option value="">All Dates</option>
-                <option value="next10">Next 10 Days</option>
-                <option value="next15">Next 15 Days</option>
-                <option value="thisMonth">This Month</option>
-              </select>
-
-              <button
-                onClick={() => {
-                  setActiveFilter(null);
-                  setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "" });
-                }}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium flex items-center gap-2"
-              >
-                <X className="w-4 h-4" /> Clear Filters
-              </button>
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  setActiveFilter({ type: 'arriving', days: 10 });
-                  setContainerFilters(prev => ({ ...prev, dateRange: 'next10' }));
-                }}
-                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
-              >
-                Next 10 Days
-              </button>
-              <button
-                onClick={() => {
-                  setActiveFilter({ type: 'arriving', days: 15 });
-                  setContainerFilters(prev => ({ ...prev, dateRange: 'next15' }));
-                }}
-                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
-              >
-                Next 15 Days
-              </button>
-              <button
-                onClick={() => {
-                  setActiveFilter({ type: 'status', status: 'Loaded' });
-                  setContainerFilters(prev => ({ ...prev, status: 'Loaded' }));
-                }}
-                className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
-              >
-                Loaded Containers
-              </button>
-              <button
-                onClick={() => {
-                  setActiveFilter({ type: 'status', status: 'Insea' });
-                  setContainerFilters(prev => ({ ...prev, status: 'Insea' }));
-                }}
-                className="px-4 py-2 bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition-colors text-sm font-medium"
-              >
-                In Sea Containers
-              </button>
-            </div>
-
-            {/* Active Filter Badge */}
-            {activeFilter && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-600">Active Filter:</span>
-                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                  {activeFilter.type === 'arriving' && `Arriving (${activeFilter.days} days)`}
-                  {activeFilter.type === 'status' && `Status: ${activeFilter.status}`}
-                  {activeFilter.type === 'duty' && 'Duty Pending'}
-                </span>
-                <button
-                  onClick={() => setActiveFilter(null)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+            {isCustomizing && (
+              <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 z-50 bg-amber-500 text-white p-1.5 rounded-full shadow-lg">
+                <GripVertical className="w-4 h-4" />
               </div>
             )}
-
-            {/* Container List */}
-            <div className="space-y-3">
-              {loadingContainers ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                </div>
-              ) : paginatedContainers.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>No containers found</p>
-                </div>
-              ) : (
-                <>
-                  {paginatedContainers.map((container, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
-                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Package className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-slate-900">{container.containerCode || "N/A"}</p>
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              container.status === "Loaded" ? "bg-emerald-100 text-emerald-700" :
-                              container.status === "Insea" ? "bg-sky-100 text-sky-700" :
-                              "bg-violet-100 text-violet-700"
-                            }`}>
-                              {container.status || "N/A"}
-                            </span>
-                            {container.workflowStatus && (
-                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                                {container.workflowStatus}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-slate-500">
-                            <span>{container.shippingLine || "N/A"}</span>
-                            <span>•</span>
-                            <span>{container.month || "N/A"}</span>
-                            {container.arrivalDate && (
-                              <>
-                                <span>•</span>
-                                <span>ETA: {new Date(container.arrivalDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-slate-900">
-                          ₹{((container.finalAmount || 0) / 1000).toFixed(1)}K
-                        </p>
-                        <p className="text-xs text-amber-600">
-                          Duty: ₹{((container.duty || 0) / 1000).toFixed(1)}K
-                        </p>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/dashboard/container-summary/${container.summaryId}`);
-                        }}
-                        className="ml-4 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                      <p className="text-sm text-slate-600">
-                        Showing {(currentPage - 1) * containersPerPage + 1} to {Math.min(currentPage * containersPerPage, filteredContainers.length)} of {filteredContainers.length} containers
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                          disabled={currentPage === 1}
-                          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="px-3 py-1 text-sm text-slate-600">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                          disabled={currentPage === totalPages}
-                          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            {renderSection(section.id)}
           </div>
-        )}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Upcoming Containers */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Upcoming Arrivals */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Ship className="w-5 h-5 text-indigo-600" />
-                Upcoming Arrivals (15 Days)
-              </h3>
-              <button
-                onClick={() => router.push("/dashboard/containers")}
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-              >
-                View All <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="p-4">
-              {loadingContainers ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                </div>
-              ) : upcomingContainers.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <Ship className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>No containers arriving in next 15 days</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingContainers.map((container, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/dashboard/container-summary/${container.summaryId}`)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Package className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-900">{container.containerCode}</p>
-                          <p className="text-xs text-slate-500">{container.shippingLine || "N/A"}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-slate-900">
-                          {new Date(container.arrivalDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                        </p>
-                        <p className="text-xs text-amber-600">
-                          ₹{((container.duty || 0) / 1000).toFixed(1)}K duty
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* User Task Status */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" />
-                Team Task Status
-              </h3>
-              <button
-                onClick={() => router.push("/dashboard/tasks/reports")}
-                className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
-              >
-                Reports <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="p-4">
-              {userTaskSummary.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>No task data available</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {userTaskSummary.map((user, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600">
-                        {user.user?.name?.charAt(0) || "U"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-medium text-slate-900 truncate">{user.user?.name}</p>
-                          <span className="text-xs text-slate-500">
-                            {user.stats?.totalCompletions || 0}/{user.stats?.totalAssignments || 0}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
-                            style={{ width: `${user.stats?.onTimeRate || 0}%` }}
-                          />
-                        </div>
-                      </div>
-                      <span className={`text-sm font-bold ${
-                        (user.stats?.onTimeRate || 0) >= 80 ? "text-emerald-600" : 
-                        (user.stats?.onTimeRate || 0) >= 50 ? "text-amber-600" : "text-red-600"
-                      }`}>
-                        {user.stats?.onTimeRate || 0}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="space-y-6">
-          {/* Container Status Pie Chart */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-indigo-600" />
-              Container Status
-            </h3>
-            {statusChartData.length > 0 ? (
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusChartData}
-                      innerRadius={50}
-                      outerRadius={70}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {statusChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-48 flex items-center justify-center text-slate-400">
-                No data available
-              </div>
-            )}
-          </div>
-
-          {/* Today's Summary */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-emerald-600" />
-              Today&apos;s Tasks
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
-                <span className="text-sm text-emerald-700">Completed</span>
-                <span className="text-xl font-bold text-emerald-700">{taskStats.completed}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-                <span className="text-sm text-amber-700">Pending</span>
-                <span className="text-xl font-bold text-amber-700">{taskStats.pending}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
-                <span className="text-sm text-slate-600">Total</span>
-                <span className="text-xl font-bold text-slate-700">{taskStats.total}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* My Tasks Status */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <ListTodo className="w-5 h-5 text-indigo-600" />
-                My Tasks
-              </h3>
-              <button
-                onClick={() => router.push("/dashboard/my-tasks")}
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-              >
-                View <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center p-3 bg-emerald-50 rounded-xl">
-                <div className="text-2xl font-bold text-emerald-600">{taskStats.completed}</div>
-                <div className="text-xs text-emerald-700 font-medium">Done</div>
-              </div>
-              <div className="text-center p-3 bg-amber-50 rounded-xl">
-                <div className="text-2xl font-bold text-amber-600">{taskStats.pending}</div>
-                <div className="text-xs text-amber-700 font-medium">Pending</div>
-              </div>
-              <div className="text-center p-3 bg-slate-100 rounded-xl">
-                <div className="text-2xl font-bold text-slate-700">{taskStats.total}</div>
-                <div className="text-xs text-slate-600 font-medium">Total</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions - Dynamic based on role */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-600" />
-              Quick Actions
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Super Admin: Account & Container focused */}
-              {user?.isSuper ? (
-                <>
-                  <button
-                    onClick={() => router.push("/dashboard/accounts")}
-                    className="p-3 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-slate-200 transition-colors"
-                  >
-                    <Wallet className="w-5 h-5" />
-                    Accounts Hub
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/container-summary")}
-                    className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-indigo-100 transition-colors"
-                  >
-                    <Package className="w-5 h-5" />
-                    Containers
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/loading-sheet")}
-                    className="p-3 bg-blue-50 text-blue-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-blue-100 transition-colors"
-                  >
-                    <Ship className="w-5 h-5" />
-                    Loading Sheets
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/users")}
-                    className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
-                  >
-                    <Users className="w-5 h-5" />
-                    Users Hub
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/clients")}
-                    className="p-3 bg-purple-50 text-purple-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-purple-100 transition-colors"
-                  >
-                    <Building className="w-5 h-5" />
-                    Clients
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/tasks")}
-                    className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-amber-100 transition-colors"
-                  >
-                    <ClipboardList className="w-5 h-5" />
-                    Tasks Hub
-                  </button>
-                </>
-              ) : (
-                /* Regular Admin: Task & User focused */
-                <>
-                  <button
-                    onClick={() => router.push("/dashboard/container-summary/create")}
-                    className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-indigo-100 transition-colors"
-                  >
-                    <Package className="w-5 h-5" />
-                    New Container
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/tasks/assignments")}
-                    className="p-3 bg-purple-50 text-purple-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-purple-100 transition-colors"
-                  >
-                    <ClipboardList className="w-5 h-5" />
-                    Assign Task
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/users/management")}
-                    className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
-                  >
-                    <Users className="w-5 h-5" />
-                    Users
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/tasks/reports")}
-                    className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-amber-100 transition-colors"
-                  >
-                    <BarChart3 className="w-5 h-5" />
-                    Reports
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Personal Notes */}
-          <PersonalTodos userId={user?.id} />
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -1129,7 +1109,7 @@ function EmployeeDashboard({ user, dashboardData }) {
         const completions = res.data.data || [];
         const onTime = completions.filter((c) => c.status === "COMPLETED").length;
         const total = completions.length;
-        
+
         // Weekly data
         const weeklyData = [];
         for (let i = 6; i >= 0; i--) {
@@ -1281,15 +1261,13 @@ function EmployeeDashboard({ user, dashboardData }) {
                   return (
                     <div
                       key={index}
-                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                        isCompleted
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "bg-slate-50 border-slate-200 hover:bg-slate-100"
-                      }`}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${isCompleted
+                        ? "bg-emerald-50 border-emerald-200"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                        }`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"
+                        }`}>
                         {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1463,7 +1441,7 @@ function NewJoinerDashboard({ user }) {
   };
 
   const dailyTasks = myTasks.filter((t) => t.scheduleType === "DAILY");
-  const completedCount = dailyTasks.filter((t) => 
+  const completedCount = dailyTasks.filter((t) =>
     t.completions?.some((c) => isCompletedToday(c))
   ).length;
 
@@ -1543,16 +1521,14 @@ function NewJoinerDashboard({ user }) {
                   return (
                     <div
                       key={index}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        isCompleted
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "bg-white border-slate-200 hover:border-indigo-300"
-                      }`}
+                      className={`p-4 rounded-xl border-2 transition-all ${isCompleted
+                        ? "bg-emerald-50 border-emerald-200"
+                        : "bg-white border-slate-200 hover:border-indigo-300"
+                        }`}
                     >
                       <div className="flex items-start gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-indigo-100 text-indigo-600"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted ? "bg-emerald-100 text-emerald-600" : "bg-indigo-100 text-indigo-600"
+                          }`}>
                           {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Target className="w-5 h-5" />}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1563,11 +1539,10 @@ function NewJoinerDashboard({ user }) {
                             <p className="text-sm text-slate-500 mt-1">{task.description}</p>
                           )}
                           <div className="flex items-center gap-2 mt-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              task.scheduleType === "DAILY"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${task.scheduleType === "DAILY"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-slate-100 text-slate-600"
+                              }`}>
                               {task.scheduleType}
                             </span>
                             {task.category && (
@@ -1638,17 +1613,15 @@ function NewJoinerDashboard({ user }) {
                   {personalTodos.map((todo) => (
                     <div
                       key={todo.id}
-                      className={`group flex items-start gap-2 p-2 rounded-lg ${
-                        todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
-                      }`}
+                      className={`group flex items-start gap-2 p-2 rounded-lg ${todo.pinned ? "bg-amber-50 border border-amber-200" : "hover:bg-slate-50"
+                        }`}
                     >
                       <button
                         onClick={() => toggleTodo(todo.id)}
-                        className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 ${
-                          todo.completed
-                            ? "bg-emerald-500 border-emerald-500 text-white"
-                            : "border-slate-300"
-                        }`}
+                        className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 ${todo.completed
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "border-slate-300"
+                          }`}
                       >
                         {todo.completed && <CheckCircle className="w-3 h-3" />}
                       </button>
@@ -1707,19 +1680,7 @@ function NewJoinerDashboard({ user }) {
             </div>
           </div>
 
-          {/* Help Card */}
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white">
-            <h3 className="font-bold mb-2">Need Help?</h3>
-            <p className="text-sm text-white/80 mb-4">
-              If you have any questions, reach out to your supervisor or check the help center.
-            </p>
-            <button
-              onClick={() => router.push("/dashboard/profile")}
-              className="w-full py-2 bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
-            >
-              Contact Support
-            </button>
-          </div>
+
         </div>
       </div>
     </div>
@@ -1774,16 +1735,25 @@ export default function Dashboard() {
   const role = user?.role;
   const isSuper = user?.isSuper;
 
-  if (role === "ADMIN" || isSuper) {
-    return <AdminDashboard user={user} dashboardData={dashboardData} />;
-  }
+  return (
+    <CustomizationProvider userId={user?.id}>
+      {/* Global Customization Panel */}
+      <CustomizationPanel />
 
-  if (role === "NEW_JOINNER") {
-    return <NewJoinerDashboard user={user} />;
-  }
+      {/* Render appropriate dashboard based on role */}
+      {(role === "ADMIN" || isSuper) && (
+        <AdminDashboard user={user} dashboardData={dashboardData} />
+      )}
 
-  // Default: Employee Dashboard
-  return <EmployeeDashboard user={user} dashboardData={dashboardData} />;
+      {role === "NEW_JOINNER" && (
+        <NewJoinerDashboard user={user} />
+      )}
+
+      {role === "EMPLOYEE" && (
+        <EmployeeDashboard user={user} dashboardData={dashboardData} />
+      )}
+    </CustomizationProvider>
+  );
 }
 
 // ========================
