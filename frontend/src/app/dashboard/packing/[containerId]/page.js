@@ -87,6 +87,18 @@ export default function PackingListEntryPage() {
     to: 'NHAVA SHEVA'
   });
 
+  const [openSections, setOpenSections] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('packing_accordion_state');
+      return saved ? JSON.parse(saved) : ["exporter", "consignee", "bank", "stamp"];
+    }
+    return ["exporter", "consignee", "bank", "stamp"];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('packing_accordion_state', JSON.stringify(openSections));
+  }, [openSections]);
+
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -278,6 +290,40 @@ export default function PackingListEntryPage() {
       }));
       setSelectedTemplateId(templateId);
       toast.success('Template applied');
+    }
+  };
+
+  const createTemplate = async () => {
+    if (!formData.headerCompanyName) {
+      toast.error("Exporter Name is required to create a template");
+      return;
+    }
+
+    const toastId = toast.loading("Creating template...");
+    try {
+      const payload = {
+        companyName: formData.headerCompanyName,
+        companyAddress: formData.headerCompanyAddress,
+        companyPhone: formData.headerPhone,
+        companyEmail: formData.sellerEmail,
+        bankName: formData.bankName,
+        beneficiaryName: formData.beneficiaryName,
+        swiftBic: formData.swiftBic,
+        bankAddress: formData.bankAddress,
+        accountNumber: formData.accountNumber,
+        stampImage: formData.stampImage,
+        stampSize: formData.stampSize,
+        signatureText: formData.stampText
+      };
+
+      const response = await API.post('/packing-list/templates', payload);
+      if (response.data.success) {
+        toast.success("Template created successfully", { id: toastId });
+        fetchTemplates();
+        setSelectedTemplateId(response.data.data.id);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create template", { id: toastId });
     }
   };
 
@@ -487,14 +533,23 @@ export default function PackingListEntryPage() {
 
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Template:</span>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => applyTemplate(e.target.value)}
-                className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select Template...</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.companyName}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => applyTemplate(e.target.value)}
+                  className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Select Template...</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.companyName}</option>)}
+                </select>
+                <button
+                  onClick={createTemplate}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"
+                  title="Save current as template"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -538,7 +593,7 @@ export default function PackingListEntryPage() {
             </div>
 
             {/* 2. Configuration Accordion (Collapsible) */}
-            <Accordion type="single" collapsible className="mb-8 border border-slate-200 rounded-xl overflow-hidden">
+            <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="mb-8 border border-slate-200 rounded-xl overflow-hidden">
 
               {/* Exporter Section */}
               <AccordionItem value="exporter" className="border-b border-slate-200 px-6 py-1">
@@ -765,8 +820,8 @@ export default function PackingListEntryPage() {
                                 key={sz}
                                 onClick={() => setFormData({ ...formData, stampSize: sz })}
                                 className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition-all ${formData.stampSize === sz
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                   }`}
                               >
                                 {sz}

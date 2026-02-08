@@ -90,6 +90,18 @@ export default function InvoiceEntryPage() {
     to: ''
   });
 
+  const [openSections, setOpenSections] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('invoice_accordion_state');
+      return saved ? JSON.parse(saved) : ["exporter", "consignee", "bank", "stamp"];
+    }
+    return ["exporter", "consignee", "bank", "stamp"];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('invoice_accordion_state', JSON.stringify(openSections));
+  }, [openSections]);
+
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -127,6 +139,40 @@ export default function InvoiceEntryPage() {
       }));
       setSelectedTemplateId(templateId);
       toast.success('Template applied');
+    }
+  };
+
+  const createTemplate = async () => {
+    if (!formData.exporterCompanyName) {
+      toast.error("Company Name is required to create a template");
+      return;
+    }
+
+    const toastId = toast.loading("Creating template...");
+    try {
+      const payload = {
+        companyName: formData.exporterCompanyName,
+        companyAddress: formData.exporterAddress,
+        companyPhone: formData.headerPhone,
+        companyEmail: formData.exporterEmail,
+        bankName: formData.bankName,
+        beneficiaryName: formData.beneficiaryName,
+        swiftBic: formData.swiftBic,
+        bankAddress: formData.bankAddress,
+        accountNumber: formData.accountNumber,
+        stampImage: formData.stampImage,
+        stampSize: formData.stampSize,
+        signatureText: formData.stampText
+      };
+
+      const response = await API.post('/packing-list/templates', payload);
+      if (response.data.success) {
+        toast.success("Template created successfully", { id: toastId });
+        fetchTemplates();
+        setSelectedTemplateId(response.data.data.id);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create template", { id: toastId });
     }
   };
   useEffect(() => {
@@ -521,14 +567,23 @@ export default function InvoiceEntryPage() {
 
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Template:</span>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => applyTemplate(e.target.value)}
-                className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select Template...</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.companyName}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => applyTemplate(e.target.value)}
+                  className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Select Template...</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.companyName}</option>)}
+                </select>
+                <button
+                  onClick={createTemplate}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"
+                  title="Save current as template"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -582,7 +637,7 @@ export default function InvoiceEntryPage() {
 
             {/* Accordion Sections */}
             {/* 2. Configuration Accordion (Collapsible) */}
-            <Accordion type="single" collapsible defaultValue="exporter" className="space-y-4 mb-8">
+            <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="space-y-4 mb-8">
 
               {/* Exporter Section */}
               <AccordionItem value="exporter" className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
@@ -818,8 +873,8 @@ export default function InvoiceEntryPage() {
                               key={pos}
                               onClick={() => setFormData({ ...formData, stampPosition: pos })}
                               className={`flex-1 py-3 type="button" rounded-xl text-[10px] font-bold transition-all border ${formData.stampPosition === pos
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
-                                  : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
+                                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
                                 }`}
                             >
                               {pos.replace('BOTTOM_', '')}
@@ -835,8 +890,8 @@ export default function InvoiceEntryPage() {
                               key={sz}
                               onClick={() => setFormData({ ...formData, stampSize: sz })}
                               className={`flex-1 py-3 type="button" rounded-xl text-[10px] font-bold transition-all border ${formData.stampSize === sz
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
-                                  : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
+                                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
                                 }`}
                             >
                               {sz === 'SM' ? 'SMALL' : sz === 'M' ? 'MEDIUM' : 'LARGE'}
