@@ -32,6 +32,11 @@ router.get(
 // Get summary statistics
 router.get("/statistics", containerSummaryController.getStatistics);
 
+// Get/Update global themes (colors)
+router.get("/themes", containerSummaryController.getThemes);
+router.post("/themes", containerSummaryController.upsertThemes);
+router.get("/activities/global", containerSummaryController.getGlobalActivities);
+
 // Search summaries
 router.get(
   "/search",
@@ -60,6 +65,9 @@ router.get("/:id/export/excel", containerSummaryController.exportToExcel);
 
 // Export all summaries to CSV
 router.get("/export/all/csv", containerSummaryController.exportAllToCSV);
+
+// Get all activities (global audit log)
+router.get("/activities/all", containerSummaryController.getAllActivities);
 
 // Get summary activities
 router.get("/:id/activities", containerSummaryController.getSummaryActivities);

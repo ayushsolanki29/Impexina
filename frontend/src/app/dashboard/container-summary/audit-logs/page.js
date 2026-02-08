@@ -4,11 +4,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import API from '@/lib/api';
 import { toast } from 'sonner';
-import { 
-  Loader2, ArrowLeft, History, Calendar, 
+import {
+  Loader2, ArrowLeft, History, Calendar,
   User, ChevronLeft, ChevronRight, Search,
   Filter, RefreshCw, FileText, Package,
-  Edit, CheckCircle, XCircle, Clock
+  Edit, CheckCircle, XCircle, Clock, Palette
 } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -18,20 +18,19 @@ const TYPE_LABELS = {
   'DELETED': { label: 'Deleted', icon: XCircle, color: 'bg-red-100 text-red-700 border-red-200' },
   'CONTAINER_ADDED': { label: 'Container Added', icon: Package, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   'CONTAINER_REMOVED': { label: 'Container Removed', icon: Package, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  'THEME_UPDATED': { label: 'Theme Updated', icon: Palette, color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
 };
 
 export default function ContainerSummaryAuditLogsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [allActivities, setAllActivities] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
-  
+
   // Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedSummary, setSelectedSummary] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [summaries, setSummaries] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -50,68 +49,28 @@ export default function ContainerSummaryAuditLogsPage() {
   const fetchActivities = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      
-      // Fetch activities from all summaries
-      const allActivitiesData = [];
-      
-      // Get activities from each summary
-      const summariesToFetch = selectedSummary 
-        ? summaries.filter(s => s.id === selectedSummary)
-        : summaries;
-      
-      for (const summary of summariesToFetch.slice(0, 50)) { // Limit to first 50 summaries
-        try {
-          const response = await API.get(`/container-summaries/${summary.id}/activities`, { limit: 100 });
-          if (response.data.success && response.data.data) {
-            response.data.data.forEach(activity => {
-              allActivitiesData.push({
-                ...activity,
-                summaryId: summary.id,
-                summaryMonth: summary.month,
-              });
-            });
-          }
-        } catch (error) {
-          console.error(`Error fetching activities for summary ${summary.id}:`, error);
-        }
+
+      const params = {
+        page,
+        limit: 50,
+        ...(selectedType && { type: selectedType }),
+        ...(selectedSummary && { summaryId: selectedSummary }),
+        ...(searchTerm && { search: searchTerm }),
+      };
+
+      const res = await API.get('/container-summaries/activities/all', params);
+
+      if (res.data.success) {
+        setActivities(res.data.data);
+        setPagination(res.data.pagination);
       }
-      
-      // Apply filters
-      let filtered = allActivitiesData;
-      
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        filtered = filtered.filter(activity =>
-          activity.user?.name?.toLowerCase().includes(searchLower) ||
-          activity.description?.toLowerCase().includes(searchLower) ||
-          activity.field?.toLowerCase().includes(searchLower) ||
-          activity.summaryMonth?.toLowerCase().includes(searchLower) ||
-          activity.note?.toLowerCase().includes(searchLower)
-        );
-      }
-      
-      if (selectedType) {
-        filtered = filtered.filter(activity => activity.type === selectedType);
-      }
-      
-      // Sort by date descending
-      filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
-      // Pagination
-      const limit = 50;
-      const total = filtered.length;
-      const totalPages = Math.ceil(total / limit);
-      const paginated = filtered.slice((page - 1) * limit, page * limit);
-      
-      setAllActivities(paginated);
-      setPagination({ page, totalPages, total });
     } catch (error) {
       console.error(error);
       toast.error("Failed to load audit logs");
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, selectedType, selectedSummary, startDate, endDate, summaries]);
+  }, [selectedType, selectedSummary, searchTerm]);
 
   useEffect(() => {
     fetchSummaries();
@@ -143,12 +102,35 @@ export default function ContainerSummaryAuditLogsPage() {
 
   const formatValue = (value) => {
     if (value === null || value === undefined || value === 'null') {
-      return <span className="text-slate-400 italic">Empty</span>;
+      return <span className="text-slate-400 italic text-[10px] uppercase font-bold tracking-widest">Empty</span>;
+    }
+    if (Array.isArray(value)) {
+      return (
+        <div className="flex flex-wrap gap-2 py-1">
+          {value.map((item, i) => (
+            <div key={i} className="flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
+              <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,0.1)]" style={{ backgroundColor: item.color }} />
+              <span className="text-[9px] font-black text-slate-600 uppercase tracking-tight">{item.role || item.field}</span>
+            </div>
+          ))}
+        </div>
+      );
     }
     if (typeof value === 'object') {
-      return <span className="font-mono text-xs">{JSON.stringify(value, null, 2)}</span>;
+      return (
+        <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1.5 py-1">
+          {Object.entries(value).map(([key, val]) => (
+            <React.Fragment key={key}>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] text-right">{key}</span>
+              <span className="text-[10px] font-bold text-slate-800 tabular-nums">
+                {typeof val === 'number' && key.toLowerCase().includes('amount') ? `₹${val.toLocaleString()}` : String(val)}
+              </span>
+            </React.Fragment>
+          ))}
+        </div>
+      );
     }
-    return String(value);
+    return <span className="text-[10px] font-bold text-slate-800">{String(value)}</span>;
   };
 
   return (
@@ -192,7 +174,7 @@ export default function ContainerSummaryAuditLogsPage() {
         {/* Filters */}
         {showFilters && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -203,7 +185,7 @@ export default function ContainerSummaryAuditLogsPage() {
                   className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
                 />
               </div>
-              
+
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
@@ -226,37 +208,14 @@ export default function ContainerSummaryAuditLogsPage() {
                 ))}
               </select>
 
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  placeholder="Start Date"
-                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-                />
-              </div>
-
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  placeholder="End Date"
-                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-                />
-              </div>
             </div>
-            {(searchTerm || selectedType || selectedSummary || startDate || endDate) && (
+            {(searchTerm || selectedType || selectedSummary) && (
               <div className="mt-4 flex items-center justify-end">
                 <button
                   onClick={() => {
                     setSearchTerm('');
                     setSelectedType('');
                     setSelectedSummary('');
-                    setStartDate('');
-                    setEndDate('');
                   }}
                   className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                 >
@@ -273,7 +232,7 @@ export default function ContainerSummaryAuditLogsPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
             </div>
-          ) : allActivities.length === 0 ? (
+          ) : activities.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="font-medium">No audit logs found</p>
@@ -282,7 +241,7 @@ export default function ContainerSummaryAuditLogsPage() {
           ) : (
             <>
               <div className="divide-y divide-slate-100">
-                {allActivities.map((activity) => {
+                {activities.map((activity) => {
                   const typeInfo = getTypeInfo(activity.type);
                   const TypeIcon = typeInfo.icon;
 
@@ -292,7 +251,7 @@ export default function ContainerSummaryAuditLogsPage() {
                         <div className={`p-3 rounded-xl border ${typeInfo.color} flex-shrink-0`}>
                           <TypeIcon className="w-6 h-6" />
                         </div>
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-4 mb-3">
                             <div className="flex-1">
@@ -300,13 +259,13 @@ export default function ContainerSummaryAuditLogsPage() {
                                 <span className={`px-2 py-1 rounded text-xs font-semibold border ${typeInfo.color}`}>
                                   {typeInfo.label}
                                 </span>
-                                {activity.summaryMonth && (
+                                {(activity.summaryMonth || (activity.summary && activity.summary.month)) && (
                                   <span className="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200">
-                                    {activity.summaryMonth}
+                                    {activity.summaryMonth || activity.summary.month}
                                   </span>
                                 )}
                               </div>
-                              
+
                               <div className="flex items-center gap-4 text-sm text-slate-600 mb-2">
                                 <div className="flex items-center gap-2">
                                   <User className="w-4 h-4" />

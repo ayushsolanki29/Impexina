@@ -10,7 +10,6 @@ const containerSummaryService = {
       const existingSummary = await prisma.containerSummary.findFirst({
         where: {
           month,
-          createdBy: userName,
         },
       });
 
@@ -90,6 +89,7 @@ const containerSummaryService = {
                 origin: container.origin || "",
                 containerNoField: container.containerNo || "",
                 sims: container.sims || "",
+                pims: container.pims || "",
                 // New Fields
                 invoiceNo: container.invoiceNo || "",
                 invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
@@ -137,48 +137,48 @@ const containerSummaryService = {
   },
 
   // Get all summaries with pagination
-    getAllSummaries: async (query = {}) => {
+  getAllSummaries: async (query = {}) => {
     const {
-        page = 1,
-        limit = 10,
-        search = "",
-        status,
-        createdBy,
-        origin,
-        dateFrom,
-        dateTo
+      page = 1,
+      limit = 10,
+      search = "",
+      status,
+      createdBy,
+      origin,
+      dateFrom,
+      dateTo
     } = query;
     try {
-        const skip = (page - 1) * limit;
+      const skip = (page - 1) * limit;
 
-        const where = {};
+      const where = {};
 
-        if (search) {
+      if (search) {
         where.month = {
-            contains: search,
-            mode: "insensitive",
+          contains: search,
+          mode: "insensitive",
         };
-        }
+      }
 
-        if (status) {
+      if (status) {
         where.status = status;
-        }
+      }
 
-        if (createdBy) {
+      if (createdBy) {
         where.createdBy = createdBy;
-        }
+      }
 
-        if (origin) {
-            where.containers = {
-                some: { origin: { contains: origin, mode: "insensitive" } }
-            };
-        }
+      if (origin) {
+        where.containers = {
+          some: { origin: { contains: origin, mode: "insensitive" } }
+        };
+      }
 
-        if (dateFrom || dateTo) {
-            if (!where.containers) where.containers = { some: {} };
-            if (dateFrom) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, gte: new Date(dateFrom) };
-            if (dateTo) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, lte: new Date(dateTo) };
-        }
+      if (dateFrom || dateTo) {
+        if (!where.containers) where.containers = { some: {} };
+        if (dateFrom) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, gte: new Date(dateFrom) };
+        if (dateTo) where.containers.some.loadingDate = { ...where.containers.some.loadingDate, lte: new Date(dateTo) };
+      }
 
       const [summaries, total] = await Promise.all([
         prisma.containerSummary.findMany({
@@ -398,6 +398,7 @@ const containerSummaryService = {
               origin: container.origin || "",
               containerNoField: container.containerNo || "",
               sims: container.sims || "",
+              pims: container.pims || "",
               // New Fields
               invoiceNo: container.invoiceNo || "",
               invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
@@ -416,12 +417,19 @@ const containerSummaryService = {
           summaryId,
           userId,
           type: "UPDATED",
+          oldValue: {
+            month: existingSummary.month,
+            status: existingSummary.status,
+            containerCount: existingSummary.totalContainers,
+            totalFinalAmount: existingSummary.totalFinalAmount,
+          },
           newValue: {
             month: summary.month,
             status: summary.status,
             containerCount: summary.totalContainers,
+            totalFinalAmount: summary.totalFinalAmount,
           },
-          note: `Updated summary for ${summary.month}`,
+          note: `updated container summary for ${summary.month}`,
         },
       });
 
@@ -792,6 +800,101 @@ const containerSummaryService = {
       return summaries;
     } catch (error) {
       console.error("Error searching summaries:", error);
+      throw error;
+    }
+  },
+  // Get global themes
+  getThemes: async () => {
+    try {
+      const themes = await prisma.containerSummaryTheme.findMany();
+      return themes;
+    } catch (error) {
+      console.error("Error getting themes:", error);
+      throw error;
+    }
+  },
+
+  // Get all activities across all summaries (global audit log)
+  getAllActivities: async (query = {}) => {
+    const { page = 1, limit = 50, type, summaryId, search = "" } = query;
+    try {
+      const skip = (page - 1) * limit;
+      const where = {};
+
+      if (type) where.type = type;
+      if (summaryId) where.summaryId = summaryId;
+
+      if (search) {
+        where.OR = [
+          { user: { name: { contains: search, mode: 'insensitive' } } },
+          { note: { contains: search, mode: 'insensitive' } },
+          { field: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [activities, total] = await Promise.all([
+        prisma.summaryActivity.findMany({
+          where,
+          include: {
+            user: {
+              select: { name: true, role: true },
+            },
+            summary: {
+              select: { month: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+        prisma.summaryActivity.count({ where }),
+      ]);
+
+      return {
+        activities,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      console.error("Error getting all activities:", error);
+      throw error;
+    }
+  },
+
+  // Upsert global themes
+  upsertThemes: async (themes, userId, userName) => {
+    try {
+      // Get old themes for log
+      const oldThemes = await prisma.containerSummaryTheme.findMany();
+
+      const operations = themes.map((theme) =>
+        prisma.containerSummaryTheme.upsert({
+          where: { field: theme.field },
+          update: { color: theme.color, role: theme.role },
+          create: { field: theme.field, color: theme.color, role: theme.role },
+        })
+      );
+
+      await Promise.all(operations);
+
+      // Create activity log for theme change
+      await prisma.summaryActivity.create({
+        data: {
+          userId,
+          type: "THEME_UPDATED",
+          oldValue: oldThemes,
+          newValue: themes,
+          note: `Updated global color themes & field roles`,
+        },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error upserting themes:", error);
       throw error;
     }
   },

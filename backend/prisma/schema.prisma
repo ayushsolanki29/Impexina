@@ -570,7 +570,15 @@ model ContainerSummary {
   containers ContainerInSummary[]
   activities SummaryActivity[]
 
-  @@unique([month, createdBy])
+  @@unique([month])
+}
+
+model ContainerSummaryTheme {
+  id      Int      @id @default(autoincrement())
+  field   String   @unique
+  color   String
+  role    String?
+  updatedAt DateTime @updatedAt
 }
 
 model ContainerInSummary {
@@ -606,6 +614,7 @@ model ContainerInSummary {
 
   containerNoField String? // Actual container number
   sims             String?
+  pims             String?
   
   // New Fields
   invoiceNo    String?
@@ -623,19 +632,19 @@ model ContainerInSummary {
   @@unique([summaryId, containerNo])
 }
 
-model SummaryActivity {
+model     SummaryActivity {
   id        String  @id @default(uuid())
-  summaryId String
+  summaryId String?
   userId    Int
-  type      String // CREATED, UPDATED, STATUS_CHANGE, DELETED, CONTAINER_ADDED, CONTAINER_REMOVED
+  type      String // CREATED, UPDATED, STATUS_CHANGE, DELETED, CONTAINER_ADDED, CONTAINER_REMOVED, THEME_UPDATED
   field     String?
   oldValue  Json?
   newValue  Json?
   note      String?
   ipAddress String?
   userAgent String?
-
-  summary ContainerSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+  
+  summary ContainerSummary? @relation(fields: [summaryId], references: [id], onDelete: Cascade)
   user    User             @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())

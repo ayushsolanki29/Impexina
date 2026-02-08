@@ -39,7 +39,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -67,7 +67,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
               autoFocus
             />
           </div>
-          
+
           <div className="overflow-y-auto flex-1">
             {filteredOptions.map((opt) => (
               <button
@@ -77,15 +77,14 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
                   setIsOpen(false);
                   setSearch('');
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
-                  value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
-                }`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                  }`}
               >
                 {opt}
                 {value === opt && <Check className="w-3 h-3" />}
               </button>
             ))}
-            
+
             {filteredOptions.length === 0 && (
               <div className="px-3 py-2 text-xs text-slate-400 text-center">
                 No options found
@@ -111,6 +110,9 @@ export default function ContainerSummaryList() {
   const [originFilter, setOriginFilter] = useState("");
   const [origins, setOrigins] = useState([]);
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [showLogs, setShowLogs] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Pagination
   const [pagination, setPagination] = useState({
@@ -141,6 +143,27 @@ export default function ContainerSummaryList() {
   }, [pagination.page, searchTerm, statusFilter, originFilter, dateRange.from, dateRange.to]);
 
   useEffect(() => {
+    if (showLogs) fetchLogs();
+  }, [showLogs]);
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      // Get all activities (both global and summary-specific)
+      const res = await API.get('/container-summaries/activities/global'); // We'll update the backend to return ALL activities if needed, or stick to global.
+      // Actually, let's create a better endpoint for ALL activities.
+      // For now, let's use the one we just made.
+      if (res.data.success) {
+        setActivities(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrigins();
   }, []);
 
@@ -151,7 +174,7 @@ export default function ContainerSummaryList() {
         setOrigins(response.data.data);
       }
     } catch (error) {
-       console.error("Failed to fetch origins");
+      console.error("Failed to fetch origins");
     }
   };
 
@@ -171,7 +194,7 @@ export default function ContainerSummaryList() {
       // In loadSummaries function, after getting response:
       const response = await API.get("/container-summaries", params);
 
-      
+
       if (response.data.success) {
         // Transform the data to match frontend expectations
         const transformedSummaries = response.data.data.summaries.map((summary) => ({
@@ -187,7 +210,7 @@ export default function ContainerSummaryList() {
           },
         }));
 
-        
+
         setSummaries(transformedSummaries);
         setPagination(
           response.data.pagination || {
@@ -446,6 +469,13 @@ export default function ContainerSummaryList() {
                 />
                 Refresh
               </button>
+              <button
+                onClick={() => setShowLogs(true)}
+                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <History className="w-4 h-4" />
+                Logs
+              </button>
             </div>
           </div>
 
@@ -533,7 +563,7 @@ export default function ContainerSummaryList() {
             </div>
 
             <div className="flex flex-col md:flex-row gap-4 mt-4 pt-4 border-t border-gray-100">
-              <Combobox 
+              <Combobox
                 options={origins}
                 value={originFilter}
                 onChange={(val) => {
@@ -545,29 +575,29 @@ export default function ContainerSummaryList() {
 
               <div className="flex items-center gap-3 bg-white border border-gray-200 px-4 py-2.5 rounded-xl group focus-within:ring-2 focus-within:ring-blue-500 transition-all w-full md:w-auto shadow-sm">
                 <Calendar className="w-4 h-4 text-slate-400" />
-                <input 
-                    type="date" 
-                    className="bg-transparent text-xs font-bold text-slate-600 outline-none"
-                    value={dateRange.from}
-                    onChange={(e) => {
-                      setDateRange(prev => ({...prev, from: e.target.value}));
-                      setPagination((prev) => ({ ...prev, page: 1 }));
-                    }}
+                <input
+                  type="date"
+                  className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                  value={dateRange.from}
+                  onChange={(e) => {
+                    setDateRange(prev => ({ ...prev, from: e.target.value }));
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
                 />
                 <span className="text-slate-200 font-black">/</span>
-                <input 
-                    type="date" 
-                    className="bg-transparent text-xs font-bold text-slate-600 outline-none"
-                    value={dateRange.to}
-                    onChange={(e) => {
-                      setDateRange(prev => ({...prev, to: e.target.value}));
-                      setPagination((prev) => ({ ...prev, page: 1 }));
-                    }}
+                <input
+                  type="date"
+                  className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                  value={dateRange.to}
+                  onChange={(e) => {
+                    setDateRange(prev => ({ ...prev, to: e.target.value }));
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
                 />
               </div>
 
               {(searchTerm || statusFilter || originFilter || dateRange.from || dateRange.to) && (
-                <button 
+                <button
                   onClick={clearFilters}
                   className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all shadow-sm bg-white border border-red-100 self-start md:self-auto"
                   title="Clear all filters"
@@ -599,8 +629,8 @@ export default function ContainerSummaryList() {
               {loading
                 ? "Fetching your summaries..."
                 : searchTerm || statusFilter
-                ? "No summaries match your search criteria"
-                : "Get started by creating your first summary"}
+                  ? "No summaries match your search criteria"
+                  : "Get started by creating your first summary"}
             </p>
             {!loading && (
               <button
@@ -788,11 +818,10 @@ export default function ContainerSummaryList() {
                           key={pageNum}
                           onClick={() => goToPage(pageNum)}
                           disabled={loading}
-                          className={`w-10 h-10 flex items-center justify-center rounded-lg ${
-                            pagination.page === pageNum
-                              ? "bg-blue-600 text-white"
-                              : "border hover:bg-gray-50"
-                          } transition-colors`}
+                          className={`w-10 h-10 flex items-center justify-center rounded-lg ${pagination.page === pageNum
+                            ? "bg-blue-600 text-white"
+                            : "border hover:bg-gray-50"
+                            } transition-colors`}
                         >
                           {pageNum}
                         </button>
@@ -822,132 +851,8 @@ export default function ContainerSummaryList() {
           </>
         )}
 
-        {/* Quick Stats */}
-        {summaries.length > 0 && (
-          <div className="mt-8 bg-white rounded-lg shadow border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Summary Statistics
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="text-sm text-gray-600">Active Summaries</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statistics.activeCount}
-                </div>
-              </div>
-              <div className="p-4 bg-green-50 rounded-lg">
-                <div className="text-sm text-gray-600">Draft Summaries</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statistics.draftCount}
-                </div>
-              </div>
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <div className="text-sm text-gray-600">
-                  Avg. Containers/Month
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {statistics.totalSummaries > 0
-                    ? Math.round(
-                        statistics.totalContainers / statistics.totalSummaries
-                      )
-                    : 0}
-                </div>
-              </div>
-              <div className="p-4 bg-amber-50 rounded-lg">
-                <div className="text-sm text-gray-600">Avg. Final Amount</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  ₹
-                  {statistics.totalSummaries > 0
-                    ? formatNumber(
-                        statistics.totalFinalAmount / statistics.totalSummaries
-                      )
-                    : "0.00"}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Audit Logs Card */}
-        <div className="mt-8 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-lg border border-indigo-200 p-6 hover:shadow-xl transition-all cursor-pointer"
-          onClick={() => router.push("/dashboard/container-summary/audit-logs")}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-indigo-100 rounded-xl">
-                <History className="w-8 h-8 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">
-                  Audit Logs
-                </h3>
-                <p className="text-sm text-gray-600">
-                  View complete audit trail of all changes made to container summaries
-                </p>
-                <p className="text-xs text-indigo-600 mt-2 font-medium">
-                  See which user updated what and when →
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-6 h-6 text-indigo-600" />
-          </div>
-        </div>
 
-        {/* Recent Activity */}
-        {summaries.length > 0 && (
-          <div className="mt-8 bg-white rounded-lg shadow border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Recent Activity
-            </h3>
-            <div className="space-y-3">
-              {summaries.slice(0, 3).map((summary) => (
-                <div
-                  key={`activity-${summary.id}`}
-                  className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/container-summary/${summary.id}`
-                    )
-                  }
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        summary.status === "ACTIVE"
-                          ? "bg-green-500"
-                          : summary.status === "DRAFT"
-                          ? "bg-yellow-500"
-                          : "bg-gray-500"
-                      }`}
-                    ></div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {summary.month}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Updated {formatDate(summary.updatedAt)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">
-                      {summary.totalContainers} containers
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  </div>
-                </div>
-              ))}
-              {summaries.length > 3 && (
-                <button
-                  onClick={() => router.push("/dashboard/container-summary")}
-                  className="w-full text-center py-2 text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  View All Activity →
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Create Button (Fixed for mobile) */}

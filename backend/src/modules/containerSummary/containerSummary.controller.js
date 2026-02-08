@@ -32,15 +32,14 @@ const containerSummaryController = {
   // Get all summaries
   getAllSummaries: async (req, res) => {
     try {
-      const { page = 1, limit = 10, search = "", status } = req.query;
-      const createdBy = req.user.name;
+      const { page = 1, limit = 10, search = "", status, createdBy } = req.query;
 
       const result = await containerSummaryService.getAllSummaries({
         page: parseInt(page),
         limit: parseInt(limit),
         search,
         status: status || undefined,
-        createdBy,
+        createdBy: createdBy || undefined,
       });
 
       res.status(200).json({
@@ -125,7 +124,7 @@ const containerSummaryController = {
   // Get statistics
   getStatistics: async (req, res) => {
     try {
-      const createdBy = req.user.name;
+      const { createdBy } = req.query;
 
       const stats = await containerSummaryService.getStatistics(createdBy);
 
@@ -175,7 +174,7 @@ const containerSummaryController = {
   // Export all summaries to CSV
   exportAllToCSV: async (req, res) => {
     try {
-      const createdBy = req.user.name;
+      const { createdBy } = req.query;
 
       const csvData = await containerSummaryService.exportAllToCSV(createdBy);
 
@@ -263,8 +262,7 @@ const containerSummaryController = {
   // Search summaries
   searchSummaries: async (req, res) => {
     try {
-      const { q } = req.query;
-      const createdBy = req.user.name;
+      const { q, createdBy } = req.query;
 
       const summaries = await containerSummaryService.searchSummaries(
         q || "",
@@ -308,6 +306,76 @@ const containerSummaryController = {
       res.status(200).json({
         success: true,
         data: activities,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
+
+  // Get global activities (themes, etc)
+  getGlobalActivities: async (req, res) => {
+    try {
+      const { limit = 20 } = req.query;
+      const activities = await prisma.summaryActivity.findMany({
+        where: { summaryId: null },
+        include: {
+          user: {
+            select: {
+              name: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: parseInt(limit),
+      });
+
+      res.status(200).json({
+        success: true,
+        data: activities,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
+
+  // Get global themes
+  getThemes: async (req, res) => {
+    try {
+      const themes = await containerSummaryService.getThemes();
+      res.status(200).json({ success: true, data: themes });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  // Upsert global themes
+  upsertThemes: async (req, res) => {
+    try {
+      const { themes } = req.body;
+      const result = await containerSummaryService.upsertThemes(themes, req.user.id, req.user.name);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  // Get all activities across all summaries
+  getAllActivities: async (req, res) => {
+    try {
+      const result = await containerSummaryService.getAllActivities(req.query);
+      res.status(200).json({
+        success: true,
+        data: result.activities,
+        pagination: result.pagination,
       });
     } catch (error) {
       res.status(500).json({
