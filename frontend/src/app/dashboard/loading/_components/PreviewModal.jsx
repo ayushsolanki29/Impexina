@@ -29,7 +29,11 @@ const getImageUrl = (photoPath) => {
   return `${baseUrl}${normalizedPath}`;
 };
 
-export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
+export default function PreviewModal({ sheet, sheets, container, onClose, onUpdate }) {
+  const sheetsList = sheets || (sheet ? [sheet] : []);
+  const isCombined = sheetsList.length > 1;
+  const mainTitle = isCombined ? "Full Container Preview" : `Preview: ${sheet?.shippingMark}`;
+  const firstSheet = sheetsList[0] || {};
   const [showImages, setShowImages] = useState(true);
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -148,6 +152,8 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
     }
   };
 
+  const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark}`;
+
   const handleDownloadPDF = () => performExport('pdf');
   const handleDownloadImage = () => performExport('image');
 
@@ -160,7 +166,7 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `loading-sheet-${sheet.shippingMark}.xlsx`);
+      link.setAttribute("download", `${filename}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -187,6 +193,7 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
   };
 
   const handleStatusChange = async (newStatus) => {
+    if (isCombined) return;
     try {
       setStatusLoading(true);
       const response = await API.patch(`/loading-sheets/${sheet.id}/status`, {
@@ -203,16 +210,26 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
     }
   };
 
-  const totals = sheet.items.reduce(
+  // Helper to calculate totals for a sheet
+  const calculateSheetTotals = (s) => (s.items || []).reduce(
     (acc, item) => {
-      acc.ctn += item.ctn;
-      acc.tPcs += item.tPcs;
-      acc.tCbm += item.tCbm;
-      acc.tWt += item.tWt;
+      acc.ctn += (item.ctn || 0);
+      acc.tPcs += ((item.ctn || 0) * (item.pcs || 0));
+      acc.tCbm += ((item.ctn || 0) * (item.cbm || 0));
+      acc.tWt += ((item.ctn || 0) * (item.wt || 0));
       return acc;
     },
     { ctn: 0, tPcs: 0, tCbm: 0, tWt: 0 }
   );
+
+  const globalTotals = sheetsList.reduce((acc, s) => {
+    const t = calculateSheetTotals(s);
+    acc.ctn += t.ctn;
+    acc.tPcs += t.tPcs;
+    acc.tCbm += t.tCbm;
+    acc.tWt += t.tWt;
+    return acc;
+  }, { ctn: 0, tPcs: 0, tCbm: 0, tWt: 0 });
 
   // Professional HEX Colors (Safe for Export)
   const colors = {
@@ -236,7 +253,7 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50 rounded-t-lg">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-slate-800">Preview: {sheet.shippingMark}</h2>
+            <h2 className="text-lg font-bold text-slate-800">{mainTitle}</h2>
           </div>
           
           <div className="flex items-center gap-2">
@@ -303,7 +320,7 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
                   </h1>
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: 'bold', color: colors.slate700, paddingLeft: '36px' }}>
-                  {sheet.shippingMark}
+                  {isCombined ? "COMBINED SHIPPING MARKS" : firstSheet.shippingMark}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -317,76 +334,117 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
               </div>
             </div>
 
-            {/* Professionally Styled Table */}
-{/* Professionally Styled Table - Optimized Style */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '11px', color: colors.slate700 }}>
-              <thead>
-                <tr style={{ backgroundColor: colors.slate50, borderBottom: `2px solid ${colors.slate300}` }}>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>No.</th>
-                  {showImages && <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>PHOTO</th>}
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>PARTICULAR</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '80px' }}>MARK</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>ITEM NO.</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>CTN</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>PCS</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>T.PCS</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>UNIT</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>CBM</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.CBM</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>WT</th>
-                  <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.WT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sheet.items.map((item, idx) => (
-                  <tr key={item.id} style={{ borderBottom: `1px solid ${colors.slate200}` }}>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: '500' }}>{idx + 1}</td>
-                    {showImages && (
-                      <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '4px', textAlign: 'center' }}>
-                         {item.photo ? (
-                          <img
-                            src={getImageUrl(item.photo)}
-                            alt=""
-                            style={{ width: '40px', height: '40px', objectFit: 'contain', display: 'block', margin: '0 auto', border: `1px solid ${colors.slate200}`, borderRadius: '4px' }}
-                            crossOrigin="anonymous"
-                            onError={(e) => {
-                              console.error("Preview image load error:", getImageUrl(item.photo), item.photo);
-                              e.target.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div style={{ width: '40px', height: '40px', background: colors.slate50, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: `1px dashed ${colors.slate300}`, borderRadius: '4px' }}>-</div>
-                        )}
-                      </td>
-                    )}
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', fontWeight: '500', color: colors.slate900 }}>{item.particular}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontSize: '10px', color: colors.slate500, fontWeight: 'bold' }}>{item.mark || sheet.shippingMark}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontFamily: 'monospace' }}>{item.itemNo || '-'}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{item.ctn}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.pcs}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', backgroundColor: colors.slate50 }}>{item.ctn * item.pcs}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', textTransform: 'uppercase', fontSize: '10px' }}>{item.unit || 'PCS'}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.cbm}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText }}>{(item.ctn * item.cbm).toFixed(3)}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.wt}</td>
-                    <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText }}>{(item.ctn * item.wt).toFixed(2)}</td>
+            {/* Combined/Single Content Rendering */}
+            {sheetsList.map((s, sIdx) => {
+              const sheetTotals = calculateSheetTotals(s);
+              return (
+                <div key={s.id || sIdx} style={{ marginBottom: isCombined ? '40px' : '0' }}>
+                  {isCombined && (
+                    <div style={{ 
+                      fontSize: '14px', 
+                      fontWeight: '900', 
+                      backgroundColor: colors.slate900, 
+                      color: colors.white, 
+                      padding: '8px 12px', 
+                      marginBottom: '10px',
+                      borderRadius: '4px',
+                      display: 'inline-block'
+                    }}>
+                      MARK: {s.shippingMark}
+                    </div>
+                  )}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px', fontSize: '11px', color: colors.slate700 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: colors.slate50, borderBottom: `2px solid ${colors.slate300}` }}>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>No.</th>
+                        {showImages && <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>PHOTO</th>}
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>PARTICULAR</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '80px' }}>MARK</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>ITEM NO.</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>CTN</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>PCS</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>T.PCS</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '40px' }}>UNIT</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>CBM</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.CBM</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>WT</th>
+                        <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.WT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(s.items || []).map((item, idx) => (
+                        <tr key={item.id} style={{ borderBottom: `1px solid ${colors.slate200}` }}>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: '500' }}>{idx + 1}</td>
+                          {showImages && (
+                            <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '4px', textAlign: 'center' }}>
+                               {item.photo ? (
+                                <img
+                                  src={getImageUrl(item.photo)}
+                                  alt=""
+                                  style={{ width: '40px', height: '40px', objectFit: 'contain', display: 'block', margin: '0 auto', border: `1px solid ${colors.slate200}`, borderRadius: '4px' }}
+                                  crossOrigin="anonymous"
+                                  onError={(e) => {
+                                    console.error("Preview image load error:", getImageUrl(item.photo), item.photo);
+                                    e.target.style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <div style={{ width: '40px', height: '40px', background: colors.slate50, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: `1px dashed ${colors.slate300}`, borderRadius: '4px' }}>-</div>
+                              )}
+                            </td>
+                          )}
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', fontWeight: '500', color: colors.slate900 }}>{item.particular}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontSize: '10px', color: colors.slate500, fontWeight: 'bold' }}>{item.mark || s.shippingMark}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontFamily: 'monospace' }}>{item.itemNo || '-'}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{item.ctn}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.pcs}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', backgroundColor: colors.slate50 }}>{(item.ctn || 0) * (item.pcs || 0)}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', textTransform: 'uppercase', fontSize: '10px' }}>{item.unit || 'PCS'}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.cbm}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText }}>{((item.ctn || 0) * (item.cbm || 0)).toFixed(3)}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.wt}</td>
+                          <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText }}>{((item.ctn || 0) * (item.wt || 0)).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: `2px solid ${colors.slate300}`, backgroundColor: colors.slate50 }}>
+                        <td colSpan={showImages ? 5 : 4} style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11px', color: colors.slate500 }}>{isCombined ? `Subtotal (${s.shippingMark})` : "Total"}</td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', color: colors.slate900 }}>{sheetTotals.ctn}</td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText, fontSize: '13px', backgroundColor: colors.white }}>{sheetTotals.tPcs}</td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText, fontSize: '13px', backgroundColor: colors.white }}>{sheetTotals.tCbm.toFixed(3)}</td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
+                        <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText, fontSize: '13px', backgroundColor: colors.white }}>{sheetTotals.tWt.toFixed(2)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              );
+            })}
+
+            {/* Global Container Totals (Only in combined mode) */}
+            {isCombined && (
+              <div style={{ marginTop: '40px', borderTop: `4px double ${colors.slate900}`, paddingTop: '20px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '900', color: colors.slate900, marginBottom: '15px' }}>CONTAINER GLOBAL TOTALS</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <tr style={{ backgroundColor: colors.slate900, color: colors.white }}>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CTN</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL PCS</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CBM</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL WT</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ borderTop: `2px solid ${colors.slate300}`, backgroundColor: colors.slate50 }}>
-                  <td colSpan={showImages ? 5 : 4} style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11px', color: colors.slate500 }}>Total</td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', color: colors.slate900 }}>{totals.ctn}</td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText, fontSize: '13px', backgroundColor: colors.white }}>{totals.tPcs}</td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText, fontSize: '13px', backgroundColor: colors.white }}>{totals.tCbm.toFixed(3)}</td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
-                  <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText, fontSize: '13px', backgroundColor: colors.white }}>{totals.tWt.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
+                  <tr>
+                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.ctn}</td>
+                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.tPcs}</td>
+                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.blueText }}>{globalTotals.tCbm.toFixed(3)}</td>
+                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.orangeText }}>{globalTotals.tWt.toFixed(2)}</td>
+                  </tr>
+                </table>
+              </div>
+            )}
 
             {/* Verification / Copy Section - VISIBLE IN PREVIEW, HIDDEN IN EXPORT */}
             <div 
@@ -414,9 +472,9 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
                   border: `1px solid ${colors.slate200}`
                 }}
               >
-                *{sheet.shippingMark}* CONFIRMATION<br/>
-                CTN: {totals.ctn} | PCS: {totals.tPcs}<br/>
-                CBM: {totals.tCbm.toFixed(3)} | WT: {totals.tWt.toFixed(2)} KG<br/>
+                *{isCombined ? "GLOBAL SUMMARY" : firstSheet.shippingMark}* CONFIRMATION<br/>
+                CTN: {globalTotals.ctn} | PCS: {globalTotals.tPcs}<br/>
+                CBM: {globalTotals.tCbm.toFixed(3)} | WT: {globalTotals.tWt.toFixed(2)} KG<br/>
                 CONTAINER: {container.containerCode}
               </div>
             </div>
@@ -426,21 +484,28 @@ export default function PreviewModal({ sheet, container, onClose, onUpdate }) {
         {/* Modal Footer (Internal) */}
         <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-between items-center rounded-b-lg shrink-0">
           <div className="flex items-center gap-4">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Status:</span>
-            <div className="flex gap-2 bg-slate-100 p-1 rounded">
-              {["DRAFT", "CONFIRMED", "SENT"].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleStatusChange(s)}
-                  disabled={statusLoading}
-                  className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
-                    sheet.status === s ? "bg-slate-800 text-white shadow" : "text-slate-500 hover:bg-white"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            {!isCombined && (
+              <>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Status:</span>
+                <div className="flex gap-2 bg-slate-100 p-1 rounded">
+                  {["DRAFT", "CONFIRMED", "SENT"].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusChange(s)}
+                      disabled={statusLoading}
+                      className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
+                        sheet.status === s ? "bg-slate-800 text-white shadow" : "text-slate-500 hover:bg-white"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {isCombined && (
+              <span className="text-xs font-bold text-slate-400 italic">Combined mode: Status updates disabled</span>
+            )}
           </div>
           <button
             onClick={onClose}

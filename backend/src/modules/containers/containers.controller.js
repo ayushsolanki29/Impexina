@@ -21,13 +21,17 @@ const containerController = {
   // Get all containers
   getAll: async (req, res) => {
     try {
-      const { page, limit, search, origin, status } = req.query;
+      const { page, limit, search, origin, status, startDate, endDate, minCtn, maxCtn } = req.query;
       const result = await containerService.getAllContainers({
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
         search,
         origin,
         status,
+        startDate,
+        endDate,
+        minCtn,
+        maxCtn
       });
 
       res.json({

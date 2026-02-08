@@ -19,6 +19,7 @@ import {
   Check,
   ChevronDown,
   Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import API from "@/lib/api";
 import { toast } from "sonner";
@@ -28,18 +29,18 @@ import PreviewModal from "../_components/PreviewModal";
 // Helper function to get image URL
 const getImageUrl = (photoPath) => {
   if (!photoPath) return null;
-  
+
   // If already a full URL, return as is
   if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
     return photoPath;
   }
-  
+
   // Ensure photoPath starts with /
   const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
-  
+
   // Get base URL and remove trailing slash if present
   const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
-  
+
   return `${baseUrl}${normalizedPath}`;
 };
 
@@ -55,11 +56,14 @@ export default function LoadingSheetPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showGlobalPreview, setShowGlobalPreview] = useState(false);
 
   // Form state
   const [shippingMark, setShippingMark] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientId, setClientId] = useState("");
+  const [shouldFocusNewItem, setShouldFocusNewItem] = useState(false);
+  const lastItemRef = useRef(null);
   const [items, setItems] = useState(() => [
     {
       id: `temp_${Date.now()}_${Math.random()}`,
@@ -235,7 +239,7 @@ export default function LoadingSheetPage() {
           // Check if client name is provided in URL params - try to find matching sheet
           const urlClientName = searchParams.get("client");
           let sheetToLoad = response.data.data.loadingSheets[0];
-          
+
           if (urlClientName) {
             // Try to find a sheet with matching client name
             const matchingSheet = response.data.data.loadingSheets.find(
@@ -245,7 +249,7 @@ export default function LoadingSheetPage() {
               sheetToLoad = matchingSheet;
             }
           }
-          
+
           loadSheet(sheetToLoad);
         }
       }
@@ -260,7 +264,7 @@ export default function LoadingSheetPage() {
   const loadSheet = (sheet) => {
     setActiveSheet(sheet);
     setShippingMark(sheet.shippingMark || "");
-    
+
     // Check if client name is provided in URL params (from bifurcation page)
     const urlClientName = searchParams.get("client");
     if (urlClientName && sheet.clientName === urlClientName) {
@@ -271,7 +275,7 @@ export default function LoadingSheetPage() {
       setClientName(sheet.clientName || "");
       setClientId(sheet.clientId || "");
     }
-    
+
     setItems(sheet.items.length > 0 ? sheet.items : [createEmptyItem()]);
   };
 
@@ -298,7 +302,15 @@ export default function LoadingSheetPage() {
 
   const addItem = () => {
     setItems([...items, createEmptyItem()]);
+    setShouldFocusNewItem(true);
   };
+
+  useEffect(() => {
+    if (shouldFocusNewItem && lastItemRef.current) {
+      lastItemRef.current.focus();
+      setShouldFocusNewItem(false);
+    }
+  }, [items, shouldFocusNewItem]);
 
   const duplicateLastItem = () => {
     if (items.length === 0) return;
@@ -365,7 +377,7 @@ export default function LoadingSheetPage() {
 
       // Check if container exists before accessing properties
       const cCode = container?.containerCode || "UNKNOWN";
-      
+
       // Use current shippingMark from state, or from activeSheet, or "general" as last resort
       // Priority: current state > activeSheet.shippingMark > "general"
       const markForUpload = shippingMark?.trim() || activeSheet?.shippingMark?.trim() || "general";
@@ -633,13 +645,17 @@ export default function LoadingSheetPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      {showPreview && activeSheet && container && (
+      {(showPreview || showGlobalPreview) && container && (
         <PreviewModal
-          sheet={{ ...activeSheet, items }}
+          sheet={showPreview ? { ...activeSheet, items } : null}
+          sheets={showGlobalPreview ? loadingSheets : null}
           container={container}
-          onClose={() => setShowPreview(false)}
+          onClose={() => {
+            setShowPreview(false);
+            setShowGlobalPreview(false);
+          }}
           onUpdate={(newStatus) => {
-            setActiveSheet((prev) => ({ ...prev, status: newStatus }));
+            if (activeSheet) setActiveSheet((prev) => ({ ...prev, status: newStatus }));
             fetchContainerData();
           }}
         />
@@ -664,11 +680,10 @@ export default function LoadingSheetPage() {
                 {/* Container Status Dropdown */}
                 <div className="relative group z-10">
                   <button
-                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors ${
-                      container?.status === "CONFIRMED"
-                        ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-200"
-                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                    }`}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors ${container?.status === "CONFIRMED"
+                      ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      }`}
                   >
                     {container?.status || "OPEN"}{" "}
                     <ChevronDown className="w-3 h-3" />
@@ -678,11 +693,10 @@ export default function LoadingSheetPage() {
                       <button
                         key={s}
                         onClick={() => handleContainerStatusChange(s)}
-                        className={`w-full text-left px-4 py-2 text-xs font-bold hover:bg-slate-50 ${
-                          container?.status === s
-                            ? "text-blue-600 bg-blue-50"
-                            : "text-slate-700"
-                        }`}
+                        className={`w-full text-left px-4 py-2 text-xs font-bold hover:bg-slate-50 ${container?.status === s
+                          ? "text-blue-600 bg-blue-50"
+                          : "text-slate-700"
+                          }`}
                       >
                         {s}
                       </button>
@@ -698,6 +712,16 @@ export default function LoadingSheetPage() {
           </div>
 
           <div className="flex gap-3">
+            {loadingSheets.length > 1 && (
+              <button
+                onClick={() => setShowGlobalPreview(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-lg border border-transparent transition-all active:scale-95"
+                title="Preview All Sheets Combined"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Combine All
+              </button>
+            )}
             {activeSheet && (
               <button
                 onClick={() => setShowPreview(true)}
@@ -785,11 +809,10 @@ export default function LoadingSheetPage() {
                 <button
                   key={sheet.id}
                   onClick={() => loadSheet(sheet)}
-                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all shadow-sm flex flex-col items-start min-w-[140px] ${
-                    activeSheet?.id === sheet.id
-                      ? "bg-slate-800 text-white shadow-md ring-2 ring-slate-800 ring-offset-2"
-                      : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                  }`}
+                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all shadow-sm flex flex-col items-start min-w-[140px] ${activeSheet?.id === sheet.id
+                    ? "bg-slate-800 text-white shadow-md ring-2 ring-slate-800 ring-offset-2"
+                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                    }`}
                 >
                   <div className="font-bold text-sm truncate w-full text-left">
                     {sheet.shippingMark || "Unnamed"}
@@ -799,13 +822,12 @@ export default function LoadingSheetPage() {
                       {sheet.items.length} items
                     </span>
                     <span
-                      className={`text-[10px] font-bold px-1.5 rounded ${
-                        sheet.status === "CONFIRMED"
-                          ? "bg-green-500/20 text-green-700"
-                          : sheet.status === "SENT"
-                            ? "bg-blue-500/20 text-blue-700"
-                            : "bg-slate-200 text-slate-600"
-                      }`}
+                      className={`text-[10px] font-bold px-1.5 rounded ${sheet.status === "CONFIRMED"
+                        ? "bg-green-500/20 text-green-700"
+                        : sheet.status === "SENT"
+                          ? "bg-blue-500/20 text-blue-700"
+                          : "bg-slate-200 text-slate-600"
+                        }`}
                     >
                       {sheet.status || "Draft"}
                     </span>
@@ -837,11 +859,10 @@ export default function LoadingSheetPage() {
                 <button
                   key={status}
                   onClick={() => handleSheetStatusChange(status)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-medium uppercase transition-all ${
-                    (activeSheet?.status || "DRAFT") === status
-                      ? "bg-white text-slate-900 shadow-md scale-105"
-                      : "hover:bg-white/40 text-slate-600"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-medium uppercase transition-all ${(activeSheet?.status || "DRAFT") === status
+                    ? "bg-white text-slate-900 shadow-md scale-105"
+                    : "hover:bg-white/40 text-slate-600"
+                    }`}
                 >
                   {status}
                 </button>
@@ -925,11 +946,10 @@ export default function LoadingSheetPage() {
                         fetchClientSuggestions(e.target.value);
                       }}
                       placeholder="Search or enter client name"
-                      className={`w-full pl-10 pr-12 py-3 text-lg bg-slate-50/50 border rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold ${
-                        clientId
-                          ? "border-green-500 bg-green-50/30"
-                          : "border-slate-200"
-                      }`}
+                      className={`w-full pl-10 pr-12 py-3 text-lg bg-slate-50/50 border rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 focus:bg-white outline-none transition-all font-bold ${clientId
+                        ? "border-green-500 bg-green-50/30"
+                        : "border-slate-200"
+                        }`}
                     />
                     {clientId && (
                       <div className="absolute right-3 top-3.5 flex items-center gap-1.5">
@@ -951,68 +971,68 @@ export default function LoadingSheetPage() {
 
                   {(clientSuggestions.length > 0 ||
                     (clientName && !clientId)) && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-[60]">
-                      {clientSuggestions.map((suggestion, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setClientName(suggestion.name);
-                            setClientId(suggestion.id);
-                            setClientSuggestions([]);
-                          }}
-                          className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-center justify-between group"
-                        >
-                          <div>
-                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                              {suggestion.name}
-                            </div>
-                            {suggestion.companyName && (
-                              <div className="text-xs text-slate-500">
-                                {suggestion.companyName}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">
-                            {suggestion.type}
-                          </div>
-                        </button>
-                      ))}
-
-                      {/* Quick Add Option */}
-                      {clientName &&
-                        !clientId &&
-                        !clientSuggestions.some(
-                          (s) =>
-                            s.name.toLowerCase() === clientName.toLowerCase(),
-                        ) && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-[60]">
+                        {clientSuggestions.map((suggestion, idx) => (
                           <button
-                            onClick={async () => {
-                              try {
-                                const response = await API.post("/clients", {
-                                  name: clientName,
-                                });
-                                if (response.data.success) {
-                                  // Set the ID first to trigger the "Linked" UI
-                                  setClientId(response.data.data.id);
-                                  // Clear suggestions to close the dropdown
-                                  setClientSuggestions([]);
-                                  toast.success("Client added and linked");
-                                }
-                              } catch (error) {
-                                const errorMsg =
-                                  error.response?.data?.message ||
-                                  "Failed to add client";
-                                toast.error(errorMsg);
-                              }
+                            key={idx}
+                            onClick={() => {
+                              setClientName(suggestion.name);
+                              setClientId(suggestion.id);
+                              setClientSuggestions([]);
                             }}
-                            className="w-full px-4 py-3 text-left bg-blue-50 hover:bg-blue-100 flex items-center gap-2 text-blue-700 font-bold"
+                            className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-center justify-between group"
                           >
-                            <Plus className="w-5 h-5" />
-                            Add "{clientName}" as New Client
+                            <div>
+                              <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                {suggestion.name}
+                              </div>
+                              {suggestion.companyName && (
+                                <div className="text-xs text-slate-500">
+                                  {suggestion.companyName}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">
+                              {suggestion.type}
+                            </div>
                           </button>
-                        )}
-                    </div>
-                  )}
+                        ))}
+
+                        {/* Quick Add Option */}
+                        {clientName &&
+                          !clientId &&
+                          !clientSuggestions.some(
+                            (s) =>
+                              s.name.toLowerCase() === clientName.toLowerCase(),
+                          ) && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await API.post("/clients", {
+                                    name: clientName,
+                                  });
+                                  if (response.data.success) {
+                                    // Set the ID first to trigger the "Linked" UI
+                                    setClientId(response.data.data.id);
+                                    // Clear suggestions to close the dropdown
+                                    setClientSuggestions([]);
+                                    toast.success("Client added and linked");
+                                  }
+                                } catch (error) {
+                                  const errorMsg =
+                                    error.response?.data?.message ||
+                                    "Failed to add client";
+                                  toast.error(errorMsg);
+                                }
+                              }}
+                              className="w-full px-4 py-3 text-left bg-blue-50 hover:bg-blue-100 flex items-center gap-2 text-blue-700 font-bold"
+                            >
+                              <Plus className="w-5 h-5" />
+                              Add "{clientName}" as New Client
+                            </button>
+                          )}
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
@@ -1076,7 +1096,7 @@ export default function LoadingSheetPage() {
                       <td className="px-1 py-1 border-r border-slate-200 text-center">
                         <div className="flex justify-center">
                           {item.photo ? (
-                            <div 
+                            <div
                               className="relative group w-9 h-9"
                               onMouseEnter={() => setHoveredIndex(idx)}
                               onMouseLeave={() => setHoveredIndex(null)}
@@ -1109,7 +1129,7 @@ export default function LoadingSheetPage() {
                               </button>
                             </div>
                           ) : (
-                            <label 
+                            <label
                               className="w-9 h-9 flex items-center justify-center border border-dashed border-slate-300 rounded cursor-pointer hover:border-blue-500 text-slate-400 hover:text-blue-500 transition-colors relative"
                               onMouseEnter={() => setHoveredIndex(idx)}
                               onMouseLeave={() => setHoveredIndex(null)}
@@ -1157,6 +1177,7 @@ export default function LoadingSheetPage() {
                       </td>
                       <td className="px-2 py-1.5 border-b border-slate-50">
                         <textarea
+                          ref={idx === items.length - 1 ? lastItemRef : null}
                           value={item.particular}
                           onChange={(e) =>
                             updateItem(idx, "particular", e.target.value)
@@ -1274,7 +1295,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 text-center">
                         <button
                           onClick={() => removeItem(idx)}
-                          className="text-slate-200 hover:text-red-500 transition-all p-2 rounded-xl hover:bg-red-50 active:scale-95"
+                          tabIndex="-1"
+                          className="text-slate-200 hover:text-red-500 transition-all p-2 rounded-xl hover:bg-red-50 active:scale-95 outline-none"
                           title="Delete Item"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1334,7 +1356,7 @@ export default function LoadingSheetPage() {
 
       {/* Custom Context Menu */}
       {contextMenu.visible && (
-        <div 
+        <div
           className="fixed z-[100] bg-white border border-slate-200 shadow-xl rounded-lg py-1 min-w-[120px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
@@ -1348,6 +1370,36 @@ export default function LoadingSheetPage() {
           </button>
         </div>
       )}
+      {/* Shortcuts Help */}
+      <div className="max-w-7xl mx-auto mt-12 mb-8">
+        <div className="bg-white/50 backdrop-blur-sm border border-slate-200 rounded-2xl p-6">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <RefreshCw className="w-3 h-3" />
+            Keyboard Shortcuts
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <ShortcutItem keys={["Ctrl", "S"]} label="Save Sheet" />
+            <ShortcutItem keys={["Ctrl", "Enter"]} label="Add Row" />
+            <ShortcutItem keys={["Esc"]} label="Go Back" />
+            <ShortcutItem keys={["Alt", "N"]} label="New Mark" />
+            <ShortcutItem keys={["Alt", "D"]} label="Duplicate Mark" />
+            <ShortcutItem keys={["Ctrl", "BS"]} label="Delete Last" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+const ShortcutItem = ({ keys, label }) => (
+  <div className="flex flex-col gap-1.5">
+    <div className="flex gap-1">
+      {keys.map((key, i) => (
+        <kbd key={i} className="px-1.5 py-0.5 text-[10px] font-bold bg-white border border-slate-300 rounded shadow-sm text-slate-600">
+          {key}
+        </kbd>
+      ))}
+    </div>
+    <span className="text-[10px] text-slate-500 font-medium">{label}</span>
+  </div>
+);

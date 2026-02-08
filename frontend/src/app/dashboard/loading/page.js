@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Plus, Search, Calendar, MapPin, Package, Loader2, Edit2, Trash2, X,
   ChevronsUpDown, Check, History
 } from 'lucide-react';
@@ -25,7 +25,7 @@ const Combobox = ({ value, onChange, options, placeholder, onAddNew }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -53,7 +53,7 @@ const Combobox = ({ value, onChange, options, placeholder, onAddNew }) => {
               autoFocus
             />
           </div>
-          
+
           <div className="overflow-y-auto flex-1">
             {filteredOptions.length === 0 && search.trim() !== '' && (
               <button
@@ -77,15 +77,14 @@ const Combobox = ({ value, onChange, options, placeholder, onAddNew }) => {
                   setIsOpen(false);
                   setSearch('');
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
-                  value === opt ? 'bg-slate-50 font-medium text-blue-600' : 'text-slate-700'
-                }`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${value === opt ? 'bg-slate-50 font-medium text-blue-600' : 'text-slate-700'
+                  }`}
               >
                 {opt}
                 {value === opt && <Check className="w-3 h-3" />}
               </button>
             ))}
-            
+
             {filteredOptions.length === 0 && !search && (
               <div className="px-3 py-2 text-xs text-slate-400 text-center">
                 No options found
@@ -114,8 +113,7 @@ export default function LoadingPage() {
     origin: '',
     startDate: '',
     endDate: '',
-    minCtn: '',
-    maxCtn: ''
+    ctn: ''
   });
 
   // Debounced Search
@@ -137,7 +135,7 @@ export default function LoadingPage() {
 
   useEffect(() => {
     fetchContainers();
-  }, [pagination.page, debouncedSearch, filters.origin, filters.startDate, filters.endDate, filters.minCtn, filters.maxCtn]);
+  }, [pagination.page, debouncedSearch, filters.origin, filters.startDate, filters.endDate, filters.ctn]);
 
   useEffect(() => {
     fetchOrigins();
@@ -150,7 +148,7 @@ export default function LoadingPage() {
         setOrigins(response.data.data);
       }
     } catch (error) {
-       console.error("Failed to fetch origins");
+      console.error("Failed to fetch origins");
     }
   };
 
@@ -164,22 +162,22 @@ export default function LoadingPage() {
         origin: filters.origin,
         startDate: filters.startDate,
         endDate: filters.endDate,
-        minCtn: filters.minCtn,
-        maxCtn: filters.maxCtn
+        minCtn: filters.ctn,
+        maxCtn: filters.ctn
       };
 
       // Remove empty params
       Object.keys(params).forEach(key => !params[key] && delete params[key]);
 
       const response = await API.get('/containers', { params });
-      
+
       if (response.data.success) {
         setContainers(response.data.data.containers || []);
         // Safely handle aggregates if backend doesn't return them yet (backward compatibility)
         setAggregates(response.data.data.aggregates || { totalCTN: 0, totalCBM: 0, totalWT: 0, totalContainers: 0 });
-        setPagination(prev => ({ 
-          ...prev, 
-          ...response.data.data.pagination 
+        setPagination(prev => ({
+          ...prev,
+          ...response.data.data.pagination
         }));
       }
     } catch (error) {
@@ -201,8 +199,7 @@ export default function LoadingPage() {
       origin: '',
       startDate: '',
       endDate: '',
-      minCtn: '',
-      maxCtn: ''
+      ctn: ''
     });
     setPagination(prev => ({ ...prev, page: 1 }));
   };
@@ -274,25 +271,25 @@ export default function LoadingPage() {
   };
 
   const formatDateTag = (dateString) => {
-     const date = new Date(dateString);
-     // Format: Jan-26
-     return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', '-');
+    const date = new Date(dateString);
+    // Format: Jan-26
+    return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', '-');
   };
 
   // Status Badge Helper
   const getStatusBadge = (status) => {
-     const styles = {
-       'OPEN': 'bg-blue-100 text-blue-700 border-blue-200',
-       'CLOSED': 'bg-slate-100 text-slate-700 border-slate-200',
-       'SHIPPED': 'bg-green-100 text-green-700 border-green-200',
-       'ARRIVED': 'bg-purple-100 text-purple-700 border-purple-200'
-     };
-     const style = styles[status] || styles['OPEN'];
-     return (
-       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${style}`}>
-         {status || 'OPEN'}
-       </span>
-     );
+    const styles = {
+      'OPEN': 'bg-blue-100 text-blue-700 border-blue-200',
+      'CLOSED': 'bg-slate-100 text-slate-700 border-slate-200',
+      'SHIPPED': 'bg-green-100 text-green-700 border-green-200',
+      'ARRIVED': 'bg-purple-100 text-purple-700 border-purple-200'
+    };
+    const style = styles[status] || styles['OPEN'];
+    return (
+      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${style}`}>
+        {status || 'OPEN'}
+      </span>
+    );
   };
 
 
@@ -316,8 +313,8 @@ export default function LoadingPage() {
       </div>
       <div className="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
       <div className="grid grid-cols-2 gap-3 mt-4">
-         <div className="h-16 bg-slate-100 rounded"></div>
-         <div className="h-16 bg-slate-100 rounded"></div>
+        <div className="h-16 bg-slate-100 rounded"></div>
+        <div className="h-16 bg-slate-100 rounded"></div>
       </div>
     </div>
   );
@@ -331,7 +328,7 @@ export default function LoadingPage() {
             <h1 className="text-4xl font-bold text-slate-900 tracking-tight leading-none">Loading Containers</h1>
             <p className="text-slate-500 mt-2 font-normal">Track containers, loading details and shipment stats</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/dashboard/loading/activities')}
@@ -404,11 +401,11 @@ export default function LoadingPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Origin Port</label>
-                <Combobox 
-                   options={origins}
-                   value={formData.origin}
-                   onChange={(val) => setFormData({...formData, origin: val})}
-                   placeholder="Select Origin"
+                <Combobox
+                  options={origins}
+                  value={formData.origin}
+                  onChange={(val) => setFormData({ ...formData, origin: val })}
+                  placeholder="Select Origin"
                 />
               </div>
               <div>
@@ -447,52 +444,45 @@ export default function LoadingPage() {
                 className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none transition-all font-medium text-slate-600 placeholder:text-slate-300"
               />
             </div>
-            
-             <Combobox 
-                   options={origins}
-                   value={filters.origin}
-                   onChange={(val) => handleFilterChange('origin', val)}
-                   placeholder="All Port Origins"
-             />
+
+            <Combobox
+              options={origins}
+              value={filters.origin}
+              onChange={(val) => handleFilterChange('origin', val)}
+              placeholder="All Port Origins"
+            />
 
             <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
-               <input
+              <input
                 type="date"
                 value={filters.startDate}
                 onChange={(e) => handleFilterChange('startDate', e.target.value)}
                 className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
-               />
-               <span className="flex items-center text-slate-200 font-black">/</span>
-               <input
+              />
+              <span className="flex items-center text-slate-200 font-black">/</span>
+              <input
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => handleFilterChange('endDate', e.target.value)}
                 className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
-               />
+              />
             </div>
 
-            <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
-               <input
+            <div className="relative group">
+              <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
+              <input
                 type="number"
-                value={filters.minCtn}
-                onChange={(e) => handleFilterChange('minCtn', e.target.value)}
-                placeholder="Min CTN"
-                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none placeholder:text-slate-300"
-               />
-               <span className="flex items-center text-slate-200 font-black">/</span>
-               <input
-                type="number"
-                value={filters.maxCtn}
-                onChange={(e) => handleFilterChange('maxCtn', e.target.value)}
-                placeholder="Max CTN"
-                className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none placeholder:text-slate-300"
-               />
+                value={filters.ctn}
+                onChange={(e) => handleFilterChange('ctn', e.target.value)}
+                placeholder="Search by CTN (exact match)..."
+                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none transition-all font-medium text-slate-600 placeholder:text-slate-300"
+              />
             </div>
           </div>
-          
-          {(filters.search || filters.origin || filters.startDate || filters.endDate || filters.minCtn || filters.maxCtn) && (
+
+          {(filters.search || filters.origin || filters.startDate || filters.endDate || filters.ctn) && (
             <div className="mt-4 flex justify-end">
-              <button 
+              <button
                 onClick={clearFilters}
                 className="text-xs text-red-500 font-bold uppercase tracking-widest flex items-center gap-1.5 hover:text-red-600 transition-colors"
               >
@@ -510,7 +500,7 @@ export default function LoadingPage() {
         ) : containers.length === 0 ? (
           <div className="bg-white rounded-xl shadow-lg p-16 text-center border border-slate-200">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-               <Package className="w-10 h-10 text-slate-300" />
+              <Package className="w-10 h-10 text-slate-300" />
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">No Containers Found</h3>
             <p className="text-slate-500 max-w-sm mx-auto">
@@ -529,22 +519,22 @@ export default function LoadingPage() {
                     <div className="flex items-start justify-between gap-6 mb-6">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col mb-2">
-                             <div className="flex items-center justify-between mb-3">
-                                {getStatusBadge(container.status)}
-                                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-                                  {formatDateTag(container.loadingDate)}
-                                </span>
-                             </div>
-                             <h3 className="text-2xl font-bold text-slate-900 truncate tracking-tight leading-none" title={container.containerCode}>
-                              {container.containerCode}
-                             </h3>
+                          <div className="flex items-center justify-between mb-3">
+                            {getStatusBadge(container.status)}
+                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                              {formatDateTag(container.loadingDate)}
+                            </span>
+                          </div>
+                          <h3 className="text-2xl font-bold text-slate-900 truncate tracking-tight leading-none" title={container.containerCode}>
+                            {container.containerCode}
+                          </h3>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
                           <MapPin className="w-3.5 h-3.5 text-blue-500" />
                           <span className="truncate">{container.origin}</span>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
                         <button
                           onClick={() => handleEdit(container)}
@@ -579,14 +569,14 @@ export default function LoadingPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="p-6 pt-0">
                     <button
-                        onClick={() => window.location.href = `/dashboard/loading/${container.id}`}
-                        className="w-full bg-slate-900 text-white py-4 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 font-semibold uppercase text-xs tracking-widest active:scale-[0.98]"
+                      onClick={() => window.location.href = `/dashboard/loading/${container.id}`}
+                      className="w-full bg-slate-900 text-white py-4 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 font-semibold uppercase text-xs tracking-widest active:scale-[0.98]"
                     >
-                        <Package className="w-4 h-4" />
-                        Manage Loading
+                      <Package className="w-4 h-4" />
+                      Manage Loading
                     </button>
                   </div>
                 </div>
@@ -595,25 +585,25 @@ export default function LoadingPage() {
 
             {/* Pagination Controls */}
             {pagination.totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 pb-12">
-                     <button
-                        onClick={() => setPagination(prev => ({...prev, page: Math.max(1, prev.page - 1)}))}
-                        disabled={pagination.page === 1}
-                        className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                     >
-                        Previous
-                     </button>
-                     <span className="text-sm text-slate-600 font-medium px-4">
-                        Page {pagination.page} of {pagination.totalPages}
-                     </span>
-                     <button
-                        onClick={() => setPagination(prev => ({...prev, page: Math.min(prev.totalPages, prev.page + 1)}))}
-                        disabled={pagination.page >= pagination.totalPages}
-                        className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                     >
-                        Next
-                     </button>
-                </div>
+              <div className="flex justify-center items-center gap-2 pb-12">
+                <button
+                  onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                  disabled={pagination.page === 1}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-slate-600 font-medium px-4">
+                  Page {pagination.page} of {pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
+                  disabled={pagination.page >= pagination.totalPages}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                >
+                  Next
+                </button>
+              </div>
             )}
           </>
         )}
