@@ -8,7 +8,7 @@ import {
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink,
     Truck, FileText, Package, Waves, MapPin, X, Printer,
     Download, Settings, Info, Briefcase, ChevronsUpDown, Check,
-    Eye, EyeOff, Camera, Trash2, Plus, History, Upload
+    Eye, EyeOff, Camera, Trash2, Plus, History, Upload, FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -248,10 +248,10 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                         <td className="px-3 py-2 text-center text-blue-600 font-semibold text-[9px] truncate max-w-[100px]">{item.transporter || '-'}</td>
                                                         <td className="px-3 py-2 text-right font-medium text-slate-600">{item.totalCbm?.toFixed(3)}</td>
                                                         <td className={`px-3 py-2 text-right font-bold ${parseFloat(item.totalWt) < weightVeryHighThreshold
-                                                                ? 'text-red-600 bg-red-50/50 rounded'
-                                                                : parseFloat(item.totalWt) < weightHighThreshold
-                                                                    ? 'text-amber-600 bg-amber-50/50 rounded'
-                                                                    : 'text-slate-600'
+                                                            ? 'text-red-600 bg-red-50/50 rounded'
+                                                            : parseFloat(item.totalWt) < weightHighThreshold
+                                                                ? 'text-amber-600 bg-amber-50/50 rounded'
+                                                                : 'text-slate-600'
                                                             }`}>
                                                             {item.totalWt?.toFixed(0)}
                                                         </td>
@@ -625,6 +625,7 @@ export default function WarehouseModule() {
     const [previewContainerCode, setPreviewContainerCode] = useState(null);
     const [selectedImagesContainer, setSelectedImagesContainer] = useState(null);
     const [settings, setSettings] = useState({ weightVeryHighThreshold: 69, weightHighThreshold: 75 });
+    const [exporting, setExporting] = useState(false);
 
     // UI State
     const [expandedContainers, setExpandedContainers] = useState({});
@@ -714,6 +715,29 @@ export default function WarehouseModule() {
         }
     };
 
+    const handleExportExcel = async () => {
+        setExporting(true);
+        try {
+            const params = new URLSearchParams({
+                search: searchTerm,
+                origin,
+                dateFrom: dateRange.from,
+                dateTo: dateRange.to
+            });
+            await API.download(
+                `/warehouse/export/excel?${params.toString()}`,
+                {},
+                `warehouse_plan_${new Date().toISOString().slice(0, 10)}.xlsx`
+            );
+            toast.success("Excel Export completed successfully");
+        } catch (error) {
+            console.error("Error exporting warehouse to Excel:", error);
+            toast.error("Failed to export Excel");
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const toggleContainer = (code) => {
         setExpandedContainers(prev => ({
             ...prev,
@@ -758,14 +782,30 @@ export default function WarehouseModule() {
                         <p className="text-xs text-slate-500 mt-1">Logistics & Delivery Schedules</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-
+                    <div className="flex flex-wrap gap-3">
                         <button
                             onClick={() => fetchData(pagination.page)}
-                            className="flex items-center gap-1.5 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors font-medium text-xs whitespace-nowrap"
+                            disabled={loading}
+                            className="inline-flex items-center gap-2.5 bg-white border border-slate-200 text-slate-400 p-3 rounded-2xl hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
                         >
-                            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                            Sync Data
+                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                        </button>
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={exporting || data.length === 0}
+                            className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {exporting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Exporting...
+                                </>
+                            ) : (
+                                <>
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                    Export All (Excel)
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -963,10 +1003,10 @@ export default function WarehouseModule() {
                                                                                 <span className="font-bold text-green-500 text-xs">{item.totalCbm.toFixed(3)}</span>
                                                                             </td>
                                                                             <td className={`px-5 py-4 text-right transition-all ${parseFloat(item.totalWt) < settings.weightVeryHighThreshold
-                                                                                    ? 'text-red-600 font-black bg-red-50/50 rounded-lg'
-                                                                                    : parseFloat(item.totalWt) < settings.weightHighThreshold
-                                                                                        ? 'text-amber-600 font-black bg-amber-50/50 rounded-lg'
-                                                                                        : 'text-orange-500 font-bold'
+                                                                                ? 'text-red-600 font-black bg-red-50/50 rounded-lg'
+                                                                                : parseFloat(item.totalWt) < settings.weightHighThreshold
+                                                                                    ? 'text-amber-600 font-black bg-amber-50/50 rounded-lg'
+                                                                                    : 'text-orange-500 font-bold'
                                                                                 }`}>
                                                                                 <span className="text-xs">{item.totalWt.toFixed(2)}</span>
                                                                             </td>

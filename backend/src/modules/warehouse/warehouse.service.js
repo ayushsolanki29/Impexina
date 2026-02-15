@@ -249,6 +249,90 @@ const warehouseService = {
       distinct: ['transporter']
     });
     return transporters.map(t => t.transporter).sort();
+  },
+
+  exportToExcel: async (filters = {}) => {
+    // Fetch all containers matching filters (no pagination)
+    const containerWhere = {
+      status: { not: 'ARCHIVED' }
+    };
+
+    if (filters.containerId) {
+      containerWhere.id = filters.containerId;
+    }
+
+    if (filters.search || filters.dateFrom || filters.dateTo || filters.origin) {
+      const subWhere = {};
+      if (filters.search) {
+        subWhere.OR = [
+          { containerCode: { contains: filters.search, mode: 'insensitive' } },
+          { loadingSheets: { some: { shippingMark: { contains: filters.search, mode: 'insensitive' } } } }
+        ];
+      }
+      if (filters.dateFrom || filters.dateTo) {
+        subWhere.loadingDate = {};
+        if (filters.dateFrom) subWhere.loadingDate.gte = new Date(filters.dateFrom);
+        if (filters.dateTo) subWhere.loadingDate.lte = new Date(filters.dateTo);
+      }
+      if (filters.origin) {
+        subWhere.origin = { contains: filters.origin, mode: 'insensitive' };
+      }
+      Object.assign(containerWhere, subWhere);
+    }
+
+    const containers = await prisma.container.findMany({
+      where: containerWhere,
+      orderBy: { containerCode: 'asc' },
+      include: {
+        loadingSheets: {
+          include: {
+            items: true,
+            warehouse: true,
+            bifurcation: true
+          },
+          orderBy: { shippingMark: 'asc' }
+        }
+      }
+    });
+
+    const headers = [
+      "Container", "Mark", "CTN", "Product", "Transporter",
+      "CBM", "Weight", "Loading", "Delivery", "Inv #", "GST", "LR"
+    ];
+
+    const rows = [];
+    containers.forEach(container => {
+      container.loadingSheets.forEach(sheet => {
+        const distinctParticulars = [...new Set(sheet.items.map(i => i.particular).filter(Boolean))];
+        let productDescription = distinctParticulars.join(', ');
+        if (distinctParticulars.length > 5) productDescription = 'MIX ITEM';
+
+        const totalCtn = sheet.items.reduce((sum, item) => sum + (item.ctn || 0), 0);
+        const totalCbm = sheet.items.reduce((sum, item) => sum + (item.tCbm || 0), 0);
+        const totalWt = sheet.items.reduce((sum, item) => sum + (item.tWt || 0), 0);
+
+        rows.push([
+          container.containerCode,
+          sheet.shippingMark || 'N/A',
+          totalCtn,
+          productDescription,
+          sheet.warehouse?.transporter || '',
+          parseFloat(totalCbm.toFixed(3)),
+          parseFloat(totalWt.toFixed(2)),
+          container.loadingDate ? new Date(container.loadingDate).toLocaleDateString('en-GB') : '-',
+          sheet.bifurcation?.deliveryDate ? new Date(sheet.bifurcation.deliveryDate).toLocaleDateString('en-GB') : '-',
+          sheet.bifurcation?.invoiceNo || '',
+          sheet.bifurcation?.gstAmount ?? 0,
+          sheet.bifurcation?.lrNo ? "YES" : "NO"
+        ]);
+      });
+      // Add a spacer row between containers
+      if (container.loadingSheets.length > 0) {
+        rows.push(new Array(headers.length).fill(''));
+      }
+    });
+
+    return { headers, rows };
   }
 };
 
