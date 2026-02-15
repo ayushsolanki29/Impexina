@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Plus, Save, Trash2, Loader2, ArrowLeft,
-  Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon
+  Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon, FileSpreadsheet
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -444,6 +444,31 @@ export default function InvoiceEntryPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!invoice?.id) {
+      toast.error("Please save the invoice first");
+      return;
+    }
+    try {
+      toast.info("Generating Excel...");
+      const response = await API.get(`/invoice/${invoice.id}/export/excel`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice_${formData.invNo || 'draft'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel generated successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   const stats = {
     totalItems: items.length,
     totalCtn: items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0),
@@ -504,6 +529,15 @@ export default function InvoiceEntryPage() {
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
               Import
             </button>
+            {invoice && (
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 border border-emerald-300 shadow-sm font-semibold transition-all"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}

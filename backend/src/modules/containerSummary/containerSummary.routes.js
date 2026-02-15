@@ -66,6 +66,9 @@ router.get("/:id/export/excel", containerSummaryController.exportToExcel);
 // Export all summaries to CSV
 router.get("/export/all/csv", containerSummaryController.exportAllToCSV);
 
+// Export all summaries to Excel
+router.get("/export/all/excel", containerSummaryController.exportAllToExcel);
+
 // Get all activities (global audit log)
 router.get("/activities/all", containerSummaryController.getAllActivities);
 

@@ -1,4 +1,5 @@
 const invoiceService = require("./invoice.service");
+const exportService = require("./export.service");
 
 const invoiceController = {
   // --- Invoice Endpoints ---
@@ -50,6 +51,45 @@ const invoiceController = {
       res.json({ success: true, message: "Invoice deleted" });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  exportExcel: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const buffer = await exportService.generateExcel(id);
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=invoice-${id}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("Invoice Export Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  exportAll: async (req, res) => {
+    try {
+      const buffer = await exportService.generateAllContainersExcel();
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=all-invoices-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("All Invoices Export Error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 };

@@ -50,4 +50,27 @@ export const del = async (url, config = {}) => {
   return response.data;
 };
 
+// Download helper
+API.download = async (url, data = {}, fileName = "download") => {
+  const isPost = Object.keys(data).length > 0;
+  const config = { responseType: "blob" };
+
+  const response = isPost
+    ? await API.post(url, data, config)
+    : await API.get(url, config);
+
+  const blob = new Blob([response.data], { type: response.headers["content-type"] });
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+  return response;
+};
+
+export const download = API.download;
+
 export default API;

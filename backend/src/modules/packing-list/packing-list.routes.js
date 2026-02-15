@@ -10,6 +10,8 @@ router.get("/", packingListController.getAll);
 router.get("/container/:containerId", packingListController.getByContainerId);
 router.post("/container/:containerId", packingListController.createOrUpdate);
 router.get("/container/:containerId/import", packingListController.importLoadingItems);
+router.get("/export/all", packingListController.exportAll);
+router.get("/:id/export/excel", packingListController.exportExcel);
 router.delete("/:id", packingListController.delete);
 
 // Company Master (Templates) Routes

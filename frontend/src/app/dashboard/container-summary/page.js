@@ -20,6 +20,7 @@ import {
   ChevronsUpDown,
   Check,
   X,
+  FileSpreadsheet
 } from "lucide-react";
 import API from "@/lib/api";
 
@@ -311,16 +312,36 @@ export default function ContainerSummaryList() {
     setExporting(true);
 
     try {
-      const response = await API.download(
+      await API.download(
         "/container-summaries/export/all/csv",
         {},
         `all_summaries_${new Date().toISOString().slice(0, 10)}.csv`
       );
 
-      toast.success("Export completed successfully");
+      toast.success("CSV Export completed successfully");
     } catch (error) {
       console.error("Error exporting summaries:", error);
       toast.error("Failed to export summaries");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Export all summaries to Excel
+  const exportAllToExcel = async () => {
+    setExporting(true);
+
+    try {
+      await API.download(
+        "/container-summaries/export/all/excel",
+        {},
+        `all_summaries_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+
+      toast.success("Excel Export completed successfully");
+    } catch (error) {
+      console.error("Error exporting summaries to Excel:", error);
+      toast.error("Failed to export Excel");
     } finally {
       setExporting(false);
     }
@@ -434,9 +455,9 @@ export default function ContainerSummaryList() {
 
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={exportAllToCSV}
+                onClick={exportAllToExcel}
                 disabled={exporting || summaries.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-green-600 disabled:bg-green-400 text-white rounded-lg hover:bg-green-700 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exporting ? (
                   <>
@@ -445,8 +466,8 @@ export default function ContainerSummaryList() {
                   </>
                 ) : (
                   <>
-                    <Download className="w-4 h-4" />
-                    Export All
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Export All (Excel)
                   </>
                 )}
               </button>
@@ -454,27 +475,25 @@ export default function ContainerSummaryList() {
                 onClick={() =>
                   router.push("/dashboard/container-summary/create")
                 }
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2.5 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 font-semibold text-sm active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 Create New
               </button>
               <button
                 onClick={loadSummaries}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-400 transition-all"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
                 />
-                Refresh
               </button>
               <button
                 onClick={() => setShowLogs(true)}
-                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex items-center gap-2.5 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl hover:bg-slate-50 transition-all shadow-sm font-semibold text-sm"
               >
-                <History className="w-4 h-4" />
-                Logs
+                <History className="w-4 h-4 text-blue-500" />
+                Audit Logs
               </button>
             </div>
           </div>
@@ -765,21 +784,12 @@ export default function ContainerSummaryList() {
                     <div className="flex gap-2 mt-3">
                       <button
                         onClick={(e) =>
-                          exportSummary(summary.id, summary.month, e)
-                        }
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
-                      >
-                        <Download className="w-3 h-3" />
-                        CSV
-                      </button>
-                      <button
-                        onClick={(e) =>
                           exportSummaryExcel(summary.id, summary.month, e)
                         }
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
                       >
-                        <FileText className="w-3 h-3" />
-                        Excel
+                        <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                        Excel Export
                       </button>
                     </div>
                   </div>

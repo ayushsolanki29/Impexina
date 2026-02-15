@@ -259,6 +259,48 @@ const containerSummaryController = {
     }
   },
 
+  // Export all summaries to Excel
+  exportAllToExcel: async (req, res) => {
+    try {
+      const { createdBy } = req.query;
+
+      const csvData = await containerSummaryService.exportAllToCSV(createdBy);
+
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+
+      // Add main data sheet
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        csvData.headers,
+        ...csvData.rows.filter(row => row.length > 0), // Filter empty separator rows
+      ]);
+      XLSX.utils.book_append_sheet(workbook, worksheet, "All Summaries");
+
+      // Write to buffer
+      const excelBuffer = XLSX.write(workbook, {
+        type: "buffer",
+        bookType: "xlsx",
+      });
+
+      // Set response headers
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="all_summaries_${new Date().toISOString().slice(0, 10)}.xlsx"`
+      );
+
+      res.send(excelBuffer);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
+
   // Search summaries
   searchSummaries: async (req, res) => {
     try {

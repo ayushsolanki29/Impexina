@@ -13,7 +13,9 @@ import {
     ChevronUp,
     Keyboard,
     Command,
-    History
+    History,
+    Download,
+    FileSpreadsheet
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -176,6 +178,21 @@ export default function ContainerSummaryForm({
         const next = [...containers];
         next[index] = { ...next[index], [field]: value };
         setContainers(next);
+    };
+
+    const exportSummaryExcel = async () => {
+        if (!initialData?.id) return;
+        try {
+            await API.download(
+                `/container-summaries/${initialData.id}/export/excel`,
+                {},
+                `${formData.month.replace(/\s+/g, "_") || 'summary'}_${new Date().toISOString().slice(0, 10)}.xlsx`
+            );
+            toast.success("Excel export completed successfully");
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            toast.error("Failed to export to Excel");
+        }
     };
 
     const handleSave = async () => {
@@ -368,6 +385,16 @@ export default function ContainerSummaryForm({
                         </div>
                     </div>
 
+
+                    {!isCreate && initialData?.id && (
+                        <button
+                            onClick={exportSummaryExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg text-[10px] font-bold text-emerald-700 transition-all font-sans uppercase tracking-wider"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Excel
+                        </button>
+                    )}
 
                     <button
                         onClick={() => setShowSettings(true)}

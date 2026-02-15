@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {  toast } from "sonner";
+import { toast } from "sonner";
 import {
   Search,
   Filter,
@@ -37,6 +37,7 @@ import {
   MoreVertical,
   ChevronsUpDown,
   Check,
+  FileSpreadsheet
 } from "lucide-react";
 import API from "@/lib/api";
 
@@ -59,7 +60,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -87,7 +88,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
               autoFocus
             />
           </div>
-          
+
           <div className="overflow-y-auto flex-1">
             {filteredOptions.map((opt) => (
               <button
@@ -97,15 +98,14 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
                   setIsOpen(false);
                   setSearch('');
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                  value === opt ? 'bg-gray-50 font-bold text-blue-600' : 'text-gray-700'
-                }`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${value === opt ? 'bg-gray-50 font-bold text-blue-600' : 'text-gray-700'
+                  }`}
               >
                 {opt}
                 {value === opt && <Check className="w-3 h-3" />}
               </button>
             ))}
-            
+
             {filteredOptions.length === 0 && (
               <div className="px-3 py-2 text-xs text-gray-400 text-center">
                 No options found
@@ -126,7 +126,7 @@ export default function ContainerDashboard() {
   const [viewMode, setViewMode] = useState("grid");
   const [sortConfig, setSortConfig] = useState({
     key: "loadingDate",
-    direction: "desc" 
+    direction: "desc"
   });
   const [filters, setFilters] = useState({
     search: "",
@@ -169,7 +169,7 @@ export default function ContainerDashboard() {
       if (summariesResponse.data.success) {
         const summariesData = summariesResponse.data.data.summaries || [];
         setSummaries(summariesData);
-        
+
         const allContainers = [];
         const containerPromises = summariesData.map(async (summary) => {
           try {
@@ -339,7 +339,7 @@ export default function ContainerDashboard() {
       const matchesShippingLine = !filters.shippingLine || container.shippingLine === filters.shippingLine;
       const matchesContainerCode = !filters.containerCode || container.containerCode === filters.containerCode;
       const matchesOrigin = !filters.origin || container.origin === filters.origin;
-      
+
       let matchesDate = true;
       if (filters.dateFrom || filters.dateTo) {
         const loadingDate = container.loadingDate ? new Date(container.loadingDate).getTime() : 0;
@@ -396,76 +396,18 @@ export default function ContainerDashboard() {
     return { months, shippingLines, containerCodes, origins };
   }, [containers]);
 
-  const exportToCSV = async () => {
-    if (sortedContainers.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
+  const exportToExcel = async () => {
     setExporting(true);
     try {
-      const headers = [
-        "Month",
-        "Container No",
-        "Container Code",
-        "Status",
-        "Loading Date",
-        "ETA",
-        "CTN",
-        "Shipping Line",
-        "BL No",
-        "Dollar Amount",
-        "Dollar Rate",
-        "INR",
-        "Duty (16.5%)",
-        "GST (18%)",
-        "Total Duty",
-        "DO Charge",
-        "CFS",
-        "Final Amount",
-        "Container No.",
-        "SIMS",
-        "Created By",
-      ];
-
-      const rows = sortedContainers.map((container) => [
-        `"${container.month}"`,
-        container.containerNo || "-",
-        `"${container.containerCode || ""}"`,
-        container.status,
-        container.loadingDate ? new Date(container.loadingDate).toISOString().split("T")[0] : "",
-        container.eta || "",
-        container.ctn || 0,
-        `"${container.shippingLine || ""}"`,
-        `"${container.bl || ""}"`,
-        container.dollar || 0,
-        container.dollarRate || 89.7,
-        container.inr || 0,
-        container.duty || 0,
-        container.gst || 0,
-        container.totalDuty || 0,
-        container.doCharge || 58000,
-        container.cfs || 21830,
-        container.finalAmount || 0,
-        `"${container.containerNoField || ""}"`,
-        `"${container.sims || ""}"`,
-        `"${container.summaryCreatedBy || ""}"`,
-      ]);
-
-      const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `containers_${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Exported ${sortedContainers.length} containers successfully`);
+      await API.download(
+        "/container-summaries/export/all/excel",
+        {},
+        `containers_master_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      toast.success("Excel Export completed successfully");
     } catch (error) {
-      console.error("Error exporting CSV:", error);
-      toast.error("Failed to export CSV");
+      console.error("Error exporting summaries to Excel:", error);
+      toast.error("Failed to export Excel");
     } finally {
       setExporting(false);
     }
@@ -544,7 +486,7 @@ export default function ContainerDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
 
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
         <div className="mb-8">
@@ -567,27 +509,31 @@ export default function ContainerDashboard() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => loadDashboardData()}
-                disabled={loadingStats}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+                disabled={loading}
+                className="inline-flex items-center gap-2.5 bg-white border border-slate-200 text-slate-400 p-3 rounded-2xl hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${loadingStats ? "animate-spin" : ""}`} />
-                Refresh Data
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </button>
               <button
-                onClick={exportToCSV}
-                disabled={exporting || sortedContainers.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed transition-all duration-200"
+                onClick={exportToExcel}
+                disabled={exporting || containers.length === 0}
+                className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exporting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Exporting...
+                  </>
                 ) : (
-                  <Download className="w-4 h-4" />
+                  <>
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Export All (Excel)
+                  </>
                 )}
-                Export CSV
               </button>
               <button
                 onClick={() => router.push("/dashboard/container-summary/create")}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm"
+                className="flex items-center gap-2.5 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 font-semibold text-sm active:scale-95"
               >
                 <Package className="w-4 h-4" />
                 New Summary
@@ -750,7 +696,7 @@ export default function ContainerDashboard() {
               <h2 className="text-lg font-semibold text-gray-900">Filter Containers</h2>
               <p className="text-sm text-gray-600">Refine your container view</p>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {hasActiveFilters && (
                 <button
@@ -761,25 +707,23 @@ export default function ContainerDashboard() {
                   Clear Filters
                 </button>
               )}
-              
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setViewMode("grid")}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === "grid"
+                  className={`p-2 rounded-lg transition-all ${viewMode === "grid"
                       ? "bg-blue-100 text-blue-600"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   <Grid className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode("table")}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === "table"
+                  className={`p-2 rounded-lg transition-all ${viewMode === "table"
                       ? "bg-blue-100 text-blue-600"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   <List className="w-4 h-4" />
                 </button>
@@ -848,14 +792,14 @@ export default function ContainerDashboard() {
 
               <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
                 <Calendar className="w-4 h-4 text-gray-400" />
-                <input 
+                <input
                   type="date"
                   className="bg-transparent text-xs font-semibold outline-none text-gray-700"
                   value={filters.dateFrom}
                   onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
                 />
                 <span className="text-gray-300">/</span>
-                <input 
+                <input
                   type="date"
                   className="bg-transparent text-xs font-semibold outline-none text-gray-700"
                   value={filters.dateTo}
@@ -864,7 +808,7 @@ export default function ContainerDashboard() {
               </div>
 
               <div className="lg:col-span-1">
-                <Combobox 
+                <Combobox
                   options={uniqueValues.origins}
                   value={filters.origin}
                   onChange={(val) => setFilters(prev => ({ ...prev, origin: val }))}
@@ -889,7 +833,7 @@ export default function ContainerDashboard() {
               <span className="text-gray-900 font-medium">{filteredContainers.length}</span>
               <span className="text-gray-600"> match your filters</span>
             </div>
-            
+
             <div className="text-sm text-gray-500">
               Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
@@ -907,8 +851,8 @@ export default function ContainerDashboard() {
                 {containers.length === 0 ? "No containers found" : "No matching containers"}
               </h3>
               <p className="text-gray-600 mb-6">
-                {containers.length === 0 
-                  ? "Start by creating your first container summary to see data here." 
+                {containers.length === 0
+                  ? "Start by creating your first container summary to see data here."
                   : "Try adjusting your filters or search terms to find what you're looking for."}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -956,8 +900,8 @@ export default function ContainerDashboard() {
                           >
                             {col.label}
                             {sortConfig.key === col.key && (
-                              sortConfig.direction === "asc" ? 
-                                <ChevronUp className="w-3 h-3" /> : 
+                              sortConfig.direction === "asc" ?
+                                <ChevronUp className="w-3 h-3" /> :
                                 <ChevronDown className="w-3 h-3" />
                             )}
                           </button>
@@ -1196,11 +1140,10 @@ export default function ContainerDashboard() {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-2 h-2 rounded-full ${
-                          container.status === "Loaded" ? "bg-emerald-500" :
-                          container.status === "Insea" ? "bg-sky-500" :
-                          "bg-violet-500"
-                        }`}></div>
+                        <div className={`w-2 h-2 rounded-full ${container.status === "Loaded" ? "bg-emerald-500" :
+                            container.status === "Insea" ? "bg-sky-500" :
+                              "bg-violet-500"
+                          }`}></div>
                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                           {getStatusText(container.status)}
                         </span>
@@ -1215,7 +1158,7 @@ export default function ContainerDashboard() {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="w-4 h-4" />
                     {container.month}
@@ -1291,9 +1234,8 @@ export default function ContainerDashboard() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        container.workflowStatus ? "bg-blue-100 text-blue-700" : "text-gray-500"
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${container.workflowStatus ? "bg-blue-100 text-blue-700" : "text-gray-500"
+                        }`}>
                         {container.workflowStatus || "-"}
                       </span>
                     </div>
@@ -1329,13 +1271,13 @@ export default function ContainerDashboard() {
         {sortedContainers.length > 0 && (
           <div className="mt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{sortedContainers.length}</span> containers shown • 
+              <span className="font-medium text-gray-900">{sortedContainers.length}</span> containers shown •
               <span className="mx-2">Total:</span>
               <span className="font-medium text-gray-900">${formatCurrency(stats.totalValue)}</span>
               <span className="mx-2">•</span>
               <span className="font-medium text-gray-900">₹{formatCurrency(stats.totalFinalAmount)}</span>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}

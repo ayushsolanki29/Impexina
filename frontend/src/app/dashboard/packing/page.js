@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Package, Search, Calendar, MapPin, Loader2, 
+import {
+  Package, Search, Calendar, MapPin, Loader2,
   ChevronRight, ArrowRight, CheckCircle2, Circle,
-  ChevronsUpDown, Check, X
+  ChevronsUpDown, Check, X, FileSpreadsheet
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -26,7 +26,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -54,7 +54,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
               autoFocus
             />
           </div>
-          
+
           <div className="overflow-y-auto flex-1">
             {filteredOptions.map((opt) => (
               <button
@@ -64,15 +64,14 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
                   setIsOpen(false);
                   setSearch('');
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
-                  value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
-                }`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${value === opt ? 'bg-slate-50 font-bold text-blue-600' : 'text-slate-700'
+                  }`}
               >
                 {opt}
                 {value === opt && <Check className="w-3 h-3" />}
               </button>
             ))}
-            
+
             {filteredOptions.length === 0 && (
               <div className="px-3 py-2 text-xs text-slate-400 text-center">
                 No options found
@@ -110,7 +109,7 @@ export default function PackingListDashboard() {
         setOrigins(response.data.data);
       }
     } catch (error) {
-       console.error("Failed to fetch origins");
+      console.error("Failed to fetch origins");
     }
   };
 
@@ -138,6 +137,27 @@ export default function PackingListDashboard() {
     }
   };
 
+  const handleExportAll = async () => {
+    try {
+      toast.info("Preparing Excel export...");
+      const response = await API.get("/packing-list/export/all", {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `all_packing_lists_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel exported successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'CONFIRMED': return 'bg-green-100 text-green-700 border-green-200';
@@ -155,6 +175,14 @@ export default function PackingListDashboard() {
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Packing List</h1>
             <p className="text-slate-500 mt-1">Manage and generate packing lists for your containers</p>
           </div>
+
+          <button
+            onClick={handleExportAll}
+            className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export All (Excel)
+          </button>
         </div>
         <div className="bg-slate-100/50 p-4 rounded-2xl border border-slate-200 mb-8">
           <div className="flex flex-col lg:flex-row gap-4 items-center">
@@ -172,7 +200,7 @@ export default function PackingListDashboard() {
               />
             </div>
 
-            <Combobox 
+            <Combobox
               options={origins}
               value={origin}
               onChange={(val) => {
@@ -184,29 +212,29 @@ export default function PackingListDashboard() {
 
             <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl group focus-within:ring-2 focus-within:ring-blue-500 transition-all w-full lg:w-auto shadow-sm">
               <Calendar className="w-4 h-4 text-slate-400" />
-              <input 
-                  type="date" 
-                  className="bg-transparent text-xs font-bold text-slate-600 outline-none"
-                  value={dateRange.from}
-                  onChange={(e) => {
-                    setDateRange(prev => ({...prev, from: e.target.value}));
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
+              <input
+                type="date"
+                className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                value={dateRange.from}
+                onChange={(e) => {
+                  setDateRange(prev => ({ ...prev, from: e.target.value }));
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
               />
               <span className="text-slate-200 font-black">/</span>
-              <input 
-                  type="date" 
-                  className="bg-transparent text-xs font-bold text-slate-600 outline-none"
-                  value={dateRange.to}
-                  onChange={(e) => {
-                    setDateRange(prev => ({...prev, to: e.target.value}));
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
+              <input
+                type="date"
+                className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                value={dateRange.to}
+                onChange={(e) => {
+                  setDateRange(prev => ({ ...prev, to: e.target.value }));
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
               />
             </div>
 
             {(search || origin || dateRange.from || dateRange.to) && (
-              <button 
+              <button
                 onClick={() => {
                   setSearch('');
                   setOrigin('');
@@ -240,7 +268,7 @@ export default function PackingListDashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {containers.map((container) => (
-              <div 
+              <div
                 key={container.id}
                 onClick={() => router.push(`/dashboard/packing/${container.id}`)}
                 className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer overflow-hidden flex flex-col"
@@ -251,7 +279,7 @@ export default function PackingListDashboard() {
                       <Package className="w-6 h-6" />
                     </div>
                     {container.packingList ? (
-                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadge(container.packingList.status)}`}>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadge(container.packingList.status)}`}>
                         {container.packingList.status}
                       </span>
                     ) : (
@@ -262,7 +290,7 @@ export default function PackingListDashboard() {
                   </div>
 
                   <h3 className="text-xl font-bold text-slate-900 mb-2">{container.containerCode}</h3>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <MapPin className="w-4 h-4 text-slate-400" />
@@ -305,11 +333,10 @@ export default function PackingListDashboard() {
               <button
                 key={i}
                 onClick={() => setPagination(prev => ({ ...prev, page: i + 1 }))}
-                className={`w-10 h-10 rounded-xl font-bold transition-all ${
-                  pagination.page === i + 1 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+                className={`w-10 h-10 rounded-xl font-bold transition-all ${pagination.page === i + 1
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
+                  }`}
               >
                 {i + 1}
               </button>

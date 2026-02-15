@@ -1,5 +1,6 @@
 const packingListService = require("./packing-list.service");
 const companyMasterService = require("./company-master.service");
+const exportService = require("./export.service");
 
 const packingListController = {
   // --- Packing List Endpoints ---
@@ -51,6 +52,45 @@ const packingListController = {
       res.json({ success: true, message: "Packing list deleted" });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  exportExcel: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const buffer = await exportService.generateExcel(id);
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=packing-list-${id}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("Packing List Export Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  exportAll: async (req, res) => {
+    try {
+      const buffer = await exportService.generateAllContainersExcel();
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=all-packing-lists-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("All Packing Lists Export Error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 

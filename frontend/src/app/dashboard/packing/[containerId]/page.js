@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Plus, Save, Trash2, X, Loader2, ArrowLeft,
   Eye, Package, Building2, Landmark, History,
-  Info, Box, Users, Upload, Image as ImageIcon
+  Info, Box, Users, Upload, Image as ImageIcon, FileSpreadsheet
 } from 'lucide-react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
@@ -420,6 +420,31 @@ export default function PackingListEntryPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!packingList?.id) {
+      toast.error("Please save the packing list first");
+      return;
+    }
+    try {
+      toast.info("Generating Excel...");
+      const response = await API.get(`/packing-list/${packingList.id}/export/excel`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `packing_list_${formData.invNo || 'draft'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel generated successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   const stats = {
     totalItems: items.length,
     totalCtn: items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0),
@@ -479,6 +504,15 @@ export default function PackingListEntryPage() {
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
               Import
             </button>
+            {packingList && (
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 border border-emerald-300 shadow-sm font-semibold transition-all"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}
