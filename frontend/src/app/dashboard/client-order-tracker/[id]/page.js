@@ -23,7 +23,8 @@ import {
   Link as LinkIcon,
   Edit2,
   Pencil,
-  Check
+  Check,
+  FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -345,6 +346,28 @@ export default function OrderSheetEditor({ params }) {
     }
   }, [unwrappedParams, rows, fetchSheet]);
 
+  const handleExportSheet = async () => {
+    if (!unwrappedParams?.id) return;
+    try {
+      toast.info("Generating Excel...");
+      const response = await API.get(`/client-order-tracker/sheets/${unwrappedParams.id}/export`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${sheet?.name || 'sheet'}_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel generated successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -409,6 +432,14 @@ export default function OrderSheetEditor({ params }) {
           </div>
 
           <div className="flex gap-3 items-center">
+            <Button
+              onClick={handleExportSheet}
+              variant="outline"
+              className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 h-10 px-4 rounded-lg flex items-center gap-2"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+              Export Excel
+            </Button>
             <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400 mr-2">
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Ctrl+S</kbd>

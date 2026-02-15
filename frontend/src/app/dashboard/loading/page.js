@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus, Search, Calendar, MapPin, Package, Loader2, Edit2, Trash2, X,
-  ChevronsUpDown, Check, History
+  ChevronsUpDown, Check, History, FileSpreadsheet
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import API from '@/lib/api';
@@ -204,6 +204,27 @@ export default function LoadingPage() {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
+  const handleExportAll = async () => {
+    try {
+      toast.info("Preparing Excel export...");
+      const response = await API.get("/loading-sheets/export/all", {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `all_containers_loading_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel exported successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.containerCode.trim()) return toast.error('Container code is required');
@@ -330,6 +351,13 @@ export default function LoadingPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportAll}
+              className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Export All (Excel)
+            </button>
             <button
               onClick={() => router.push('/dashboard/loading/activities')}
               className="flex items-center gap-2.5 bg-white text-slate-600 px-5 py-3 rounded-2xl hover:bg-slate-50 transition-all border border-slate-200 shadow-sm font-semibold text-sm"

@@ -1,8 +1,6 @@
-const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { prisma } = require('../../database/prisma');
-const fs = require('fs');
-const path = require('path');
+const ExcelExporter = require('../../utils/excel-exporter');
 
 const exportService = {
   // Generate Excel for a loading sheet
@@ -21,134 +19,104 @@ const exportService = {
       throw new Error('Loading sheet not found');
     }
 
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(sheet.shippingMark || 'Loading Sheet');
-
-    // Header styling
-    const headerStyle = {
-      font: { bold: true, size: 12, color: { argb: 'FFFFFFFF' } },
-      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } },
-      alignment: { horizontal: 'center', vertical: 'middle' },
-      border: {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      },
-    };
-
-    // Title
-    worksheet.mergeCells('A1:K1');
-    const titleCell = worksheet.getCell('A1');
-    titleCell.value = sheet.shippingMark || 'Loading Sheet';
-    titleCell.font = { bold: true, size: 16 };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 30;
-
-    // Info row
-    worksheet.mergeCells('A2:K2');
-    const infoCell = worksheet.getCell('A2');
-    infoCell.value = `${sheet.container.containerCode} | Loading Date: ${new Date(sheet.container.loadingDate).toLocaleDateString()}`;
-    infoCell.alignment = { horizontal: 'center' };
-    worksheet.getRow(2).height = 20;
-
-    // Column headers
-    const headers = ['Photo', 'Particular', 'Mark', 'Item No.', 'CTN', 'PCS', 'T.PCS', 'Unit', 'CBM', 'T.CBM', 'WT', 'T.WT'];
-    const headerRow = worksheet.getRow(4);
-    headers.forEach((header, index) => {
-      const cell = headerRow.getCell(index + 1);
-      cell.value = header;
-      cell.style = headerStyle;
-    });
-    headerRow.height = 25;
-
-    // Column widths
-    worksheet.columns = [
-      { width: 12 }, // Photo
-      { width: 30 }, // Particular
-      { width: 15 }, // Mark
-      { width: 20 }, // Item No
-      { width: 10 }, // CTN
-      { width: 10 }, // PCS
-      { width: 12 }, // T.PCS
-      { width: 10 }, // Unit
-      { width: 12 }, // CBM
-      { width: 12 }, // T.CBM
-      { width: 12 }, // WT
-      { width: 12 }, // T.WT
+    const columns = [
+      { header: 'Particular', key: 'particular', width: 30 },
+      { header: 'Item No.', key: 'itemNo', width: 20 },
+      { header: 'CTN', key: 'ctn', width: 10 },
+      { header: 'PCS', key: 'pcs', width: 10 },
+      { header: 'T.PCS', key: 'tPcs', width: 12 },
+      { header: 'Unit', key: 'unit', width: 10 },
+      { header: 'CBM', key: 'cbm', width: 12 },
+      { header: 'T.CBM', key: 'tCbm', width: 12 },
+      { header: 'WT', key: 'wt', width: 12 },
+      { header: 'T.WT', key: 'tWt', width: 12 },
     ];
 
-    // Data rows
-    let rowIndex = 5;
-    let totalCTN = 0;
-    let totalTPCS = 0;
-    let totalTCBM = 0;
-    let totalTWT = 0;
+    const data = sheet.items.map(item => ({
+      ...item,
+      particular: item.particular,
+      itemNo: item.itemNo,
+      ctn: item.ctn,
+      pcs: item.pcs,
+      tPcs: item.tPcs,
+      unit: item.unit,
+      cbm: item.cbm,
+      tCbm: item.tCbm,
+      wt: item.wt,
+      tWt: item.tWt
+    }));
 
-    sheet.items.forEach((item) => {
-      const row = worksheet.getRow(rowIndex);
-      
-      row.getCell(1).value = item.photo ? 'Image' : '';
-      row.getCell(2).value = item.particular;
-      row.getCell(3).value = sheet.shippingMark || '';
-      row.getCell(4).value = item.itemNo;
-      row.getCell(5).value = item.ctn;
-      row.getCell(6).value = item.pcs;
-      row.getCell(7).value = item.tPcs;
-      row.getCell(8).value = item.unit;
-      row.getCell(9).value = item.cbm;
-      row.getCell(10).value = item.tCbm;
-      row.getCell(11).value = item.wt;
-      row.getCell(12).value = item.tWt;
+    return await ExcelExporter.generateBuffer({
+      sheetName: (sheet.shippingMark || 'Loading Sheet').substring(0, 31).replace(/[\[\]\?\*\/\\:]/g, ''),
+      title: `${sheet.shippingMark || 'Loading Sheet'} | Container: ${sheet.container.containerCode}`,
+      columns,
+      data
+    });
+  },
 
-      // Styling
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' },
-        };
-        cell.alignment = { vertical: 'middle' };
-      });
-
-      // Center align numbers
-      [5, 6, 7, 8, 9, 10, 11, 12].forEach(col => {
-        row.getCell(col).alignment = { horizontal: 'center', vertical: 'middle' };
-      });
-
-      totalCTN += item.ctn;
-      totalTPCS += item.tPcs;
-      totalTCBM += item.tCbm;
-      totalTWT += item.tWt;
-
-      rowIndex++;
+  // Generate Global Excel for all containers
+  generateAllContainersExcel: async () => {
+    const containers = await prisma.container.findMany({
+      include: {
+        loadingSheets: {
+          include: {
+            items: { orderBy: { createdAt: 'asc' } }
+          }
+        }
+      },
+      orderBy: { loadingDate: 'desc' }
     });
 
-    // Total row
-    const totalRow = worksheet.getRow(rowIndex);
-    totalRow.getCell(1).value = 'TOTAL';
-    totalRow.getCell(5).value = totalCTN;
-    totalRow.getCell(7).value = totalTPCS;
-    totalRow.getCell(10).value = parseFloat(totalTCBM.toFixed(3));
-    totalRow.getCell(12).value = parseFloat(totalTWT.toFixed(2));
+    const columns = [
+      { header: 'Mark', key: 'mark', width: 15 },
+      { header: 'Particular', key: 'particular', width: 30 },
+      { header: 'Item No.', key: 'itemNo', width: 15 },
+      { header: 'CTN', key: 'ctn', width: 10 },
+      { header: 'T.PCS', key: 'tPcs', width: 10 },
+      { header: 'Unit', key: 'unit', width: 10 },
+      { header: 'T.CBM', key: 'tCbm', width: 12 },
+      { header: 'T.WT', key: 'tWt', width: 12 },
+    ];
 
-    totalRow.eachCell((cell) => {
-      cell.font = { bold: true };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
+    const workbookSheets = [];
 
-    // Generate buffer
-    const buffer = await workbook.xlsx.writeBuffer();
-    return buffer;
+    for (const container of containers) {
+      const allItems = [];
+      container.loadingSheets.forEach(ls => {
+        ls.items.forEach(item => {
+          allItems.push({
+            mark: ls.shippingMark || 'N/A',
+            particular: item.particular,
+            itemNo: item.itemNo,
+            ctn: item.ctn,
+            tPcs: item.tPcs,
+            unit: item.unit,
+            tCbm: item.tCbm,
+            tWt: item.tWt
+          });
+        });
+      });
+
+      if (allItems.length > 0) {
+        workbookSheets.push({
+          name: container.containerCode.substring(0, 31).replace(/[\[\]\?\*\/\\:]/g, ''),
+          title: `Container: ${container.containerCode} | Date: ${new Date(container.loadingDate).toLocaleDateString()} | Origin: ${container.origin || 'N/A'}`,
+          columns,
+          data: allItems
+        });
+      }
+    }
+
+    if (workbookSheets.length === 0) {
+      // Add a placeholder sheet if no data
+      workbookSheets.push({
+        name: 'No Data',
+        columns: [{ header: 'Message', key: 'msg', width: 30 }],
+        data: [{ msg: 'No loading sheets found' }]
+      });
+    }
+
+    return await ExcelExporter.generateMultiSheetBuffer(workbookSheets);
   },
 
   // Generate PDF for a loading sheet
@@ -168,10 +136,10 @@ const exportService = {
     }
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ 
-        margin: 40, 
-        size: 'A4', 
-        layout: 'landscape' 
+      const doc = new PDFDocument({
+        margin: 40,
+        size: 'A4',
+        layout: 'landscape'
       });
       const chunks = [];
 
@@ -182,9 +150,9 @@ const exportService = {
       // --- BRANDING / HEADER ---
       doc.fillColor('#1e293b').fontSize(24).font('Helvetica-Bold').text(sheet.shippingMark || 'LOADING SHEET', { tracking: 1 });
       doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('DIGITAL LOADING CONFIRMATION / PACKING LIST', { characterSpacing: 1 });
-      
+
       doc.moveDown(1);
-      
+
       // Horizontal Line
       doc.moveTo(40, doc.y).lineTo(750, doc.y).strokeColor('#e2e8f0').lineWidth(1).stroke();
       doc.moveDown(1);
@@ -208,7 +176,7 @@ const exportService = {
 
       // Header Background
       doc.rect(startX, tableTop, 710, 25).fill('#0f172a');
-      
+
       let x = startX;
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
       headers.forEach((header, i) => {
@@ -243,10 +211,10 @@ const exportService = {
 
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
         doc.rect(startX, y, 710, 25).fill(bgColor);
-        
+
         let rowX = startX;
         doc.fillColor('#1e293b');
-        
+
         const rowData = [
           item.particular,
           item.itemNo || '-',
@@ -278,20 +246,20 @@ const exportService = {
       // --- TOTALS ROW ---
       doc.rect(startX, y, 710, 30).fill('#1e293b');
       doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10);
-      
+
       let footX = startX;
       doc.text('GRAND TOTAL', footX + 5, y + 10, { width: colWidths[0] + colWidths[1] - 10, align: 'right' });
       footX += colWidths[0] + colWidths[1];
-      
+
       doc.text(totalCTN.toString(), footX + 5, y + 10, { width: colWidths[2] - 10, align: 'center' });
       footX += colWidths[2] + colWidths[3]; // skip pcs
-      
+
       doc.text(totalTPCS.toLocaleString(), footX + 5, y + 10, { width: colWidths[4] - 10, align: 'center' });
       footX += colWidths[4] + colWidths[5]; // skip unit
-      
+
       doc.text(totalTCBM.toFixed(3), footX + 5, y + 10, { width: colWidths[6] + colWidths[7] - 10, align: 'center' });
       footX += colWidths[6] + colWidths[7];
-      
+
       doc.text(totalTWT.toFixed(2), footX + 5, y + 10, { width: colWidths[8] - 10, align: 'center' });
 
       // Footer

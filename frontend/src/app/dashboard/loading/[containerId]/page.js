@@ -473,6 +473,31 @@ export default function LoadingSheetPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!activeSheet?.id) {
+      toast.error("Please save the sheet first");
+      return;
+    }
+    try {
+      toast.info("Generating Excel...");
+      const response = await API.get(`/loading-sheets/${activeSheet.id}/export/excel`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${shippingMark || 'loading-sheet'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel generated successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   const handleNewSheet = () => {
     setActiveSheet(null);
     setShippingMark("");
@@ -729,6 +754,15 @@ export default function LoadingSheetPage() {
               >
                 <Eye className="w-4 h-4" />
                 Preview
+              </button>
+            )}
+            {activeSheet && (
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 border border-emerald-300 shadow-sm"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel
               </button>
             )}
             <button

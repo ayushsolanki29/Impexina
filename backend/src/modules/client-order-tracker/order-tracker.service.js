@@ -627,6 +627,99 @@ class OrderTrackerService {
       .filter(Boolean)
       .map(supplier => ({ name: supplier, id: supplier }));
   }
+  // Export Individual Sheet to Excel
+  async exportSingleSheet(sheetId) {
+    const sheet = await this.getSheetById(sheetId);
+    if (!sheet) throw new Error("Sheet not found");
+
+    const ExcelExporter = require('../../utils/excel-exporter');
+
+    const columns = [
+      { header: 'Order Date', key: 'orderDate', width: 15 },
+      { header: 'Shipping Mark', key: 'shippingMark', width: 25 },
+      { header: 'Supplier', key: 'supplier', width: 20 },
+      { header: 'Product', key: 'product', width: 25 },
+      { header: 'Quantity', key: 'quantity', width: 12 },
+      { header: 'CTN', key: 'ctn', width: 10 },
+      { header: 'Mode', key: 'shippingMode', width: 15 },
+      { header: 'Depo', key: 'deposit', width: 12 },
+      { header: 'Bal', key: 'balanceAmount', width: 12 },
+      { header: 'Total', key: 'totalAmount', width: 15 },
+      { header: 'Pay Date', key: 'paymentDate', width: 15 },
+      { header: 'Deli Date', key: 'deliveryDate', width: 15 },
+      { header: 'Load Date', key: 'loadingDate', width: 15 },
+      { header: 'Arr Date', key: 'arrivalDate', width: 15 },
+      { header: 'Code', key: 'shippingCode', width: 15 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'LR No', key: 'lrNo', width: 15 },
+    ];
+
+    const data = sheet.orders.map(order => ({
+      ...order,
+      orderDate: order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '',
+      paymentDate: order.paymentDate ? new Date(order.paymentDate).toLocaleDateString() : '',
+      deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '',
+      loadingDate: order.loadingDate ? new Date(order.loadingDate).toLocaleDateString() : '',
+      arrivalDate: order.arrivalDate ? new Date(order.arrivalDate).toLocaleDateString() : '',
+    }));
+
+    return await ExcelExporter.generateBuffer({
+      sheetName: sheet.name.substring(0, 31),
+      title: `${sheet.name} - Order Tracker`,
+      columns,
+      data
+    });
+  }
+
+  // Export All Sheets to single Excel file
+  async exportAllSheets() {
+    const sheets = await prisma.orderSheet.findMany({
+      include: {
+        orders: { orderBy: { createdAt: 'asc' } },
+        client: true
+      }
+    });
+
+    const ExcelExporter = require('../../utils/excel-exporter');
+
+    const columns = [
+      { header: 'Client', key: 'clientName', width: 20 },
+      { header: 'Sheet', key: 'sheetName', width: 20 },
+      { header: 'Order Date', key: 'orderDate', width: 15 },
+      { header: 'Shipping Mark', key: 'shippingMark', width: 25 },
+      { header: 'Supplier', key: 'supplier', width: 20 },
+      { header: 'Product', key: 'product', width: 25 },
+      { header: 'Quantity', key: 'quantity', width: 12 },
+      { header: 'CTN', key: 'ctn', width: 10 },
+      { header: 'Mode', key: 'shippingMode', width: 15 },
+      { header: 'Depo', key: 'deposit', width: 12 },
+      { header: 'Bal', key: 'balanceAmount', width: 12 },
+      { header: 'Total', key: 'totalAmount', width: 15 },
+      { header: 'Pay Date', key: 'paymentDate', width: 15 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Code', key: 'shippingCode', width: 15 },
+    ];
+
+    // Create pages for multi-sheet
+    const workbookSheets = sheets.map(sheet => {
+      const data = sheet.orders.map(order => ({
+        ...order,
+        clientName: sheet.client?.name || 'N/A',
+        sheetName: sheet.name,
+        orderDate: order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '',
+        paymentDate: order.paymentDate ? new Date(order.paymentDate).toLocaleDateString() : '',
+      }));
+
+      return {
+        name: sheet.name.substring(0, 31).replace(/[\[\]\?\*\/\\:]/g, ''),
+        title: `Client: ${sheet.client?.name || 'Manual'} | Sheet: ${sheet.name}`,
+        columns,
+        data
+      };
+    });
+
+    return await ExcelExporter.generateMultiSheetBuffer(workbookSheets);
+  }
 }
 
 module.exports = new OrderTrackerService();

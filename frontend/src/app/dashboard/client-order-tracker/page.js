@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import API from "@/lib/api";
 import { toast } from "sonner";
-import { 
-  FileSpreadsheet, 
-  Plus, 
-  Search, 
-  Calendar, 
+import {
+  FileSpreadsheet,
+  Plus,
+  Search,
+  Calendar,
   RefreshCw,
   Filter,
   ChevronRight,
@@ -99,8 +99,8 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
   // Click outside to close
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target) && 
-          inputRef.current && !inputRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        inputRef.current && !inputRef.current.contains(e.target)) {
         setShowDropdown(false);
       }
     };
@@ -130,7 +130,7 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
 
       {/* Dropdown */}
       {showDropdown && (search.length >= 1) && (
-        <div 
+        <div
           ref={dropdownRef}
           className="absolute z-50 w-full mt-2 bg-white rounded-xl border border-slate-200 shadow-xl max-h-80 overflow-y-auto"
         >
@@ -143,9 +143,8 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
                 <button
                   key={client.id}
                   onClick={() => handleSelect(client)}
-                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left ${
-                    selectedIndex === index ? "bg-indigo-50" : ""
-                  }`}
+                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left ${selectedIndex === index ? "bg-indigo-50" : ""
+                    }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
                     <User className="w-5 h-5 text-indigo-600" />
@@ -167,11 +166,10 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
                       )}
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${
-                    client.type === "CLIENT" 
-                      ? "bg-emerald-100 text-emerald-700" 
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${client.type === "CLIENT"
+                      ? "bg-emerald-100 text-emerald-700"
                       : "bg-amber-100 text-amber-700"
-                  }`}>
+                    }`}>
                     {client.type}
                   </span>
                 </button>
@@ -190,9 +188,8 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
                 onCreateNew(search);
                 setShowDropdown(false);
               }}
-              className={`w-full px-4 py-3 flex items-center gap-3 border-t border-slate-100 hover:bg-emerald-50 transition-colors text-left ${
-                selectedIndex === suggestions.length ? "bg-emerald-50" : ""
-              }`}
+              className={`w-full px-4 py-3 flex items-center gap-3 border-t border-slate-100 hover:bg-emerald-50 transition-colors text-left ${selectedIndex === suggestions.length ? "bg-emerald-50" : ""
+                }`}
             >
               <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                 <Plus className="w-5 h-5 text-emerald-600" />
@@ -217,7 +214,7 @@ const SheetCard = ({ sheet, onViewDetails }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-4 mb-4">
             <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-               <FileSpreadsheet className="w-8 h-8" />
+              <FileSpreadsheet className="w-8 h-8" />
             </div>
 
             <div className="min-w-0">
@@ -229,7 +226,7 @@ const SheetCard = ({ sheet, onViewDetails }) => {
                   {sheet.name}
                 </button>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    ACTIVE
+                  ACTIVE
                 </span>
               </div>
 
@@ -252,24 +249,24 @@ const SheetCard = ({ sheet, onViewDetails }) => {
         {/* Right Section: Totals */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-8 min-w-[500px]">
           <div className="text-center">
-             <div className="text-sm text-gray-500 mb-1">Orders</div>
-             <div className="text-2xl font-bold text-gray-900">{sheet._count?.orders || 0}</div>
+            <div className="text-sm text-gray-500 mb-1">Orders</div>
+            <div className="text-2xl font-bold text-gray-900">{sheet._count?.orders || 0}</div>
           </div>
           <div className="text-center">
-             <div className="text-sm text-gray-500 mb-1">Items</div>
-             <div className="text-2xl font-bold text-gray-900">{sheet.totalItems || 0}</div>
+            <div className="text-sm text-gray-500 mb-1">Items</div>
+            <div className="text-2xl font-bold text-gray-900">{sheet.totalItems || 0}</div>
           </div>
           <div className="text-center">
-             <div className="text-sm text-gray-500 mb-1">Total Amount</div>
-             <div className="text-2xl font-bold text-gray-900">₹{new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(sheet.totalAmount || 0)}</div>
+            <div className="text-sm text-gray-500 mb-1">Total Amount</div>
+            <div className="text-2xl font-bold text-gray-900">₹{new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(sheet.totalAmount || 0)}</div>
           </div>
-          
-           <div className="col-span-2 md:col-span-4 lg:col-span-1 flex items-center">
+
+          <div className="col-span-2 md:col-span-4 lg:col-span-1 flex items-center">
             <button
-                onClick={() => onViewDetails(sheet.id)}
-                className="w-full h-10 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg transition-colors"
-                >
-                View Details <ChevronRight className="w-4 h-4" />
+              onClick={() => onViewDetails(sheet.id)}
+              className="w-full h-10 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg transition-colors"
+            >
+              View Details <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -279,78 +276,78 @@ const SheetCard = ({ sheet, onViewDetails }) => {
 };
 
 const FiltersPanel = ({ filters, onFilterChange, onClearFilters }) => {
-    return (
-        <div className="p-5 border-b bg-white">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Filters</h3>
-                {(filters.search || filters.month) && (
-                    <button 
-                        onClick={onClearFilters}
-                        className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1"
-                    >
-                        Clear All
-                    </button>
-                )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                 {/* Search */}
-                 <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Search Sheet</label>
-                    <div className="relative">
-                        <input 
-                            type="text"
-                            placeholder="Sheet name or client..."
-                            value={filters.search}
-                            onChange={(e) => onFilterChange('search', e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
-                        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    </div>
-                 </div>
+  return (
+    <div className="p-5 border-b bg-white">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-900">Filters</h3>
+        {(filters.search || filters.month) && (
+          <button
+            onClick={onClearFilters}
+            className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1"
+          >
+            Clear All
+          </button>
+        )}
+      </div>
 
-                 {/* Month Filter */}
-                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Month</label>
-                    <select 
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        value={filters.month}
-                        onChange={(e) => onFilterChange('month', e.target.value)}
-                    >
-                        <option value="">All Months</option>
-                        <option value="January">January</option>
-                        <option value="February">February</option>
-                        <option value="March">March</option>
-                        <option value="April">April</option>
-                        <option value="May">May</option>
-                        <option value="June">June</option>
-                        <option value="July">July</option>
-                        <option value="August">August</option>
-                        <option value="September">September</option>
-                        <option value="October">October</option>
-                        <option value="November">November</option>
-                        <option value="December">December</option>
-                    </select>
-                 </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Search */}
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Search Sheet</label>
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Sheet name or client..."
+              value={filters.search}
+              onChange={(e) => onFilterChange('search', e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
         </div>
-    );
+
+        {/* Month Filter */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Month</label>
+          <select
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={filters.month}
+            onChange={(e) => onFilterChange('month', e.target.value)}
+          >
+            <option value="">All Months</option>
+            <option value="January">January</option>
+            <option value="February">February</option>
+            <option value="March">March</option>
+            <option value="April">April</option>
+            <option value="May">May</option>
+            <option value="June">June</option>
+            <option value="July">July</option>
+            <option value="August">August</option>
+            <option value="September">September</option>
+            <option value="October">October</option>
+            <option value="November">November</option>
+            <option value="December">December</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const ResultsHeader = ({ count, total, hasFilters }) => {
-    return (
-      <div className="px-5 py-3 bg-gray-50/50 border-b flex items-center justify-between">
-        <div className="text-sm text-gray-600">
-          Showing <span className="font-medium text-gray-900">{count}</span> of <span className="font-medium text-gray-900">{total}</span> sheets
-        </div>
-        {hasFilters && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Filter className="w-3 h-3" />
-            Filters applied
-          </div>
-        )}
+  return (
+    <div className="px-5 py-3 bg-gray-50/50 border-b flex items-center justify-between">
+      <div className="text-sm text-gray-600">
+        Showing <span className="font-medium text-gray-900">{count}</span> of <span className="font-medium text-gray-900">{total}</span> sheets
       </div>
-    );
+      {hasFilters && (
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <Filter className="w-3 h-3" />
+          Filters applied
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default function ClientOrderSheets() {
@@ -361,10 +358,10 @@ export default function ClientOrderSheets() {
   const [newSheetName, setNewSheetName] = useState("");
   const [selectedClient, setSelectedClient] = useState(null);
   const [creatingSheet, setCreatingSheet] = useState(false);
-  
+
   const [filters, setFilters] = useState({
-      search: "",
-      month: ""
+    search: "",
+    month: ""
   });
 
   const fetchSheets = async () => {
@@ -451,62 +448,89 @@ export default function ClientOrderSheets() {
   };
 
   const handleFilterChange = (key, value) => {
-      setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const clearFilters = () => {
-      setFilters({ search: "", month: "" });
+    setFilters({ search: "", month: "" });
   };
 
   const filteredSheets = sheets.filter(sheet => {
-      const searchLower = filters.search.toLowerCase();
-      const matchesSearch = sheet.name.toLowerCase().includes(searchLower) ||
-        (sheet.client?.name?.toLowerCase().includes(searchLower));
-      const matchesMonth = filters.month ? sheet.month?.includes(filters.month) : true;
-      return matchesSearch && matchesMonth;
+    const searchLower = filters.search.toLowerCase();
+    const matchesSearch = sheet.name.toLowerCase().includes(searchLower) ||
+      (sheet.client?.name?.toLowerCase().includes(searchLower));
+    const matchesMonth = filters.month ? sheet.month?.includes(filters.month) : true;
+    return matchesSearch && matchesMonth;
   });
 
   const hasFilters = filters.search || filters.month;
 
+  const handleExportAll = async () => {
+    try {
+      toast.info("Preparing Excel export...");
+      const response = await API.get("/client-order-tracker/sheets/export/all", {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `all_sheets_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Excel exported successfully");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* Header */}
         <header className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => router.back()}
-                className="rounded-full h-10 w-10 bg-white"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Client Order Sheets</h1>
-                <p className="text-sm text-gray-600">
-                    Manage client-based order tracking sheets. {sheets.length} sheets available.
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => router.back()}
+              className="rounded-full h-10 w-10 bg-white"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Client Order Sheets</h1>
+              <p className="text-sm text-gray-600">
+                Manage client-based order tracking sheets. {sheets.length} sheets available.
+              </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-                 <Button 
-                    onClick={() => setIsCreating(true)} 
-                    className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
-                 >
-                    <Plus className="w-4 h-4" />
-                    New Sheet
-                    <kbd className="hidden md:inline-flex ml-2 px-1.5 py-0.5 text-[10px] bg-indigo-500 rounded">Ctrl+N</kbd>
-                 </Button>
-                 <button 
-                    onClick={fetchSheets}
-                    className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50"
-                 >
-                    <RefreshCw className="w-4 h-4" /> Refresh
-                 </button>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExportAll}
+              className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-lg hover:bg-emerald-100 transition-colors font-medium"
+            >
+              <FileSpreadsheet className="w-4 h-4" /> Export All (Excel)
+            </button>
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              <Plus className="w-4 h-4" />
+              New Sheet
+              <kbd className="hidden md:inline-flex ml-2 px-1.5 py-0.5 text-[10px] bg-indigo-500 rounded">Ctrl+N</kbd>
+            </Button>
+            <button
+              onClick={fetchSheets}
+              className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          </div>
         </header>
 
         {/* Create Sheet Modal */}
@@ -519,7 +543,7 @@ export default function ClientOrderSheets() {
                   <h3 className="text-lg font-bold text-gray-900">Create New Order Sheet</h3>
                   <p className="text-sm text-gray-500">Select a client or create a new one</p>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setIsCreating(false);
                     setNewSheetName("");
@@ -635,59 +659,59 @@ export default function ClientOrderSheets() {
 
         {/* Main Content Card */}
         <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
-            <FiltersPanel 
-                filters={filters} 
-                onFilterChange={handleFilterChange} 
-                onClearFilters={clearFilters} 
-            />
-            
-            <ResultsHeader 
-                count={filteredSheets.length} 
-                total={sheets.length} 
-                hasFilters={hasFilters} 
-            />
+          <FiltersPanel
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={clearFilters}
+          />
 
-            <div>
-                {loading ? (
-                    <div className="p-12 text-center text-gray-500">
-                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-indigo-500" />
-                      Loading sheets...
-                    </div>
-                ) : filteredSheets.length === 0 ? (
-                    <div className="p-12 text-center">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <FileSpreadsheet className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-gray-900 font-medium mb-1">No sheets found</h3>
-                        <p className="text-gray-500 text-sm mb-4">Try adjusting your filters or create a new sheet.</p>
-                        <Button onClick={() => setIsCreating(true)} className="bg-indigo-600 hover:bg-indigo-700">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create First Sheet
-                        </Button>
-                    </div>
-                ) : (
-                    <div>
-                        {filteredSheets.map(sheet => (
-                            <SheetCard 
-                                key={sheet.id} 
-                                sheet={sheet} 
-                                onViewDetails={(id) => router.push(`/dashboard/client-order-tracker/${id}`)}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
+          <ResultsHeader
+            count={filteredSheets.length}
+            total={sheets.length}
+            hasFilters={hasFilters}
+          />
 
-             {/* Footer */}
-             {filteredSheets.length > 0 && (
-                <div className="px-5 py-4 bg-gray-50 border-t flex items-center justify-between text-sm text-gray-600">
-                     <div>Showing {filteredSheets.length} of {sheets.length} sheets</div>
-                     <div className="flex items-center gap-2 text-xs text-gray-400">
-                       <Keyboard className="w-3 h-3" />
-                       <span>Press <kbd className="px-1 bg-gray-200 rounded">Ctrl+N</kbd> for new sheet</span>
-                     </div>
+          <div>
+            {loading ? (
+              <div className="p-12 text-center text-gray-500">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-indigo-500" />
+                Loading sheets...
+              </div>
+            ) : filteredSheets.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileSpreadsheet className="w-8 h-8 text-gray-400" />
                 </div>
-             )}
+                <h3 className="text-gray-900 font-medium mb-1">No sheets found</h3>
+                <p className="text-gray-500 text-sm mb-4">Try adjusting your filters or create a new sheet.</p>
+                <Button onClick={() => setIsCreating(true)} className="bg-indigo-600 hover:bg-indigo-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Sheet
+                </Button>
+              </div>
+            ) : (
+              <div>
+                {filteredSheets.map(sheet => (
+                  <SheetCard
+                    key={sheet.id}
+                    sheet={sheet}
+                    onViewDetails={(id) => router.push(`/dashboard/client-order-tracker/${id}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {filteredSheets.length > 0 && (
+            <div className="px-5 py-4 bg-gray-50 border-t flex items-center justify-between text-sm text-gray-600">
+              <div>Showing {filteredSheets.length} of {sheets.length} sheets</div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Keyboard className="w-3 h-3" />
+                <span>Press <kbd className="px-1 bg-gray-200 rounded">Ctrl+N</kbd> for new sheet</span>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

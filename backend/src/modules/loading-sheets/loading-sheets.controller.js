@@ -163,6 +163,29 @@ const loadingSheetController = {
     }
   },
 
+  // Export All Containers
+  exportAllContainers: async (req, res) => {
+    try {
+      const buffer = await exportService.generateAllContainersExcel();
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=all-containers-loading-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error('Export all error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate global Excel",
+      });
+    }
+  },
+
   // Export PDF
   exportPDF: async (req, res) => {
     try {

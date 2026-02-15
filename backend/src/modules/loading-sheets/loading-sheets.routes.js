@@ -33,6 +33,7 @@ router.get("/activities", loadingSheetController.getActivities);
 router.get("/suggestions/shipping-marks", loadingSheetController.getShippingMarkSuggestions);
 router.post("/upload-photo", upload.single("photo"), loadingSheetController.uploadPhoto);
 
+router.get("/export/all", loadingSheetController.exportAllContainers);
 router.get("/:id/export/excel", loadingSheetController.exportExcel);
 router.get("/:id/export/pdf", loadingSheetController.exportPDF);
 router.get("/:id/whatsapp", loadingSheetController.getWhatsAppSummary);

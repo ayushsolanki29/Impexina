@@ -412,6 +412,49 @@ const orderTrackerController = {
       console.error('Error fetching supplier suggestions:', error);
       res.status(500).json({ success: false, message: 'Failed to fetch suppliers' });
     }
+  },
+
+  // Export Single Sheet
+  exportSingleSheet: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const buffer = await orderTrackerService.exportSingleSheet(id);
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=sheet_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('Export error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  // Export All Sheets
+  exportAllSheets: async (req, res) => {
+    try {
+      const buffer = await orderTrackerService.exportAllSheets();
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=all_sheets_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('Export error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
   }
 };
 

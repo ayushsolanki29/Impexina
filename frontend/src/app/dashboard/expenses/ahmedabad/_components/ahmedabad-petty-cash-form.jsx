@@ -27,6 +27,7 @@ import {
   RefreshCw,
   AlertCircle,
   Clock,
+  List,
 } from "lucide-react";
 import {  toast } from "sonner";
 import API from "@/lib/api";
@@ -91,7 +92,7 @@ export default function AhmedabadPettyCashForm() {
     } catch (error) {
       console.error("Error loading sheet:", error);
       toast.error("Failed to load petty cash sheet");
-      router.push("/dashboard/expenses/ahmedabad");
+      router.push("/dashboard/expenses/ahmedabad/list");
     } finally {
       setIsLoading(false);
     }
@@ -343,12 +344,21 @@ export default function AhmedabadPettyCashForm() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <button
-                onClick={() =>
-                  router.push("/dashboard/expenses/ahmedabad")
-                }
+                onClick={() => router.push("/dashboard/expenses")}
                 className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Back to Expenses Hub"
               >
                 <ArrowLeft className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={() =>
+                  router.push("/dashboard/expenses/ahmedabad/list")
+                }
+                className="p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200"
+                title="View Ahmedabad Vault List"
+              >
+                <List className="w-5 h-5" />
               </button>
 
               <div className="flex-1">

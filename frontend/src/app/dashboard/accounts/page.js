@@ -66,9 +66,25 @@ export default function AccountsHub() {
       border: "border-emerald-200 hover:border-emerald-400",
     },
     {
-      title: "Partner Ledgers Hub",
-      desc: "Consolidated partner-level multi-currency account management.",
+      title: "David Ledgers",
+      desc: "RMB & USD forex account tracking for David.",
       path: "/dashboard/accounts/david",
+      icon: Globe,
+      color: "bg-blue-50 text-blue-600",
+      border: "border-blue-200 hover:border-blue-400",
+    },
+    {
+      title: "Manoj Ledgers",
+      desc: "RMB & USD forex account tracking for Manoj.",
+      path: "/dashboard/accounts/manoj",
+      icon: Globe,
+      color: "bg-emerald-50 text-emerald-600",
+      border: "border-emerald-200 hover:border-emerald-400",
+    },
+    {
+      title: "Akash Ledgers",
+      desc: "RMB & USD forex account tracking for Akash.",
+      path: "/dashboard/accounts/akash",
       icon: Globe,
       color: "bg-amber-50 text-amber-600",
       border: "border-amber-200 hover:border-amber-400",
@@ -109,7 +125,7 @@ export default function AccountsHub() {
 
   const handleVerify = async (e) => {
     e.preventDefault();
-    
+
     if (!otp) {
       toast.error("Please enter password or keyphrase");
       return;
@@ -125,7 +141,7 @@ export default function AccountsHub() {
       const response = await API.post('/settings/accounts/verify', {
         input: otp
       });
-      
+
       if (response.data.success && response.data.data.isValid) {
         setIsAuthenticated(true);
         toast.success("Access granted");
@@ -147,8 +163,8 @@ export default function AccountsHub() {
   if (!isAuthenticated || !mounted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    
-        
+
+
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
             {/* Header */}
@@ -160,7 +176,7 @@ export default function AccountsHub() {
                 Financial Portal
               </h1>
               <p className="text-gray-500 text-sm">
-                {accountsConfigured 
+                {accountsConfigured
                   ? "Enter password or keyphrase to continue"
                   : "Security not configured. Please set up keyphrase in Settings."}
               </p>
@@ -184,8 +200,8 @@ export default function AccountsHub() {
                 </label>
                 <div className="relative">
                   <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     placeholder="Enter password or keyphrase"
                     className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition disabled:opacity-50 disabled:cursor-not-allowed"
                     value={otp}
@@ -196,7 +212,7 @@ export default function AccountsHub() {
                 </div>
               </div>
 
-              <button 
+              <button
                 type="submit"
                 disabled={!accountsConfigured || verifying || !otp}
                 className="w-full py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -230,8 +246,8 @@ export default function AccountsHub() {
   // --- MAIN DASHBOARD ---
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-   
-      
+
+
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -250,8 +266,8 @@ export default function AccountsHub() {
                 Centralized access to all client and partner financial ledgers.
               </p>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => {
                 setIsAuthenticated(false);
                 toast.info("Session locked");
@@ -276,7 +292,7 @@ export default function AccountsHub() {
               <div className={`w-12 h-12 rounded-lg ${module.color} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
                 <module.icon className="w-6 h-6" />
               </div>
-              
+
               {/* Content */}
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 {module.title}
@@ -284,7 +300,7 @@ export default function AccountsHub() {
               <p className="text-sm text-gray-500 mb-4 leading-relaxed">
                 {module.desc}
               </p>
-              
+
               {/* Action */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <span className="text-xs font-medium text-gray-400">

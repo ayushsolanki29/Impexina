@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import {
     Loader2, RefreshCw, Settings, ChevronLeft, ChevronRight,
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History,
-    Users, ChevronsUpDown, Check, X
+    Users, ChevronsUpDown, Check, X, FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -350,6 +350,34 @@ export default function BifurcationPage() {
         }
     };
 
+    const handleExportExcel = async () => {
+        try {
+            toast.info("Preparing Excel export...");
+            const params = new URLSearchParams({
+                search: searchTerm,
+                dateFrom: dateRange.from,
+                dateTo: dateRange.to,
+                origin: origin
+            });
+
+            const response = await API.get(`/bifurcation/export?${params.toString()}`, {
+                responseType: 'blob'
+            });
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `bifurcation_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success("Excel exported successfully");
+        } catch (error) {
+            console.error("Export error:", error);
+            toast.error("Failed to export Excel");
+        }
+    };
+
     const toggleContainer = (code) => {
         setExpandedContainers(prev => ({
             ...prev,
@@ -420,6 +448,14 @@ export default function BifurcationPage() {
                             className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm text-slate-400"
                         >
                             <Settings className="w-4 h-4" />
+                        </button>
+
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm group"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Export (Excel)</span>
                         </button>
 
                         <button

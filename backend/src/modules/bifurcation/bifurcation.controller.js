@@ -1,4 +1,5 @@
 const bifurcationService = require('./bifurcation.service');
+const exportService = require('./export.service');
 
 const bifurcationController = {
   getReport: async (req, res) => {
@@ -13,6 +14,26 @@ const bifurcationController = {
       });
     } catch (error) {
       console.error('Bifurcation Report Error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  exportExcel: async (req, res) => {
+    try {
+      const filters = req.query;
+      const buffer = await exportService.generateExcel(filters);
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=bifurcation-report-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error('Bifurcation Export Error:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   },

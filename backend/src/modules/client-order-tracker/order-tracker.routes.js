@@ -8,14 +8,14 @@ const orderTrackerValidation = require('./order-tracker.validation');
 const validate = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body);
-    
+
     if (error) {
       return res.status(400).json({
         success: false,
         message: error.details[0].message
       });
     }
-    
+
     next();
   };
 };
@@ -23,14 +23,14 @@ const validate = (schema) => {
 const validateQuery = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.query);
-    
+
     if (error) {
       return res.status(400).json({
         success: false,
         message: error.details[0].message
       });
     }
-    
+
     next();
   };
 };
@@ -56,8 +56,14 @@ router.get('/suppliers/suggestions', orderTrackerController.getSupplierSuggestio
 // List Sheets
 router.get('/sheets', orderTrackerController.getAllSheets);
 
+// Export All Sheets
+router.get('/sheets/export/all', orderTrackerController.exportAllSheets);
+
 // Create Sheet
 router.post('/sheets', orderTrackerController.createSheet);
+
+// Export Single Sheet
+router.get('/sheets/:id/export', orderTrackerController.exportSingleSheet);
 
 // Get Single Sheet
 router.get('/sheets/:id', orderTrackerController.getSheetById);

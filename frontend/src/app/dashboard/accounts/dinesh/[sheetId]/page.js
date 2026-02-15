@@ -26,8 +26,10 @@ import {
   Lock,
   Unlock,
   Edit,
+  Eye,
 } from "lucide-react";
 import { dineshbhaiAPI } from "@/services/dineshbhai.service";
+import DineshPreviewModal from "./_components/DineshPreviewModal";
 
 export default function DineshSheetPage() {
   const params = useParams();
@@ -37,6 +39,7 @@ export default function DineshSheetPage() {
   const [sheet, setSheet] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Filters
   const [dateRange, setDateRange] = useState({
@@ -230,9 +233,9 @@ export default function DineshSheetPage() {
       if (!entryToUpdate) return;
 
       // Include existing data to satisfy required field constraints in partial updates
-      const updateData = { 
+      const updateData = {
         ...entryToUpdate,
-        [field]: value 
+        [field]: value
       };
 
       // Ensure numbers are correctly formatted
@@ -322,7 +325,7 @@ export default function DineshSheetPage() {
         <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between gap-6">
             <button
-              onClick={() => router.push("/dashboard/accounts/dinesh")}
+              onClick={() => router.push("/dashboard/accounts")}
               className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium text-sm"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -333,24 +336,18 @@ export default function DineshSheetPage() {
               {sheet && (
                 <>
                   <button
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all font-semibold text-sm shadow-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Preview
+                  </button>
+                  <button
                     onClick={handleExport}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 font-semibold text-sm active:scale-95"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 font-semibold text-sm active:scale-95 text-white"
                   >
                     <FileDown className="w-4 h-4" />
                     Export Excel
-                  </button>
-                  <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all font-semibold text-sm">
-                    <Printer className="w-4 h-4" />
-                    Print
-                  </button>
-                  <button
-                    onClick={() =>
-                      router.push(`/dashboard/accounts/dinesh/${sheet.id}/edit`)
-                    }
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all font-semibold text-sm"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4" /> Edit
                   </button>
                 </>
               )}
@@ -380,13 +377,12 @@ export default function DineshSheetPage() {
                     </span>
                   )}
                   <span
-                    className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full border ${
-                      sheet?.status === "ACTIVE"
+                    className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full border ${sheet?.status === "ACTIVE"
                         ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                         : sheet?.status === "ARCHIVED"
-                        ? "bg-slate-50 text-slate-500 border-slate-100"
-                        : "bg-amber-50 text-amber-600 border-amber-100"
-                    }`}
+                          ? "bg-slate-50 text-slate-500 border-slate-100"
+                          : "bg-amber-50 text-amber-600 border-amber-100"
+                      }`}
                   >
                     {sheet?.status}
                   </span>
@@ -500,12 +496,12 @@ export default function DineshSheetPage() {
                     sheetId === "new"
                       ? router.push("/dashboard/dineshbhai")
                       : setEditSheet({
-                          title: sheet.title,
-                          description: sheet.description || "",
-                          tags: sheet.tags || [],
-                          isLocked: sheet.isLocked || false,
-                          status: sheet.status,
-                        })
+                        title: sheet.title,
+                        description: sheet.description || "",
+                        tags: sheet.tags || [],
+                        isLocked: sheet.isLocked || false,
+                        status: sheet.status,
+                      })
                   }
                   className="flex-1 py-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 font-bold uppercase text-[10px] tracking-widest transition-all"
                 >
@@ -735,11 +731,10 @@ export default function DineshSheetPage() {
 
                           <td className="px-6 py-3 text-right">
                             <div
-                              className={`font-bold tracking-tight ${
-                                row.balance > 0
+                              className={`font-bold tracking-tight ${row.balance > 0
                                   ? "text-amber-500"
                                   : "text-emerald-500"
-                              }`}
+                                }`}
                             >
                               ₹{row.balance.toLocaleString()}
                             </div>
@@ -763,72 +758,72 @@ export default function DineshSheetPage() {
                       {/* New Entry Row */}
                       <tr className="bg-blue-50/30 border-t-2 border-blue-100/50">
                         <td className="px-6 py-4">
+                          <input
+                            className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none font-bold text-slate-900 transition-all text-sm placeholder:text-slate-300"
+                            placeholder="Supplier name"
+                            value={entry.supplier}
+                            onChange={(e) => setEntry({ ...entry, supplier: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
+                          />
+                          <input
+                            className="mt-2 w-full px-3 py-1.5 rounded-lg border border-blue-100 bg-white/50 focus:bg-white outline-none text-[10px] font-medium text-slate-600"
+                            placeholder="Reference / Notes"
+                            value={entry.clientRef}
+                            onChange={(e) => setEntry({ ...entry, clientRef: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <input
+                            type="date"
+                            className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none text-xs font-bold text-slate-700 transition-all"
+                            value={entry.paymentDate}
+                            onChange={(e) => setEntry({ ...entry, paymentDate: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1.5 justify-end">
                             <input
-                              className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none font-bold text-slate-900 transition-all text-sm placeholder:text-slate-300"
-                              placeholder="Supplier name"
-                              value={entry.supplier}
-                              onChange={(e) => setEntry({ ...entry, supplier: e.target.value })}
-                              onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
-                            />
-                            <input
-                              className="mt-2 w-full px-3 py-1.5 rounded-lg border border-blue-100 bg-white/50 focus:bg-white outline-none text-[10px] font-medium text-slate-600"
-                              placeholder="Reference / Notes"
-                              value={entry.clientRef}
-                              onChange={(e) => setEntry({ ...entry, clientRef: e.target.value })}
-                              onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                             <input
-                              type="date"
-                              className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none text-xs font-bold text-slate-700 transition-all"
-                              value={entry.paymentDate}
-                              onChange={(e) => setEntry({ ...entry, paymentDate: e.target.value })}
-                              onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                             <div className="flex items-center gap-1.5 justify-end">
-                              <input
-                                type="number"
-                                step="0.001"
-                                className="w-20 px-2 py-2 rounded-xl border border-blue-100 bg-white focus:border-blue-400 outline-none text-right font-bold text-slate-700 text-xs transition-all"
-                                placeholder="Qty"
-                                value={entry.booking}
-                                onChange={(e) => setEntry({ ...entry, booking: e.target.value })}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
-                              />
-                              <span className="text-blue-300 font-black">×</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="w-20 px-2 py-2 rounded-xl border border-blue-100 bg-white focus:border-blue-400 outline-none text-right font-bold text-slate-700 text-xs transition-all"
-                                placeholder="Rate"
-                                value={entry.rate}
-                                onChange={(e) => setEntry({ ...entry, rate: e.target.value })}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="text-sm font-black text-slate-900">₹{entry.total.toLocaleString()}</div>
-                            <div className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter mt-1">Calculated</div>
-                          </td>
-                          <td className="px-6 py-4">
-                             <input
                               type="number"
-                              className="w-full px-3 py-3 rounded-xl border border-emerald-200 bg-emerald-50/50 focus:bg-white focus:border-emerald-400 outline-none text-right font-black text-emerald-600 transition-all text-sm"
-                              placeholder="Paid"
-                              value={entry.paid}
-                              onChange={(e) => setEntry({ ...entry, paid: e.target.value })}
+                              step="0.001"
+                              className="w-20 px-2 py-2 rounded-xl border border-blue-100 bg-white focus:border-blue-400 outline-none text-right font-bold text-slate-700 text-xs transition-all"
+                              placeholder="Qty"
+                              value={entry.booking}
+                              onChange={(e) => setEntry({ ...entry, booking: e.target.value })}
                               onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
                             />
-                          </td>
-                        <td className="px-6 py-4 text-right">
-                           <div className="text-xs font-black text-slate-400">NEW ENTRY</div>
+                            <span className="text-blue-300 font-black">×</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-20 px-2 py-2 rounded-xl border border-blue-100 bg-white focus:border-blue-400 outline-none text-right font-bold text-slate-700 text-xs transition-all"
+                              placeholder="Rate"
+                              value={entry.rate}
+                              onChange={(e) => setEntry({ ...entry, rate: e.target.value })}
+                              onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
+                            />
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                           <button
+                          <div className="text-sm font-black text-slate-900">₹{entry.total.toLocaleString()}</div>
+                          <div className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter mt-1">Calculated</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <input
+                            type="number"
+                            className="w-full px-3 py-3 rounded-xl border border-emerald-200 bg-emerald-50/50 focus:bg-white focus:border-emerald-400 outline-none text-right font-black text-emerald-600 transition-all text-sm"
+                            placeholder="Paid"
+                            value={entry.paid}
+                            onChange={(e) => setEntry({ ...entry, paid: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddEntry(e)}
+                          />
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-xs font-black text-slate-400">NEW ENTRY</div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
                             onClick={handleAddEntry}
                             className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-90"
                             title="Save Entry"
@@ -869,6 +864,14 @@ export default function DineshSheetPage() {
           </div>
         </div>
       )}
+      {/* Preview Modal */}
+      <DineshPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        sheet={sheet}
+        entries={entries}
+        totals={totals}
+      />
     </div>
   );
 }

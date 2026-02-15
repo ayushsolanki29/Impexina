@@ -18,8 +18,10 @@ import {
   Filter,
   Edit,
   Lock,
+  FileText,
 } from "lucide-react";
 import { tukaramAPI } from "@/services/tukaram.service";
+import TukaramPreviewModal from "./_components/TukaramPreviewModal";
 
 export default function TukaramSheetPage() {
   const params = useParams();
@@ -29,6 +31,7 @@ export default function TukaramSheetPage() {
   const [sheet, setSheet] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -128,12 +131,12 @@ export default function TukaramSheetPage() {
       }
     } catch (error) {
       console.error("Save sheet error:", error);
-      
+
       // Handle different error response formats
       const responseData = error.response?.data || error.data || {};
       const errorMessage = responseData.message || error.message || "Failed to save sheet";
       const errors = responseData.errors || [];
-      
+
       if (errors && Array.isArray(errors) && errors.length > 0) {
         // Show all validation errors
         errors.forEach(err => {
@@ -155,21 +158,21 @@ export default function TukaramSheetPage() {
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         const target = e.target;
         const isInEntriesTable = target.closest('table');
-        
+
         // Don't trigger if we're typing in the entries table
         if (isInEntriesTable) {
           return;
         }
-        
+
         // Check if the sheet form is visible (for new or edit mode)
         const isNewSheet = sheetId === "new";
         const isEditMode = sheet && editSheet && editSheet.title;
-        
+
         if (isNewSheet || isEditMode) {
           e.preventDefault();
           // Create a synthetic event and call handleSaveSheet directly
           const syntheticEvent = {
-            preventDefault: () => {},
+            preventDefault: () => { },
             target: { form: document.querySelector('form') }
           };
           handleSaveSheet(syntheticEvent);
@@ -275,12 +278,12 @@ export default function TukaramSheetPage() {
       loadSheetData();
     } catch (error) {
       console.error("Add entry error:", error);
-      
+
       // Handle different error response formats
       const responseData = error.response?.data || error.data || {};
       const errorMessage = responseData.message || error.message || "Failed to add entry";
       const errors = responseData.errors || [];
-      
+
       if (errors && Array.isArray(errors) && errors.length > 0) {
         // Show all validation errors
         errors.forEach(err => {
@@ -341,12 +344,12 @@ export default function TukaramSheetPage() {
       loadSheetData();
     } catch (error) {
       console.error("Update entry error:", error);
-      
+
       // Handle different error response formats
       const responseData = error.response?.data || error.data || {};
       const errorMessage = responseData.message || error.message || "Failed to update entry";
       const errors = responseData.errors || [];
-      
+
       if (errors && Array.isArray(errors) && errors.length > 0) {
         // Show all validation errors
         errors.forEach(err => {
@@ -456,7 +459,7 @@ export default function TukaramSheetPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push("/dashboard/accounts/tukaram")}
+                onClick={() => router.push("/dashboard/accounts")}
                 className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -476,11 +479,11 @@ export default function TukaramSheetPage() {
               {sheet && !sheet.isLocked && (
                 <>
                   <button
-                    onClick={handleExport}
+                    onClick={() => setIsPreviewOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 font-medium text-sm"
                   >
-                    <FileDown className="w-4 h-4" />
-                    Export
+                    <FileText className="w-4 h-4" />
+                    Preview
                   </button>
                   <button
                     onClick={() =>
@@ -571,13 +574,13 @@ export default function TukaramSheetPage() {
                     sheetId === "new"
                       ? router.push("/dashboard/accounts/tukaram")
                       : setEditSheet({
-                          title: sheet.title,
-                          description: sheet.description || "",
-                          tags: sheet.tags || [],
-                          isLocked: sheet.isLocked || false,
-                          status: sheet.status,
-                          openingBalance: sheet.openingBalance || 0,
-                        })
+                        title: sheet.title,
+                        description: sheet.description || "",
+                        tags: sheet.tags || [],
+                        isLocked: sheet.isLocked || false,
+                        status: sheet.status,
+                        openingBalance: sheet.openingBalance || 0,
+                      })
                   }
                   className="flex-1 py-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 font-bold uppercase text-[10px] tracking-widest"
                 >
@@ -1190,6 +1193,16 @@ export default function TukaramSheetPage() {
           </div>
         </div>
       )}
+
+      {/* Preview Modal */}
+      <TukaramPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        sheet={sheet}
+        entries={entries}
+        totals={totals}
+        finalBalance={finalBalance}
+      />
     </div>
   );
 }

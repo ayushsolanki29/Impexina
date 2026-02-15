@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Wallet, ArrowRight, TrendingDown } from "lucide-react";
+import { Building2, Wallet, ArrowRight } from "lucide-react";
 
 export default function ExpensesHub() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function ExpensesHub() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {MODULES.map((m) => (
-            <div 
+            <div
               key={m.title}
               onClick={() => router.push(m.path)}
               className={`bg-white p-6 rounded-2xl border ${m.border} shadow-sm hover:shadow-md transition-all cursor-pointer group relative overflow-hidden`}

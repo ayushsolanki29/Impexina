@@ -26,6 +26,7 @@ import {
   RefreshCw,
   AlertCircle,
   Clock,
+  List,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -87,7 +88,7 @@ export default function MumbaiLedgerForm() {
     } catch (error) {
       console.error("Error loading ledger:", error);
       toast.error("Failed to load ledger");
-      router.push("/dashboard/expenses/mumbai");
+      router.push("/dashboard/expenses/mumbai/list");
     } finally {
       setIsLoading(false);
     }
@@ -114,11 +115,11 @@ export default function MumbaiLedgerForm() {
     setIsSaving(true);
     try {
       let response;
-      
+
       if (ledgerId === "new") {
         response = await API.post("/expenses/mumbai-ledger", ledger);
         toast.success("Ledger created successfully");
-        
+
         // Redirect to edit page for new ledger
         if (response.data.success) {
           setTimeout(() => {
@@ -159,7 +160,7 @@ export default function MumbaiLedgerForm() {
       const entryData = {
         ...newEntry,
         amount: parseFloat(newEntry.amount),
-        items: newEntry.type === "EXPENSE" ? newEntry.items.filter(item => 
+        items: newEntry.type === "EXPENSE" ? newEntry.items.filter(item =>
           item.label.trim() && item.amount && parseFloat(item.amount) > 0
         ) : [],
       };
@@ -171,10 +172,10 @@ export default function MumbaiLedgerForm() {
 
       if (response.data.success) {
         toast.success("Entry added successfully");
-        
+
         // Add to local state
         setEntries(prev => [response.data.data, ...prev]);
-        
+
         // Update ledger totals locally
         if (ledger) {
           const amount = parseFloat(newEntry.amount);
@@ -185,7 +186,7 @@ export default function MumbaiLedgerForm() {
             totalBalance: prev.totalBalance + (newEntry.type === "ADVANCE" ? amount : -amount),
           }));
         }
-        
+
         // Reset form
         setNewEntry({
           type: "EXPENSE",
@@ -215,12 +216,12 @@ export default function MumbaiLedgerForm() {
 
       if (response.data.success) {
         toast.success("Entry updated");
-        
+
         // Update local state
-        setEntries(prev => prev.map(entry => 
+        setEntries(prev => prev.map(entry =>
           entry.id === entryId ? response.data.data : entry
         ));
-        
+
         // Reload ledger to update totals
         if (ledgerId !== "new") {
           loadLedger();
@@ -240,10 +241,10 @@ export default function MumbaiLedgerForm() {
 
       if (response.data.success) {
         toast.success("Entry deleted");
-        
+
         // Remove from local state
         setEntries(prev => prev.filter(entry => entry.id !== entryId));
-        
+
         // Reload ledger to update totals
         if (ledgerId !== "new") {
           loadLedger();
@@ -280,16 +281,16 @@ export default function MumbaiLedgerForm() {
   // Calculate totals
   const calculateItemTotal = () => {
     if (newEntry.type !== "EXPENSE") return newEntry.amount || 0;
-    
+
     const total = newEntry.items.reduce((sum, item) => {
       return sum + (parseFloat(item.amount) || 0);
     }, 0);
-    
+
     // Update the amount field
     if (total > 0 && total !== parseFloat(newEntry.amount || 0)) {
       handleNewEntryChange("amount", total.toString());
     }
-    
+
     return total;
   };
 
@@ -303,13 +304,13 @@ export default function MumbaiLedgerForm() {
 
   // Filter entries
   const filteredEntries = entries.filter(entry => {
-    const matchesSearch = search ? 
+    const matchesSearch = search ?
       entry.containerCode?.toLowerCase().includes(search.toLowerCase()) ||
       entry.expenseNote?.toLowerCase().includes(search.toLowerCase()) ||
       entry.advanceNote?.toLowerCase().includes(search.toLowerCase()) : true;
-    
+
     const matchesType = filterType === "ALL" || entry.type === filterType;
-    
+
     return matchesSearch && matchesType;
   });
 
@@ -349,25 +350,34 @@ export default function MumbaiLedgerForm() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
 
-      
+
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push("/dashboard/expenses/mumbai")}
+                onClick={() => router.push("/dashboard/expenses")}
                 className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Back to Expenses Hub"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              
+
+              <button
+                onClick={() => router.push("/dashboard/expenses/mumbai/list")}
+                className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
+                title="View Mumbai Registry List"
+              >
+                <List className="w-5 h-5" />
+              </button>
+
               <div className="flex-1">
                 {ledgerId === "new" ? (
                   <input
                     type="text"
                     value={ledger?.name || ""}
-                    onChange={(e) => setLedger({...ledger, name: e.target.value})}
+                    onChange={(e) => setLedger({ ...ledger, name: e.target.value })}
                     className="text-2xl md:text-3xl font-bold text-slate-900 bg-transparent border-b-2 border-transparent focus:border-blue-500 outline-none w-full"
                     placeholder="Enter ledger name"
                     autoFocus
@@ -381,7 +391,7 @@ export default function MumbaiLedgerForm() {
                       onClick={() => {
                         const newName = prompt("Enter new ledger name:", ledger?.name);
                         if (newName && newName.trim()) {
-                          setLedger({...ledger, name: newName});
+                          setLedger({ ...ledger, name: newName });
                         }
                       }}
                       className="p-1 text-slate-400 hover:text-blue-600 rounded"
@@ -390,11 +400,11 @@ export default function MumbaiLedgerForm() {
                     </button>
                   </div>
                 )}
-                
+
                 {ledger?.description && (
                   <p className="text-slate-500 mt-1">{ledger.description}</p>
                 )}
-                
+
                 {ledger?.month && ledger?.year && (
                   <div className="flex items-center gap-1 text-sm text-slate-400 mt-1">
                     <Calendar className="w-3 h-3" />
@@ -417,7 +427,7 @@ export default function MumbaiLedgerForm() {
                   Export
                 </button>
               )}
-              
+
               <button
                 onClick={saveLedger}
                 disabled={isSaving}
@@ -464,17 +474,15 @@ export default function MumbaiLedgerForm() {
               </div>
             </div>
 
-            <div className={`bg-white p-5 rounded-xl border shadow-sm ${
-              (ledger?.totalBalance || 0) < 0 
-                ? "border-red-200 bg-red-50/30" 
-                : "border-emerald-200 bg-emerald-50/30"
-            }`}>
+            <div className={`bg-white p-5 rounded-xl border shadow-sm ${(ledger?.totalBalance || 0) < 0
+              ? "border-red-200 bg-red-50/30"
+              : "border-emerald-200 bg-emerald-50/30"
+              }`}>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                 Net Balance
               </div>
-              <div className={`text-2xl font-bold flex items-center gap-2 ${
-                (ledger?.totalBalance || 0) < 0 ? "text-red-600" : "text-emerald-600"
-              }`}>
+              <div className={`text-2xl font-bold flex items-center gap-2 ${(ledger?.totalBalance || 0) < 0 ? "text-red-600" : "text-emerald-600"
+                }`}>
                 <DollarSign className="w-6 h-6" />
                 ₹{formatCurrency(ledger?.totalBalance || 0)}
               </div>
@@ -502,31 +510,28 @@ export default function MumbaiLedgerForm() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setFilterType("ALL")}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filterType === "ALL"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === "ALL"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setFilterType("EXPENSE")}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filterType === "EXPENSE"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === "EXPENSE"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
                 >
                   Expenses
                 </button>
                 <button
                   onClick={() => setFilterType("ADVANCE")}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filterType === "ADVANCE"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === "ADVANCE"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
                 >
                   Advances
                 </button>
@@ -535,11 +540,10 @@ export default function MumbaiLedgerForm() {
 
             <button
               onClick={() => setShowNewEntryForm(!showNewEntryForm)}
-              className={`flex items-center gap-2 px-4 py-2.5 font-medium rounded-lg transition-all ${
-                showNewEntryForm
-                  ? "bg-slate-900 text-white hover:bg-slate-800"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2.5 font-medium rounded-lg transition-all ${showNewEntryForm
+                ? "bg-slate-900 text-white hover:bg-slate-800"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
             >
               <Plus className="w-4 h-4" />
               {showNewEntryForm ? "Cancel" : "New Entry"}
@@ -554,29 +558,27 @@ export default function MumbaiLedgerForm() {
               <h3 className="text-lg font-semibold text-slate-900 mb-4">
                 Add New Entry
               </h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left Column - Basic Info */}
                 <div className="space-y-4">
                   <div className="flex gap-4">
                     <button
                       onClick={() => handleNewEntryChange("type", "EXPENSE")}
-                      className={`flex-1 py-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${
-                        newEntry.type === "EXPENSE"
-                          ? "bg-red-50 text-red-700 border-2 border-red-200"
-                          : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                      }`}
+                      className={`flex-1 py-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${newEntry.type === "EXPENSE"
+                        ? "bg-red-50 text-red-700 border-2 border-red-200"
+                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                        }`}
                     >
                       <Truck className="w-5 h-5" />
                       <span className="font-medium">Container Expense</span>
                     </button>
                     <button
                       onClick={() => handleNewEntryChange("type", "ADVANCE")}
-                      className={`flex-1 py-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${
-                        newEntry.type === "ADVANCE"
-                          ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-200"
-                          : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                      }`}
+                      className={`flex-1 py-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${newEntry.type === "ADVANCE"
+                        ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-200"
+                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                        }`}
                     >
                       <Wallet className="w-5 h-5" />
                       <span className="font-medium">Office Advance</span>
@@ -659,7 +661,7 @@ export default function MumbaiLedgerForm() {
                           Total: ₹{formatCurrency(calculateItemTotal())}
                         </span>
                       </div>
-                      
+
                       <div className="space-y-3">
                         {newEntry.items.map((item, index) => (
                           <div key={index} className="flex gap-2">
@@ -736,11 +738,10 @@ export default function MumbaiLedgerForm() {
                 <button
                   onClick={addEntry}
                   disabled={isSaving}
-                  className={`px-6 py-2 font-medium rounded-lg transition-colors ${
-                    newEntry.type === "ADVANCE"
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  } disabled:opacity-50`}
+                  className={`px-6 py-2 font-medium rounded-lg transition-colors ${newEntry.type === "ADVANCE"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                    } disabled:opacity-50`}
                 >
                   {isSaving ? (
                     <span className="flex items-center gap-2">
@@ -762,13 +763,13 @@ export default function MumbaiLedgerForm() {
             <div className="text-center py-16">
               <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-slate-900 mb-2">
-                {search || filterType !== "ALL" 
-                  ? "No matching entries found" 
+                {search || filterType !== "ALL"
+                  ? "No matching entries found"
                   : "No entries yet"}
               </h3>
               <p className="text-slate-600 mb-6">
-                {search || filterType !== "ALL" 
-                  ? "Try adjusting your search or filters" 
+                {search || filterType !== "ALL"
+                  ? "Try adjusting your search or filters"
                   : "Start by adding your first entry"}
               </p>
               <button
@@ -786,18 +787,17 @@ export default function MumbaiLedgerForm() {
                     {/* Left Info */}
                     <div className="flex items-center gap-4 flex-1">
                       <div
-                        className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-xs font-bold ${
-                          entry.type === "ADVANCE"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
+                        className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-xs font-bold ${entry.type === "ADVANCE"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
+                          }`}
                       >
                         <span>{new Date(entry.entryDate).getDate()}</span>
                         <span className="uppercase text-[10px]">
                           {new Date(entry.entryDate).toLocaleString("default", { month: "short" })}
                         </span>
                       </div>
-                      
+
                       <div>
                         {entry.type === "ADVANCE" ? (
                           <>
@@ -834,11 +834,10 @@ export default function MumbaiLedgerForm() {
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <div
-                          className={`text-lg font-bold font-mono ${
-                            entry.type === "ADVANCE" 
-                              ? "text-emerald-600" 
-                              : "text-red-600"
-                          }`}
+                          className={`text-lg font-bold font-mono ${entry.type === "ADVANCE"
+                            ? "text-emerald-600"
+                            : "text-red-600"
+                            }`}
                         >
                           {entry.type === "ADVANCE" ? "+" : "-"} ₹
                           {formatCurrency(entry.amount)}
@@ -932,7 +931,7 @@ export default function MumbaiLedgerForm() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white p-4 rounded-xl border border-slate-200">
             <div className="text-sm font-semibold text-slate-700 mb-2">
               Quick Actions

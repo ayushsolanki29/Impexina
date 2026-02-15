@@ -6,6 +6,7 @@ const { authenticate } = require("../../middleware/auth");
 router.use(authenticate);
 
 router.get('/', bifurcationController.getReport);
+router.get('/export', bifurcationController.exportExcel);
 router.get('/activities', bifurcationController.getActivities);
 router.get('/activities/containers', bifurcationController.getActivityContainers);
 router.get('/containers/suggestions', bifurcationController.getContainerSuggestions);

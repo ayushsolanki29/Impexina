@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
+import ShippingPreviewModal from "./_components/ShippingPreviewModal";
 
 export default function ShippingSheetPage() {
   const router = useRouter();
@@ -57,6 +58,7 @@ export default function ShippingSheetPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [sheetDetails, setSheetDetails] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [viewMode, setViewMode] = useState("table");
@@ -286,10 +288,10 @@ export default function ShippingSheetPage() {
         const penalty = parseFloat(curr.penalty) || 0;
         const trucking = parseFloat(curr.trucking) || 0;
         const loadingUnloading = parseFloat(curr.loadingUnloading) || 0;
-        
+
         const localCharges = cha + fobTerms + cfsDoYard + scanning + simsPims + duty + penalty + trucking + loadingUnloading;
         const totalAmount = freightINR + localCharges;
-        
+
         return {
           totalCTN: acc.totalCTN + (parseInt(curr.ctn) || 0),
           totalFreightUSD: acc.totalFreightUSD + freightUSD,
@@ -310,9 +312,9 @@ export default function ShippingSheetPage() {
           deliveredCount: acc.deliveredCount + (curr.deliveryStatus === "DELIVERED" ? 1 : 0),
         };
       },
-      { 
-        totalCTN: 0, 
-        totalFreightUSD: 0, 
+      {
+        totalCTN: 0,
+        totalFreightUSD: 0,
         totalFreightINR: 0,
         totalCHA: 0,
         totalFOBTerms: 0,
@@ -323,7 +325,7 @@ export default function ShippingSheetPage() {
         totalPenalty: 0,
         totalTrucking: 0,
         totalLoadingUnloading: 0,
-        totalLocalCharges: 0, 
+        totalLocalCharges: 0,
         grandTotal: 0,
         pendingCount: 0,
         inTransitCount: 0,
@@ -369,15 +371,15 @@ export default function ShippingSheetPage() {
     const penalty = parseFloat(entry.penalty) || 0;
     const trucking = parseFloat(entry.trucking) || 0;
     const loadingUnloading = parseFloat(entry.loadingUnloading) || 0;
-    
+
     return freightINR + cha + fobTerms + cfsDoYard + scanning + simsPims + duty + penalty + trucking + loadingUnloading;
   };
 
   const CostBreakdownModal = ({ entry, onClose }) => {
     if (!entry) return null;
-    
+
     const total = calculateEntryTotal(entry);
-    
+
     const costItems = [
       { label: "Freight (INR)", value: entry.freightINR, color: "text-blue-600", icon: <Ship className="w-4 h-4" /> },
       { label: "CHA", value: entry.cha, color: "text-indigo-600", icon: <FileDigit className="w-4 h-4" /> },
@@ -407,7 +409,7 @@ export default function ShippingSheetPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {costItems.map((item, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -424,7 +426,7 @@ export default function ShippingSheetPage() {
                   </div>
                 </div>
               ))}
-              
+
               <div className="pt-4 border-t border-slate-200">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-bold text-slate-900">Total Cost</div>
@@ -434,7 +436,7 @@ export default function ShippingSheetPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-6 flex gap-3">
               <button
                 onClick={onClose}
@@ -499,7 +501,7 @@ export default function ShippingSheetPage() {
         deliveryStatus: "PENDING",
         notes: "",
       };
-      
+
       setEntries([...entries, newEntry]);
       setFormData({
         containerCode: "",
@@ -533,7 +535,7 @@ export default function ShippingSheetPage() {
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 placeholder="e.g., MSCU123456"
                 value={formData.containerCode}
-                onChange={(e) => setFormData({...formData, containerCode: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, containerCode: e.target.value })}
               />
             </div>
             <div>
@@ -541,7 +543,7 @@ export default function ShippingSheetPage() {
               <select
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 value={formData.loadingFrom}
-                onChange={(e) => setFormData({...formData, loadingFrom: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, loadingFrom: e.target.value })}
               >
                 <option value="YIWU / GUANGZHOU / FULL">YIWU / GUANGZHOU / FULL</option>
                 <option value="NINGBO / SHANGHAI / FULL">NINGBO / SHANGHAI / FULL</option>
@@ -554,11 +556,11 @@ export default function ShippingSheetPage() {
                 type="number"
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 value={formData.ctn}
-                onChange={(e) => setFormData({...formData, ctn: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, ctn: e.target.value })}
               />
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Freight (INR)</label>
@@ -570,7 +572,7 @@ export default function ShippingSheetPage() {
                   className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   placeholder="0"
                   value={formData.freightINR}
-                  onChange={(e) => setFormData({...formData, freightINR: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, freightINR: e.target.value })}
                 />
               </div>
             </div>
@@ -584,12 +586,12 @@ export default function ShippingSheetPage() {
                   className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   placeholder="0"
                   value={formData.freightUSD}
-                  onChange={(e) => setFormData({...formData, freightUSD: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, freightUSD: e.target.value })}
                 />
               </div>
             </div>
           </div>
-          
+
           <div className="border-t pt-4">
             <h4 className="font-medium text-slate-700 mb-3">Local Charges (INR)</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -601,7 +603,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="CHA"
                   value={formData.cha}
-                  onChange={(e) => setFormData({...formData, cha: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, cha: e.target.value })}
                 />
               </div>
               <div>
@@ -612,7 +614,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="FOB Terms"
                   value={formData.fobTerms}
-                  onChange={(e) => setFormData({...formData, fobTerms: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, fobTerms: e.target.value })}
                 />
               </div>
               <div>
@@ -623,7 +625,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="CFS/DO/Yard"
                   value={formData.cfsDoYard}
-                  onChange={(e) => setFormData({...formData, cfsDoYard: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, cfsDoYard: e.target.value })}
                 />
               </div>
               <div>
@@ -634,7 +636,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="Scanning"
                   value={formData.scanning}
-                  onChange={(e) => setFormData({...formData, scanning: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, scanning: e.target.value })}
                 />
               </div>
               <div>
@@ -645,7 +647,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="SIMS/PIMS"
                   value={formData.simsPims}
-                  onChange={(e) => setFormData({...formData, simsPims: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, simsPims: e.target.value })}
                 />
               </div>
               <div>
@@ -656,7 +658,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="Duty"
                   value={formData.duty}
-                  onChange={(e) => setFormData({...formData, duty: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, duty: e.target.value })}
                 />
               </div>
               <div>
@@ -667,7 +669,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="Penalty"
                   value={formData.penalty}
-                  onChange={(e) => setFormData({...formData, penalty: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, penalty: e.target.value })}
                 />
               </div>
               <div>
@@ -678,7 +680,7 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="Trucking"
                   value={formData.trucking}
-                  onChange={(e) => setFormData({...formData, trucking: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, trucking: e.target.value })}
                 />
               </div>
               <div>
@@ -689,12 +691,12 @@ export default function ShippingSheetPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
                   placeholder="Loading/Unloading"
                   value={formData.loadingUnloading}
-                  onChange={(e) => setFormData({...formData, loadingUnloading: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, loadingUnloading: e.target.value })}
                 />
               </div>
             </div>
           </div>
-          
+
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
@@ -746,7 +748,7 @@ export default function ShippingSheetPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push("/dashboard/accounts/shipping")}
+                onClick={() => router.push("/dashboard/accounts")}
                 className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -824,13 +826,19 @@ export default function ShippingSheetPage() {
 
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setIsPreviewOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 font-medium text-sm shadow-sm transition-all"
+                >
+                  <FileText className="w-4 h-4" />
+                  Preview
+                </button>
+                <button
                   onClick={saveSheet}
                   disabled={isSaving}
-                  className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-lg shadow transition-all ${
-                    isSaving
+                  className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-lg shadow transition-all ${isSaving
                       ? "bg-indigo-400 cursor-not-allowed"
                       : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                  }`}
+                    }`}
                 >
                   {isSaving ? (
                     <>
@@ -854,33 +862,30 @@ export default function ShippingSheetPage() {
         <div className="flex flex-wrap gap-4 mb-6">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              activeTab === "overview" 
-                ? "bg-indigo-600 text-white" 
+            className={`px-4 py-2 rounded-lg font-medium ${activeTab === "overview"
+                ? "bg-indigo-600 text-white"
                 : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-            }`}
+              }`}
           >
             <BarChart3 className="w-4 h-4 inline mr-2" />
             Overview
           </button>
           <button
             onClick={() => setActiveTab("quick-add")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              activeTab === "quick-add" 
-                ? "bg-indigo-600 text-white" 
+            className={`px-4 py-2 rounded-lg font-medium ${activeTab === "quick-add"
+                ? "bg-indigo-600 text-white"
                 : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-            }`}
+              }`}
           >
             <Plus className="w-4 h-4 inline mr-2" />
             Quick Add
           </button>
           <button
             onClick={() => setActiveTab("table")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              activeTab === "table" 
-                ? "bg-indigo-600 text-white" 
+            className={`px-4 py-2 rounded-lg font-medium ${activeTab === "table"
+                ? "bg-indigo-600 text-white"
                 : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-            }`}
+              }`}
           >
             <List className="w-4 h-4 inline mr-2" />
             Table View
@@ -903,7 +908,7 @@ export default function ShippingSheetPage() {
               <Calculator className="w-6 h-6 text-indigo-600" />
             </div>
           </div>
-          
+
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -920,7 +925,7 @@ export default function ShippingSheetPage() {
               <Ship className="w-6 h-6 text-blue-600" />
             </div>
           </div>
-          
+
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -934,7 +939,7 @@ export default function ShippingSheetPage() {
               <Receipt className="w-6 h-6 text-emerald-600" />
             </div>
           </div>
-          
+
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -965,7 +970,7 @@ export default function ShippingSheetPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              
+
               <button
                 onClick={() => setShowAllCharges(!showAllCharges)}
                 className="px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-300"
@@ -1044,7 +1049,7 @@ export default function ShippingSheetPage() {
                   filteredEntries.map((entry) => {
                     const total = calculateEntryTotal(entry);
                     const isOverdue = entry.deliveryDate && new Date(entry.deliveryDate) < new Date();
-                    
+
                     return (
                       <tr key={entry.id} className="hover:bg-slate-50 group">
                         <td className="p-4">
@@ -1079,7 +1084,7 @@ export default function ShippingSheetPage() {
                             </div>
                           </div>
                         </td>
-                        
+
                         <td className="p-4">
                           <div className="space-y-2">
                             <div className="relative">
@@ -1095,9 +1100,8 @@ export default function ShippingSheetPage() {
                               <Calendar className="absolute left-2 top-1.5 w-3 h-3 text-slate-400" />
                               <input
                                 type="date"
-                                className={`w-full pl-7 pr-2 py-1.5 text-xs border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:bg-white bg-transparent outline-none rounded ${
-                                  isOverdue ? 'text-red-600' : 'text-slate-600'
-                                }`}
+                                className={`w-full pl-7 pr-2 py-1.5 text-xs border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:bg-white bg-transparent outline-none rounded ${isOverdue ? 'text-red-600' : 'text-slate-600'
+                                  }`}
                                 value={entry.deliveryDate || ""}
                                 onChange={(e) => updateRow(entry.id, "deliveryDate", e.target.value)}
                               />
@@ -1107,7 +1111,7 @@ export default function ShippingSheetPage() {
                             </div>
                           </div>
                         </td>
-                        
+
                         <td className="p-4">
                           <div className="space-y-1">
                             <input
@@ -1123,7 +1127,7 @@ export default function ShippingSheetPage() {
                             </div>
                           </div>
                         </td>
-                        
+
                         {showAllCharges && (
                           <>
                             <td className="p-4">
@@ -1218,7 +1222,7 @@ export default function ShippingSheetPage() {
                             </td>
                           </>
                         )}
-                        
+
                         <td className="p-4">
                           <div className="text-right">
                             <div className="px-3 py-2 bg-indigo-50 text-indigo-700 font-bold font-mono rounded-lg inline-block">
@@ -1235,7 +1239,7 @@ export default function ShippingSheetPage() {
                             </button>
                           </div>
                         </td>
-                        
+
                         <td className="p-4">
                           <div className="flex justify-center">
                             <select
@@ -1250,7 +1254,7 @@ export default function ShippingSheetPage() {
                             </select>
                           </div>
                         </td>
-                        
+
                         <td className="p-4">
                           <div className="flex justify-center gap-1">
                             <button
@@ -1277,7 +1281,7 @@ export default function ShippingSheetPage() {
                   })
                 )}
               </tbody>
-              
+
               <tfoot className="bg-slate-50 border-t border-slate-200">
                 <tr>
                   <td className="p-4 font-medium text-slate-700" colSpan={showAllCharges ? 3 : 2}>
@@ -1286,7 +1290,7 @@ export default function ShippingSheetPage() {
                   <td className="p-4 text-right">
                     <div className="font-bold text-blue-600">₹{formatCurrency(stats.totalFreightINR)}</div>
                   </td>
-                  
+
                   {showAllCharges && (
                     <>
                       <td className="p-4 text-right">
@@ -1318,7 +1322,7 @@ export default function ShippingSheetPage() {
                       </td>
                     </>
                   )}
-                  
+
                   <td className="p-4 text-right">
                     <div className="font-bold text-2xl text-indigo-700">₹{formatCurrency(stats.grandTotal)}</div>
                   </td>
@@ -1338,9 +1342,8 @@ export default function ShippingSheetPage() {
               <button
                 onClick={saveSheet}
                 disabled={isSaving}
-                className={`px-4 py-2.5 bg-indigo-600 text-white font-medium text-sm rounded-lg hover:bg-indigo-700 ${
-                  isSaving ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`px-4 py-2.5 bg-indigo-600 text-white font-medium text-sm rounded-lg hover:bg-indigo-700 ${isSaving ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
               >
                 {isSaving ? (
                   <>
@@ -1375,6 +1378,15 @@ export default function ShippingSheetPage() {
           onClose={() => setCostBreakdownModal(false)}
         />
       )}
+
+      {/* Preview Modal */}
+      <ShippingPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        sheetName={sheetName}
+        entries={entries}
+        stats={stats}
+      />
     </div>
   );
 }
