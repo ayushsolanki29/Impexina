@@ -167,8 +167,8 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 text-xs rounded-full ${client.type === "CLIENT"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-amber-100 text-amber-700"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-amber-100 text-amber-700"
                     }`}>
                     {client.type}
                   </span>
@@ -181,8 +181,8 @@ const ClientAutocomplete = ({ value, onChange, onClientSelect, onCreateNew }) =>
             </div>
           )}
 
-          {/* Create New Option */}
-          {search.trim() && (
+          {/* Create New Option — only when no existing matches found */}
+          {search.trim() && suggestions.length === 0 && (
             <button
               onClick={() => {
                 onCreateNew(search);

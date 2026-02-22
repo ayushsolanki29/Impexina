@@ -1,6 +1,15 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+// Valid PackingList fields (exclude Invoice-only fields like consignee*)
+const PACKING_LIST_FIELDS = [
+  'headerCompanyName', 'headerCompanyAddress', 'headerPhone',
+  'sellerCompanyName', 'sellerAddress', 'sellerIecNo', 'sellerGst', 'sellerEmail',
+  'bankName', 'beneficiaryName', 'swiftBic', 'bankAddress', 'accountNumber',
+  'stampImage', 'stampPosition', 'stampSize', 'stampText',
+  'showMixColumn', 'showHsnColumn', 'from', 'to'
+];
+
 const packingListService = {
   // Get all containers with their packing list status
   getAllContainers: async (query = {}) => {
@@ -123,6 +132,12 @@ const packingListService = {
       ...headerData
     } = data;
 
+    // Filter to only PackingList fields (ignore consignee* and other Invoice fields)
+    const filteredHeaderData = {};
+    for (const key of PACKING_LIST_FIELDS) {
+      if (key in headerData) filteredHeaderData[key] = headerData[key];
+    }
+
     // 1. Get container code if not provided
     const container = await prisma.container.findUnique({ where: { id: containerId } });
     if (!container) throw new Error("Container not found");
@@ -186,7 +201,7 @@ const packingListService = {
       result = await prisma.packingList.update({
         where: { id: packingList.id },
         data: {
-          ...headerData,
+          ...filteredHeaderData,
           invNo: invNo || packingList.invNo,
           invoiceNo: invoiceNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
@@ -203,7 +218,7 @@ const packingListService = {
       // Create
       result = await prisma.packingList.create({
         data: {
-          ...headerData,
+          ...filteredHeaderData,
           containerId,
           containerCode: container.containerCode,
           invNo: invNo || `INV-${container.containerCode}`,

@@ -273,3 +273,6 @@ pm2 install pm2-logrotate
 
 This setup is intended for **internal office use only**.
 For dynamic office IPs, use **WireGuard VPN** for secure access.
+/dashboard/client-order-tracker/0ec47c72-ec60-4e36-8f3d-d166cf80df0e
+
+client order tracker page please look like see i have been created in my @frontend/src/app/dashboard/container-summary/create contaier summary like excel UI so i want in my clients orders tracker also like excel Ui and in this page i want main feature like user can merge 

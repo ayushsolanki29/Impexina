@@ -20,7 +20,7 @@ const authService = {
     });
 
     if (!user) {
-      throw new Error("Invalid username or password");
+      throw new Error("No account found with this username.");
     }
 
     if (!user.isActive) {
@@ -29,7 +29,7 @@ const authService = {
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      throw new Error("Invalid username or password");
+      throw new Error("Password is incorrect.");
     }
 
     const token = generateToken({

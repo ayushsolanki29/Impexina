@@ -30,7 +30,14 @@ const authService = {
 
       return res.data;
     } catch (error) {
-      const message = error.response?.data?.message || "Login failed";
+      const data = error.response?.data;
+      const errors = data?.errors;
+      let message = data?.message || "Login failed";
+
+      // Use specific validation messages when available
+      if (errors?.length) {
+        message = errors.map((e) => e.message).join(". ");
+      }
 
       toast.error("Login failed", {
         description: message,
@@ -39,6 +46,7 @@ const authService = {
       return {
         success: false,
         message,
+        errors,
       };
     }
   },

@@ -459,6 +459,18 @@ class OrderTrackerService {
 
   // Create a new client (quick create)
   async createQuickClient(data, userId) {
+    // Check if exists first to prevent duplicates
+    const existing = await prisma.client.findFirst({
+      where: { name: { equals: data.name, mode: 'insensitive' } },
+      select: {
+        id: true,
+        name: true,
+        companyName: true
+      }
+    });
+
+    if (existing) return existing;
+
     const client = await prisma.client.create({
       data: {
         name: data.name,

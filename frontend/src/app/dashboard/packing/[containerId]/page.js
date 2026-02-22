@@ -8,7 +8,9 @@ import {
   Info, Box, Users, Upload, Image as ImageIcon, FileSpreadsheet
 } from 'lucide-react';
 import API from '@/lib/api';
+import { DEFAULT_COMPANY_DETAILS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { getImageFileFromClipboardEvent, getImageFileFromClipboard } from '@/lib/clipboard-image';
 import {
   Accordion,
   AccordionContent,
@@ -24,20 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import PreviewModal from '../_components/PreviewModal';
-
-// Helper function to get image URL
-const getImageUrl = (photoPath) => {
-  if (!photoPath) return null;
-
-  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
-    return photoPath;
-  }
-
-  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
-  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
-
-  return `${baseUrl}${normalizedPath}`;
-};
+import { getImageUrl } from '@/lib/image-utils';
 
 export default function PackingListEntryPage() {
   const params = useParams();
@@ -124,17 +113,13 @@ export default function PackingListEntryPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items, formData]);
 
-  // Global paste listener for hover functionality
+  // Global paste listener for hover functionality (supports Excel/Office paste)
   useEffect(() => {
     const handleGlobalPaste = (e) => {
       if (hoveredId !== null) {
-        const clipboardItems = e.clipboardData.items;
-        for (let i = 0; i < clipboardItems.length; i++) {
-          if (clipboardItems[i].type.indexOf("image") !== -1) {
-            const file = clipboardItems[i].getAsFile();
-            uploadFile(file, (url) => updateItem(hoveredId, 'photo', url));
-            break;
-          }
+        const file = getImageFileFromClipboardEvent(e);
+        if (file) {
+          uploadFile(file, (url) => updateItem(hoveredId, 'photo', url));
         }
       }
     };
@@ -143,22 +128,16 @@ export default function PackingListEntryPage() {
     return () => window.removeEventListener("paste", handleGlobalPaste);
   }, [hoveredId]);
 
-  // Handle right-click context menu paste
+  // Handle right-click context menu paste (supports Excel/Office paste)
   const handlePasteFromMenu = async (itemId) => {
     try {
       setContextMenu(prev => ({ ...prev, visible: false }));
-      const clipboardItems = await navigator.clipboard.read();
-      for (const item of clipboardItems) {
-        for (const type of item.types) {
-          if (type.startsWith("image/")) {
-            const blob = await item.getType(type);
-            const file = new File([blob], "pasted_image.png", { type });
-            uploadFile(file, (url) => updateItem(itemId, 'photo', url));
-            return;
-          }
-        }
+      const file = await getImageFileFromClipboard();
+      if (file) {
+        uploadFile(file, (url) => updateItem(itemId, 'photo', url));
+      } else {
+        toast.info("No image found in clipboard");
       }
-      toast.info("No image found in clipboard");
     } catch (err) {
       console.error("Paste failed", err);
       toast.error("Clipboard access denied. Please click 'Allow' when prompted.");
@@ -227,9 +206,10 @@ export default function PackingListEntryPage() {
         } else {
           setFormData(prev => ({
             ...prev,
+            ...DEFAULT_COMPANY_DETAILS,
             invNo: `IGP-${response.data.data.container.containerCode}`,
             from: response.data.data.container.origin || '',
-            to: response.data.data.container.destination || 'NHAVA SHEVA'
+            to: response.data.data.container.destination || DEFAULT_COMPANY_DETAILS.to
           }));
           handleAutoImport();
         }
@@ -814,8 +794,34 @@ export default function PackingListEntryPage() {
                 <AccordionContent className="pt-2 pb-6">
                   <div className="flex items-start gap-8 pt-4 border-t border-slate-100">
                     <div
-                      onClick={() => handleFileUpload((url) => setFormData({ ...formData, stampImage: url }), 'stamp')}
-                      className="w-28 h-28 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all overflow-hidden relative group shrink-0"
+                      onClick={() => handleFileUpload((url) => setFormData(prev => ({ ...prev, stampImage: url })), 'stamp')}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                        const file = e.dataTransfer.files[0];
+                        if (file?.type?.startsWith('image/')) {
+                          uploadFile(file, (url) => setFormData(prev => ({ ...prev, stampImage: url })), 'stamp');
+                        } else {
+                          toast.error('Please drop an image file');
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const file = getImageFileFromClipboardEvent(e);
+                        if (file) {
+                          e.preventDefault();
+                          uploadFile(file, (url) => setFormData(prev => ({ ...prev, stampImage: url })), 'stamp');
+                        }
+                      }}
+                      tabIndex={0}
+                      className="w-28 h-28 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all overflow-hidden relative group shrink-0 outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       {formData.stampImage ? (
                         <>
@@ -880,22 +886,22 @@ export default function PackingListEntryPage() {
             </Accordion>
 
             {/* Items Table Section */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <table className="w-full text-sm">
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
+              <table className="w-full text-sm" style={{ minWidth: '1200px' }}>
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
                     <th className="px-4 py-5 w-12 text-center border-r border-slate-200">S.N.</th>
                     <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Photo</th>
-                    <th className="px-4 py-5 min-w-[200px] border-r border-slate-200 text-left">Descriptions</th>
-                    <th className="px-2 py-5 w-24 text-center border-r border-slate-200">MARK</th>
-                    <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Ctn.</th>
-                    <th className="px-2 py-5 w-20 text-center border-r border-slate-200">Qty/Ctn</th>
-                    <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Unit</th>
-                    <th className="px-2 py-5 w-24 text-center border-r border-slate-200 bg-blue-50/50 text-blue-700">T-Qty</th>
-                    <th className="px-2 py-5 w-16 text-center border-r border-slate-200 text-orange-600/80">KG</th>
-                    <th className="px-2 py-5 w-24 text-center border-r border-slate-200 bg-orange-50/50 text-orange-700">T.KG</th>
-                    <th className="px-2 py-5 w-20 text-center border-r border-slate-200">MIX</th>
-                    <th className="px-2 py-5 w-20 text-center">HSN</th>
+                    <th className="px-4 py-5 min-w-[250px] border-r border-slate-200 text-left">Descriptions</th>
+                    <th className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200">MARK</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Ctn.</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Qty/Ctn</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Unit</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-blue-50/50 text-blue-700">T-Qty</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 text-orange-600/80">KG</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-orange-50/50 text-orange-700">T.KG</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">MIX</th>
+                    <th className="px-2 py-5 min-w-[80px] text-center">HSN</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -925,14 +931,8 @@ export default function PackingListEntryPage() {
                             }
                           }}
                           onPaste={(e) => {
-                            const items = e.clipboardData.items;
-                            for (let i = 0; i < items.length; i++) {
-                              if (items[i].type.indexOf("image") !== -1) {
-                                const file = items[i].getAsFile();
-                                uploadFile(file, (url) => updateItem(item.id, 'photo', url));
-                                break;
-                              }
-                            }
+                            const file = getImageFileFromClipboardEvent(e);
+                            if (file) uploadFile(file, (url) => updateItem(item.id, 'photo', url));
                           }}
                         >
                           {item.photo ? (

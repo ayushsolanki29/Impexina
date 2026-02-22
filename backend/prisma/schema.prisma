@@ -1130,7 +1130,7 @@ model ShippingEntry {
 // CRM Models
 model Client {
   id            String  @id @default(uuid())
-  name          String
+  name          String  @unique
   contactPerson String?
   email         String?
   phone         String?
@@ -1141,7 +1141,7 @@ model Client {
   country       String? @default("India")
 
   // Type: client or lead
-  type   ClientType   @default(LEAD)
+  type   ClientType   @default(CLIENT)
   status ClientStatus @default(NEW)
 
   // Business details
@@ -1662,6 +1662,9 @@ model Invoice {
   // Consignee Information (editable)
   consigneeName    String?
   consigneeAddress String?
+  consigneeIecNo   String?
+  consigneeGst     String?
+  consigneeEmail   String?
   consigneeCountry String?
 
   // Invoice Information

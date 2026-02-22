@@ -27,8 +27,14 @@ const companyMasterService = {
       });
     }
 
-    return await prisma.companyMaster.create({
-      data: rest,
+    // Use companyName as unique key - update if exists, create if not
+    if (!rest.companyName?.trim()) {
+      throw new Error("Company name is required");
+    }
+    return await prisma.companyMaster.upsert({
+      where: { companyName: rest.companyName.trim() },
+      create: rest,
+      update: rest,
     });
   },
 

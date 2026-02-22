@@ -7,7 +7,9 @@ import {
   Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon, FileSpreadsheet
 } from 'lucide-react';
 import API from '@/lib/api';
+import { DEFAULT_COMPANY_DETAILS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { getImageFileFromClipboardEvent, getImageFileFromClipboard } from '@/lib/clipboard-image';
 import {
   Accordion,
   AccordionContent,
@@ -23,20 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import InvoicePreviewModal from '../_components/InvoicePreviewModal';
-
-// Helper function to get image URL
-const getImageUrl = (photoPath) => {
-  if (!photoPath) return null;
-
-  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
-    return photoPath;
-  }
-
-  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
-  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
-
-  return `${baseUrl}${normalizedPath}`;
-};
+import { getImageUrl } from '@/lib/image-utils';
 
 export default function InvoiceEntryPage() {
   const params = useParams();
@@ -59,7 +48,7 @@ export default function InvoiceEntryPage() {
   const [hoveredId, setHoveredId] = useState(null);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, itemId: null });
 
-  // Form State
+  // Form State (same structure as packing: Exporter, Consignee, Bank, Stamp)
   const [formData, setFormData] = useState({
     invNo: '',
     invoiceNo: '',
@@ -67,14 +56,11 @@ export default function InvoiceEntryPage() {
     headerCompanyName: '',
     headerCompanyAddress: '',
     headerPhone: '',
-    exporterCompanyName: '',
-    exporterAddress: '',
-    exporterIecNo: '',
-    exporterGst: '',
-    exporterEmail: '',
     consigneeName: '',
     consigneeAddress: '',
-    consigneeCountry: '',
+    consigneeIecNo: '',
+    consigneeGst: '',
+    consigneeEmail: '',
     bankName: '',
     beneficiaryName: '',
     swiftBic: '',
@@ -126,8 +112,9 @@ export default function InvoiceEntryPage() {
     if (template) {
       setFormData(prev => ({
         ...prev,
-        exporterCompanyName: template.companyName,
-        exporterAddress: template.companyAddress,
+        headerCompanyName: template.companyName,
+        headerCompanyAddress: template.companyAddress,
+        headerPhone: template.companyPhone,
         bankName: template.bankName,
         beneficiaryName: template.beneficiaryName,
         swiftBic: template.swiftBic,
@@ -143,18 +130,18 @@ export default function InvoiceEntryPage() {
   };
 
   const createTemplate = async () => {
-    if (!formData.exporterCompanyName) {
-      toast.error("Company Name is required to create a template");
+    if (!formData.headerCompanyName) {
+      toast.error("Exporter Name is required to create a template");
       return;
     }
 
     const toastId = toast.loading("Creating template...");
     try {
       const payload = {
-        companyName: formData.exporterCompanyName,
-        companyAddress: formData.exporterAddress,
+        companyName: formData.headerCompanyName,
+        companyAddress: formData.headerCompanyAddress,
         companyPhone: formData.headerPhone,
-        companyEmail: formData.exporterEmail,
+        companyEmail: formData.consigneeEmail,
         bankName: formData.bankName,
         beneficiaryName: formData.beneficiaryName,
         swiftBic: formData.swiftBic,
@@ -191,17 +178,13 @@ export default function InvoiceEntryPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items, formData]);
 
-  // Global paste listener for hover functionality
+  // Global paste listener for hover functionality (supports Excel/Office paste)
   useEffect(() => {
     const handleGlobalPaste = (e) => {
       if (hoveredId !== null) {
-        const clipboardItems = e.clipboardData.items;
-        for (let i = 0; i < clipboardItems.length; i++) {
-          if (clipboardItems[i].type.indexOf("image") !== -1) {
-            const file = clipboardItems[i].getAsFile();
-            uploadFile(file, hoveredId, 'photo');
-            break;
-          }
+        const file = getImageFileFromClipboardEvent(e);
+        if (file) {
+          uploadFile(file, hoveredId, 'photo');
         }
       }
     };
@@ -210,22 +193,16 @@ export default function InvoiceEntryPage() {
     return () => window.removeEventListener("paste", handleGlobalPaste);
   }, [hoveredId]);
 
-  // Handle right-click context menu paste
+  // Handle right-click context menu paste (supports Excel/Office paste)
   const handlePasteFromMenu = async (itemId) => {
     try {
       setContextMenu(prev => ({ ...prev, visible: false }));
-      const clipboardItems = await navigator.clipboard.read();
-      for (const item of clipboardItems) {
-        for (const type of item.types) {
-          if (type.startsWith("image/")) {
-            const blob = await item.getType(type);
-            const file = new File([blob], "pasted_image.png", { type });
-            uploadFile(file, itemId, 'photo');
-            return;
-          }
-        }
+      const file = await getImageFileFromClipboard();
+      if (file) {
+        uploadFile(file, itemId, 'photo');
+      } else {
+        toast.info("No image found in clipboard");
       }
-      toast.info("No image found in clipboard");
     } catch (err) {
       console.error("Paste failed", err);
       toast.error("Clipboard access denied. Please click 'Allow' when prompted.");
@@ -262,17 +239,14 @@ export default function InvoiceEntryPage() {
             invNo: inv.invNo || '',
             invoiceNo: inv.invoiceNo || '',
             invoiceDate: inv.invoiceDate ? inv.invoiceDate.split('T')[0] : new Date().toISOString().split('T')[0],
-            headerCompanyName: inv.headerCompanyName || '',
-            headerCompanyAddress: inv.headerCompanyAddress || '',
+            headerCompanyName: inv.headerCompanyName || inv.exporterCompanyName || '',
+            headerCompanyAddress: inv.headerCompanyAddress || inv.exporterAddress || '',
             headerPhone: inv.headerPhone || '',
-            exporterCompanyName: inv.exporterCompanyName || '',
-            exporterAddress: inv.exporterAddress || '',
-            exporterIecNo: inv.exporterIecNo || '',
-            exporterGst: inv.exporterGst || '',
-            exporterEmail: inv.exporterEmail || '',
             consigneeName: inv.consigneeName || '',
             consigneeAddress: inv.consigneeAddress || '',
-            consigneeCountry: inv.consigneeCountry || '',
+            consigneeIecNo: inv.consigneeIecNo || '',
+            consigneeGst: inv.consigneeGst || '',
+            consigneeEmail: inv.consigneeEmail || '',
             bankName: inv.bankName || '',
             beneficiaryName: inv.beneficiaryName || '',
             swiftBic: inv.swiftBic || '',
@@ -285,7 +259,7 @@ export default function InvoiceEntryPage() {
             stampText: inv.stampText || 'Authorized Signatory',
             showHsnColumn: inv.showHsnColumn ?? true,
             from: inv.from || response.data.data.container.origin || '',
-            to: inv.to || ''
+            to: inv.to || response.data.data.container.destination || ''
           });
           if (inv.items?.length > 0) {
             setItems(inv.items.map(i => ({ ...i, id: i.id || `item_${Math.random()}` })));
@@ -295,9 +269,11 @@ export default function InvoiceEntryPage() {
         } else {
           setFormData(prev => ({
             ...prev,
+            ...DEFAULT_COMPANY_DETAILS,
             invNo: `16P${response.data.data.container.containerCode}`,
             invoiceNo: `16PLEY86`,
             from: response.data.data.container.origin || '',
+            to: response.data.data.container.destination || DEFAULT_COMPANY_DETAILS.to,
           }));
           handleAutoImport();
         }
@@ -622,118 +598,149 @@ export default function InvoiceEntryPage() {
           </div>
 
           <div className="p-8">
-
-            {/* Ref & Shipping Header */}
-            <div className="mb-8 pb-8 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900 mb-6">Invoice & Shipping Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-600 mb-2">INV NO.</label>
-                  <input
-                    type="text"
-                    value={formData.invNo}
-                    onChange={(e) => setFormData({ ...formData, invNo: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium"
-                    placeholder="16PLEYB6"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-600 mb-2">Invoice Date</label>
-                  <input
-                    type="date"
-                    value={formData.invoiceDate}
-                    onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-600 mb-2">From</label>
-                  <input
-                    type="text"
-                    value={formData.from}
-                    onChange={(e) => setFormData({ ...formData, from: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium"
-                    placeholder="CHINA"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-600 mb-2">To</label>
-                  <input
-                    type="text"
-                    value={formData.to}
-                    onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium"
-                    placeholder="NHAVA SHEVA INDIA"
-                  />
-                </div>
+            {/* 1. Quick Info & Shipping (same as packing) */}
+            <div className="grid grid-cols-4 gap-6 mb-8 p-6 bg-slate-50/50 rounded-xl border border-slate-100">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Inv No. (Internal)</label>
+                <input
+                  type="text" value={formData.invNo}
+                  onChange={(e) => setFormData({ ...formData, invNo: e.target.value.toUpperCase() })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-blue-800 outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Invoice Date</label>
+                <input
+                  type="date" value={formData.invoiceDate}
+                  onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 transition-all font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">From (Origin)</label>
+                <input
+                  type="text" value={formData.from}
+                  onChange={(e) => setFormData({ ...formData, from: e.target.value.toUpperCase() })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
+                  placeholder="e.g. CHINA"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">To (Destination)</label>
+                <input
+                  type="text" value={formData.to}
+                  onChange={(e) => setFormData({ ...formData, to: e.target.value.toUpperCase() })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
+                  placeholder="e.g. NHAVA SHEVA"
+                />
               </div>
             </div>
 
-            {/* Accordion Sections */}
-            {/* 2. Configuration Accordion (Collapsible) */}
-            <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="space-y-4 mb-8">
+            {/* 2. Configuration Accordion (same UI as packing) */}
+            <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="mb-8 border border-slate-200 rounded-xl overflow-hidden">
 
               {/* Exporter Section */}
-              <AccordionItem value="exporter" className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <AccordionTrigger className="hover:no-underline px-6 py-4">
+              <AccordionItem value="exporter" className="border-b border-slate-200 px-6 py-1">
+                <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Building2 className="w-5 h-5" /></div>
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Building2 className="w-4 h-4" /></div>
                     <div className="text-left">
                       <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">1. Exporter Details</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.exporterCompanyName || 'Not set'}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.headerCompanyName || 'Not set'}</div>
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6 pt-2">
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Company Name</label>
+                <AccordionContent className="pt-2 pb-6">
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Exporter Name *</label>
+                      <input
+                        type="text" value={formData.headerCompanyName}
+                        onChange={(e) => setFormData({ ...formData, headerCompanyName: e.target.value.toUpperCase() })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        placeholder="e.g. YIWU ZHOULAI TRADING CO., LIMITED"
+                      />
+                    </div>
+                    <div className="row-span-2">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Address line</label>
+                      <textarea
+                        value={formData.headerCompanyAddress}
+                        onChange={(e) => setFormData({ ...formData, headerCompanyAddress: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all h-[115px] resize-none"
+                        placeholder="Room 801, Unit 3, Building 1, Jiuheyuan..."
+                      ></textarea>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Header Phone / Tel</label>
+                      <input
+                        type="text" value={formData.headerPhone}
+                        onChange={(e) => setFormData({ ...formData, headerPhone: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        placeholder="13735751445"
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Consignee Section */}
+              <AccordionItem value="consignee" className="border-b border-slate-200 px-6 py-1">
+                <AccordionTrigger className="hover:no-underline py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users className="w-4 h-4" /></div>
+                    <div className="text-left">
+                      <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">2. Consignee Details</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.consigneeName || 'Not set'}</div>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-2 pb-6">
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Consignee Name</label>
                         <input
-                          type="text"
-                          value={formData.exporterCompanyName}
-                          onChange={(e) => setFormData({ ...formData, exporterCompanyName: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="IMPEXINA GLOBAL PVT LTD"
+                          type="text" value={formData.consigneeName}
+                          onChange={(e) => setFormData({ ...formData, consigneeName: e.target.value.toUpperCase() })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                          placeholder="e.g. IMPEXINA GLOBAL PVT LTD"
                         />
                       </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Address</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">IEC Number</label>
+                          <input
+                            type="text" value={formData.consigneeIecNo}
+                            onChange={(e) => setFormData({ ...formData, consigneeIecNo: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">GST Number</label>
+                          <input
+                            type="text" value={formData.consigneeGst}
+                            onChange={(e) => setFormData({ ...formData, consigneeGst: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Consignee Address</label>
                         <textarea
-                          value={formData.exporterAddress}
-                          onChange={(e) => setFormData({ ...formData, exporterAddress: e.target.value })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          rows={3}
-                          placeholder="Ground Floor, C-5, Gami Industrial Park Pawane..."
-                        />
+                          value={formData.consigneeAddress}
+                          onChange={(e) => setFormData({ ...formData, consigneeAddress: e.target.value.toUpperCase() })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all h-[90px] resize-none"
+                          placeholder="GROUND FLOOR, C-5, GAMI INDUSTRIAL PARK..."
+                        ></textarea>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">IEC NO.</label>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
                         <input
-                          type="text"
-                          value={formData.exporterIecNo}
-                          onChange={(e) => setFormData({ ...formData, exporterIecNo: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-                          placeholder="AAHCI4621"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">GST NO.</label>
-                        <input
-                          type="text"
-                          value={formData.exporterGst}
-                          onChange={(e) => setFormData({ ...formData, exporterGst: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-                          placeholder="27AAHCI4621JZG"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Email</label>
-                        <input
-                          type="email"
-                          value={formData.exporterEmail}
-                          onChange={(e) => setFormData({ ...formData, exporterEmail: e.target.value.toLowerCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                          type="email" value={formData.consigneeEmail}
+                          onChange={(e) => setFormData({ ...formData, consigneeEmail: e.target.value.toLowerCase() })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
                           placeholder="impexina91@gmail.com"
                         />
                       </div>
@@ -742,202 +749,173 @@ export default function InvoiceEntryPage() {
                 </AccordionContent>
               </AccordionItem>
 
-              {/* Consignee Section */}
-              <AccordionItem value="consignee" className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <AccordionTrigger className="hover:no-underline px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users className="w-5 h-5" /></div>
-                    <div className="text-left">
-                      <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">2. Consignee Details</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.consigneeName || 'Not set'}</div>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6 pt-2">
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Company Name</label>
-                        <input
-                          type="text"
-                          value={formData.consigneeName}
-                          onChange={(e) => setFormData({ ...formData, consigneeName: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="YIWU ZHOULAI TRADING CO., LIMITED"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Address</label>
-                        <textarea
-                          value={formData.consigneeAddress}
-                          onChange={(e) => setFormData({ ...formData, consigneeAddress: e.target.value })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          rows={3}
-                          placeholder="Room 801, Unit 3, Building 1, Jiuheyuan..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Country</label>
-                        <input
-                          type="text"
-                          value={formData.consigneeCountry}
-                          onChange={(e) => setFormData({ ...formData, consigneeCountry: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="CHINA"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
               {/* Bank Section */}
-              <AccordionItem value="bank" className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <AccordionTrigger className="hover:no-underline px-6 py-4">
+              <AccordionItem value="bank" className="border-b border-slate-200 px-6 py-1">
+                <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Landmark className="w-5 h-5" /></div>
+                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Landmark className="w-4 h-4" /></div>
                     <div className="text-left">
                       <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">3. Bank Details</div>
                       <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.bankName || 'Not set'}</div>
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6 pt-2">
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Bank Name</label>
-                        <input
-                          type="text"
-                          value={formData.bankName}
-                          onChange={(e) => setFormData({ ...formData, bankName: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="ZHEJIANG TAILONG COMMERCIAL BANK"
-                        />
+                <AccordionContent className="pt-2 pb-6">
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Bank Name</label>
+                          <input
+                            type="text" value={formData.bankName}
+                            onChange={(e) => setFormData({ ...formData, bankName: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Beneficiary Name</label>
+                          <input
+                            type="text" value={formData.beneficiaryName}
+                            onChange={(e) => setFormData({ ...formData, beneficiaryName: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Beneficiary Name</label>
-                        <input
-                          type="text"
-                          value={formData.beneficiaryName}
-                          onChange={(e) => setFormData({ ...formData, beneficiaryName: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="YIWU ZHOULAI TRADING CO.,LIMITED"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Swift BIC</label>
+                          <input
+                            type="text" value={formData.swiftBic}
+                            onChange={(e) => setFormData({ ...formData, swiftBic: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">A/C No.</label>
+                          <input
+                            type="text" value={formData.accountNumber}
+                            onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all font-mono"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">SWIFT BIC</label>
-                        <input
-                          type="text"
-                          value={formData.swiftBic}
-                          onChange={(e) => setFormData({ ...formData, swiftBic: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-                          placeholder="ZJTLCNBHXXX"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Account Number</label>
-                        <input
-                          type="text"
-                          value={formData.accountNumber}
-                          onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-                          placeholder="33080020201000155179"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Bank Address</label>
-                        <textarea
-                          value={formData.bankAddress}
-                          onChange={(e) => setFormData({ ...formData, bankAddress: e.target.value })}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          rows={2}
-                          placeholder="ROOM 801, UNIT 3, BUILDING 1..."
-                        />
-                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Bank Address</label>
+                      <textarea
+                        value={formData.bankAddress}
+                        onChange={(e) => setFormData({ ...formData, bankAddress: e.target.value.toUpperCase() })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 transition-all h-[80px] resize-none"
+                      ></textarea>
                     </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
 
               {/* Stamp Section */}
-              <AccordionItem value="stamp" className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <AccordionTrigger className="hover:no-underline px-6 py-4">
+              <AccordionItem value="stamp" className="border-none px-6 py-1">
+                <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Upload className="w-5 h-5" /></div>
+                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Upload className="w-4 h-4" /></div>
                     <div className="text-left">
                       <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">4. Stamp & Signature</div>
                       <div className="text-[10px] text-slate-400 font-bold uppercase">{formData.stampText || "Authorized Signatory"}</div>
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6 pt-2">
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Stamp Image</label>
-                        <button
-                          onClick={() => handleFileUpload(null, 'stamp')}
-                          className="w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-2 group"
-                        >
-                          {formData.stampImage ? (
-                            <>
-                              <div className="w-full h-24 relative mb-2">
-                                <img
-                                  src={getImageUrl(formData.stampImage)}
-                                  alt="Stamp"
-                                  className="w-full h-full object-contain"
-                                />
-                              </div>
-                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full group-hover:bg-blue-100 transition-colors">Change Stamp</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-6 h-6 text-slate-300 mb-2 group-hover:text-blue-500 transition-colors" />
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Upload Stamp</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Position</label>
-                        <div className="flex gap-2">
-                          {['BOTTOM_LEFT', 'BOTTOM_CENTER', 'BOTTOM_RIGHT'].map((pos) => (
-                            <button
-                              key={pos}
-                              onClick={() => setFormData({ ...formData, stampPosition: pos })}
-                              className={`flex-1 py-3 type="button" rounded-xl text-[10px] font-bold transition-all border ${formData.stampPosition === pos
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
-                                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
-                                }`}
-                            >
-                              {pos.replace('BOTTOM_', '')}
-                            </button>
-                          ))}
+                <AccordionContent className="pt-2 pb-6">
+                  <div className="flex items-start gap-8 pt-4 border-t border-slate-100">
+                    <div
+                      onClick={() => handleFileUpload(null, 'stamp')}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                        const file = e.dataTransfer.files[0];
+                        if (file?.type?.startsWith('image/')) {
+                          uploadFile(file, null, 'stamp');
+                        } else {
+                          toast.error('Please drop an image file');
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const file = getImageFileFromClipboardEvent(e);
+                        if (file) {
+                          e.preventDefault();
+                          uploadFile(file, null, 'stamp');
+                        }
+                      }}
+                      tabIndex={0}
+                      className="w-28 h-28 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all overflow-hidden relative group shrink-0 outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      {formData.stampImage ? (
+                        <>
+                          <img src={getImageUrl(formData.stampImage)} className="w-full h-full object-contain" alt="Stamp" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <span className="text-white text-[10px] font-bold">CHANGE</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-6 h-6 text-slate-300 mb-2" />
+                          <span className="text-[9px] font-bold text-slate-400 uppercase text-center px-4 tracking-tighter">Upload Stamp</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex-1 grid grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Position</label>
+                          <select
+                            value={formData.stampPosition}
+                            onChange={(e) => setFormData({ ...formData, stampPosition: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500"
+                          >
+                            <option value="BOTTOM_LEFT">Bottom Left</option>
+                            <option value="BOTTOM_CENTER">Bottom Center</option>
+                            <option value="BOTTOM_RIGHT">Bottom Right</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Size</label>
+                          <div className="flex gap-2">
+                            {['SM', 'M', 'LG'].map(sz => (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, stampSize: sz })}
+                                className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition-all ${formData.stampSize === sz
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  }`}
+                              >
+                                {sz}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Size</label>
-                        <div className="flex gap-2">
-                          {['SM', 'M', 'LG'].map((sz) => (
-                            <button
-                              key={sz}
-                              onClick={() => setFormData({ ...formData, stampSize: sz })}
-                              className={`flex-1 py-3 type="button" rounded-xl text-[10px] font-bold transition-all border ${formData.stampSize === sz
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
-                                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
-                                }`}
-                            >
-                              {sz === 'SM' ? 'SMALL' : sz === 'M' ? 'MEDIUM' : 'LARGE'}
-                            </button>
-                          ))}
-                        </div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Footer Signature Text</label>
+                        <textarea
+                          value={formData.stampText}
+                          onChange={(e) => setFormData({ ...formData, stampText: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 h-[100px] resize-none"
+                          placeholder="e.g. Authorized Signatory"
+                        ></textarea>
                       </div>
                     </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
-
             </Accordion>
           </div>
         </div>
@@ -956,40 +934,39 @@ export default function InvoiceEntryPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-left">
-                  <th className="px-4 py-3 w-12">#</th>
-                  <th className="px-4 py-3 w-24">MARK</th>
-                  <th className="px-4 py-3 w-24">Photo</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3 w-20">Ctn</th>
-                  <th className="px-4 py-3 w-24">Qty/Ctn</th>
-                  <th className="px-4 py-3 w-20">Unit</th>
-                  <th className="px-4 py-3 w-24">T-Qty</th>
-                  <th className="px-4 py-3 w-24">U.Price</th>
-                  <th className="px-4 py-3 w-32">Amount/USD</th>
-                  {formData.showHsnColumn && <th className="px-4 py-3 w-32">HSN</th>}
-                  <th className="px-4 py-3 w-12"></th>
+            <table className="w-full text-sm" style={{ minWidth: '1200px' }}>
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                  <th className="px-4 py-5 w-12 text-center border-r border-slate-200">S.N.</th>
+                  <th className="px-2 py-5 w-24 text-center border-r border-slate-200">MARK</th>
+                  <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Photo</th>
+                  <th className="px-4 py-5 min-w-[250px] border-r border-slate-200 text-left">Descriptions</th>
+                  <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Ctn.</th>
+                  <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Qty/Ctn</th>
+                  <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Unit</th>
+                  <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-blue-50/50 text-blue-700">T-Qty</th>
+                  <th className="px-2 py-5 min-w-[90px] text-center border-r border-slate-200">U.Price</th>
+                  <th className="px-2 py-5 min-w-[110px] text-center border-r border-slate-200 bg-emerald-50/50 text-emerald-700">Amount/USD</th>
+                  {formData.showHsnColumn && <th className="px-2 py-5 min-w-[90px] text-center border-r border-slate-200">HSN</th>}
+                  <th className="px-2 py-5 w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, idx) => (
-                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-center text-slate-500 font-semibold">{idx + 1}</td>
-                    <td className="px-4 py-3">
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-2 text-center text-xs font-medium text-slate-400 border-r border-slate-100">{idx + 1}</td>
+                    <td className="px-1 py-1 border-r border-slate-100">
                       <input
                         type="text"
                         value={item.itemNumber}
-                        onChange={(e) => updateItem(item.id, 'itemNumber', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="BB-AMD"
+                        onChange={(e) => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
+                        className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
+                        placeholder="-"
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleFileUpload(item.id, 'photo')}
-                        className="w-16 h-16 border-2 border-dashed border-slate-300 rounded hover:border-blue-500 flex items-center justify-center relative overflow-hidden group"
+                    <td className="px-1 py-1 border-r border-slate-100 text-center">
+                      <label
+                        className="w-10 h-10 mx-auto flex items-center justify-center border border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 transition-all relative overflow-hidden group"
                         onMouseEnter={() => setHoveredId(item.id)}
                         onMouseLeave={() => setHoveredId(null)}
                         onContextMenu={(e) => onCellContextMenu(e, item.id)}
@@ -1010,107 +987,95 @@ export default function InvoiceEntryPage() {
                           }
                         }}
                         onPaste={(e) => {
-                          const items = e.clipboardData.items;
-                          for (let i = 0; i < items.length; i++) {
-                            if (items[i].type.indexOf("image") !== -1) {
-                              const file = items[i].getAsFile();
-                              uploadFile(file, item.id, 'photo');
-                              break;
-                            }
-                          }
+                          const file = getImageFileFromClipboardEvent(e);
+                          if (file) uploadFile(file, item.id, 'photo');
                         }}
                       >
-                        {item.photo ? (
-                          <img src={getImageUrl(item.photo)} alt="" className="w-full h-full object-cover rounded" />
-                        ) : (
-                          <Upload className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
+                        <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <Upload className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
+                        </span>
+                        {item.photo && getImageUrl(item.photo) ? (
+                          <img
+                            src={getImageUrl(item.photo)}
+                            alt="Item"
+                            className="relative z-10 w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) uploadFile(file, item.id, 'photo');
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="text"
+                    <td className="px-1 py-1 border-r border-slate-100">
+                      <textarea
                         value={item.description}
-                        onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="FOOTREST"
+                        onChange={(e) => updateItem(item.id, 'description', e.target.value.toUpperCase())}
+                        className="w-full bg-transparent border-none px-3 py-1 text-sm font-semibold text-slate-700 outline-none resize-none h-10"
+                        placeholder="Description"
                         onMouseEnter={() => setHoveredId(item.id)}
                         onMouseLeave={() => setHoveredId(null)}
                         onContextMenu={(e) => onCellContextMenu(e, item.id)}
                         onPaste={(e) => {
-                          const clipboardItems = e.clipboardData.items;
-                          for (let i = 0; i < clipboardItems.length; i++) {
-                            if (clipboardItems[i].type.indexOf("image") !== -1) {
-                              const file = clipboardItems[i].getAsFile();
-                              uploadFile(file, item.id, 'photo');
-                              break;
-                            }
+                          const file = getImageFileFromClipboardEvent(e);
+                          if (file) {
+                            e.preventDefault();
+                            uploadFile(file, item.id, 'photo');
                           }
                         }}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-1 py-1 border-r border-slate-100">
                       <input
-                        type="number"
-                        value={item.ctn}
+                        type="number" value={item.ctn || ''}
                         onChange={(e) => updateItem(item.id, 'ctn', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none text-center"
+                        className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-900 text-center outline-none"
+                        placeholder="0"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-1 py-1 border-r border-slate-100">
                       <input
-                        type="number"
-                        value={item.qtyPerCtn}
+                        type="number" value={item.qtyPerCtn || ''}
                         onChange={(e) => updateItem(item.id, 'qtyPerCtn', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none text-center"
+                        className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
+                        placeholder="0"
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={item.unit}
-                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      >
-                        <option value="PCS">PCS</option>
-                        <option value="KG">KG</option>
-                        <option value="SET">SET</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
+                    <td className="px-1 py-1 border-r border-slate-100">
                       <input
-                        type="number"
-                        value={item.tQty}
-                        readOnly
-                        className="w-full px-2 py-1 border border-slate-200 rounded bg-slate-50 text-center font-semibold"
+                        value={item.unit || 'PCS'}
+                        onChange={(e) => updateItem(item.id, 'unit', e.target.value.toUpperCase())}
+                        className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-600 bg-blue-50/20">{item.tQty}</td>
+                    <td className="px-1 py-1 border-r border-slate-100">
                       <input
                         type="number"
                         step="0.01"
-                        value={item.unitPrice}
+                        value={item.unitPrice || ''}
                         onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none text-right"
-                        placeholder="0.06"
+                        className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
+                        placeholder="0.00"
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.amountUsd}
-                        readOnly
-                        className="w-full px-2 py-1 border border-slate-200 rounded bg-emerald-50 text-right font-bold text-emerald-700"
-                      />
-                    </td>
+                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-emerald-700 bg-emerald-50/20">{(parseFloat(item.amountUsd) || 0).toFixed(2)}</td>
                     {formData.showHsnColumn && (
-                      <td className="px-4 py-3">
+                      <td className="px-1 py-1 border-r border-slate-100">
                         <input
-                          type="text"
-                          value={item.hsn}
-                          onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
-                          className="w-full px-2 py-1 border border-slate-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                          placeholder="94036090"
+                          value={item.hsn || ''}
+                          onChange={(e) => updateItem(item.id, 'hsn', e.target.value.toUpperCase())}
+                          className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
+                          placeholder="-"
                         />
                       </td>
                     )}

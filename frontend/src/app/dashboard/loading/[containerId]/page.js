@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { toast } from "sonner";
+import { getImageFileFromClipboardEvent, getImageFileFromClipboard } from "@/lib/clipboard-image";
 
 import PreviewModal from "../_components/PreviewModal";
 
@@ -57,6 +58,10 @@ export default function LoadingSheetPage() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showGlobalPreview, setShowGlobalPreview] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const hasUnsavedChangesRef = useRef(false);
+  const saveAndLeaveRef = useRef(null);
+  const leaveConfirmDialogRef = useRef(null);
 
   // Form state
   const [shippingMark, setShippingMark] = useState("");
@@ -92,10 +97,13 @@ export default function LoadingSheetPage() {
         e.preventDefault();
         handleSave();
       }
-      // Esc: Back
+      // Esc: Back (or close preview / leave confirm)
       if (e.key === "Escape") {
-        if (showPreview) setShowPreview(false);
-        else router.push("/dashboard/loading");
+        if (showLeaveConfirm) setShowLeaveConfirm(false);
+        else if (showPreview) setShowPreview(false);
+        else if (showGlobalPreview) setShowGlobalPreview(false);
+        else if (hasUnsavedChangesRef.current) setShowLeaveConfirm(true);
+        else goBack();
       }
       // Ctrl+Enter: Add Item
       if (e.ctrlKey && e.key === "Enter") {
@@ -125,21 +133,15 @@ export default function LoadingSheetPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [shippingMark, clientName, items, showPreview]);
+  }, [shippingMark, clientName, items, showPreview, showGlobalPreview, showLeaveConfirm]);
 
-  // Global paste listener for hover functionality
+  // Global paste listener for hover functionality (supports Excel/Office paste)
   useEffect(() => {
     const handleGlobalPaste = (e) => {
-      // Check if we are hovering over a cell and not typing in an input/textarea (which has its own handler)
-      // Actually, user wants it to work when hovering, so we prioritize the hovered cell.
       if (hoveredIndex !== null) {
-        const clipboardItems = e.clipboardData.items;
-        for (let i = 0; i < clipboardItems.length; i++) {
-          if (clipboardItems[i].type.indexOf("image") !== -1) {
-            const file = clipboardItems[i].getAsFile();
-            handlePhotoUpload(hoveredIndex, file);
-            break;
-          }
+        const file = getImageFileFromClipboardEvent(e);
+        if (file) {
+          handlePhotoUpload(hoveredIndex, file);
         }
       }
     };
@@ -148,22 +150,16 @@ export default function LoadingSheetPage() {
     return () => window.removeEventListener("paste", handleGlobalPaste);
   }, [hoveredIndex]);
 
-  // Handle right-click context menu paste
+  // Handle right-click context menu paste (supports Excel/Office paste)
   const handlePasteFromMenu = async (index) => {
     try {
       setContextMenu(prev => ({ ...prev, visible: false }));
-      const clipboardItems = await navigator.clipboard.read();
-      for (const item of clipboardItems) {
-        for (const type of item.types) {
-          if (type.startsWith("image/")) {
-            const blob = await item.getType(type);
-            const file = new File([blob], "pasted_image.png", { type });
-            handlePhotoUpload(index, file);
-            return;
-          }
-        }
+      const file = await getImageFileFromClipboard();
+      if (file) {
+        handlePhotoUpload(index, file);
+      } else {
+        toast.info("No image found in clipboard");
       }
-      toast.info("No image found in clipboard");
     } catch (err) {
       console.error("Paste failed", err);
       toast.error("Clipboard access denied. Please click 'Allow' when prompted.");
@@ -189,6 +185,56 @@ export default function LoadingSheetPage() {
   useEffect(() => {
     fetchContainerData();
   }, [containerId]);
+
+  // Leave confirm modal: auto-focus Save & leave, arrow key navigation
+  useEffect(() => {
+    if (!showLeaveConfirm || !leaveConfirmDialogRef.current) return;
+
+    // Auto-focus Save & leave button when modal opens
+    const focusSave = () => {
+      if (saveAndLeaveRef.current && !saving) {
+        saveAndLeaveRef.current.focus();
+      }
+    };
+    const t = setTimeout(focusSave, 50);
+
+    const dialog = leaveConfirmDialogRef.current;
+    const buttons = dialog.querySelectorAll("button");
+    const getCurrentIndex = () => {
+      const idx = Array.from(buttons).findIndex((b) => b === document.activeElement);
+      return idx >= 0 ? idx : 2; // default to Save & leave
+    };
+
+    const handleModalKeyDown = (e) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const idx = getCurrentIndex();
+        const prev = idx <= 0 ? buttons.length - 1 : idx - 1;
+        buttons[prev]?.focus();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const idx = getCurrentIndex();
+        const next = idx >= buttons.length - 1 ? 0 : idx + 1;
+        buttons[next]?.focus();
+      } else if (e.key === "Tab") {
+        // Focus trap: wrap tab within buttons
+        const idx = getCurrentIndex();
+        if (!e.shiftKey && idx === buttons.length - 1) {
+          e.preventDefault();
+          buttons[0]?.focus();
+        } else if (e.shiftKey && idx === 0) {
+          e.preventDefault();
+          buttons[buttons.length - 1]?.focus();
+        }
+      }
+    };
+
+    dialog.addEventListener("keydown", handleModalKeyDown);
+    return () => {
+      clearTimeout(t);
+      dialog.removeEventListener("keydown", handleModalKeyDown);
+    };
+  }, [showLeaveConfirm, saving]);
 
   // Auto-link client if exact match found
   useEffect(() => {
@@ -261,6 +307,14 @@ export default function LoadingSheetPage() {
     }
   };
 
+  const markUnsaved = () => {
+    hasUnsavedChangesRef.current = true;
+  };
+
+  const markSaved = () => {
+    hasUnsavedChangesRef.current = false;
+  };
+
   const loadSheet = (sheet) => {
     setActiveSheet(sheet);
     setShippingMark(sheet.shippingMark || "");
@@ -277,10 +331,12 @@ export default function LoadingSheetPage() {
     }
 
     setItems(sheet.items.length > 0 ? sheet.items : [createEmptyItem()]);
+    markSaved();
   };
 
   const duplicateSheet = () => {
     if (!activeSheet) return;
+    markUnsaved();
     setActiveSheet(null); // Detach ID so it creates new
     setShippingMark(`${shippingMark} (COPY)`);
     // Keep items and clientName
@@ -301,6 +357,7 @@ export default function LoadingSheetPage() {
   });
 
   const addItem = () => {
+    markUnsaved();
     setItems([...items, createEmptyItem()]);
     setShouldFocusNewItem(true);
   };
@@ -313,6 +370,7 @@ export default function LoadingSheetPage() {
   }, [items, shouldFocusNewItem]);
 
   const duplicateLastItem = () => {
+    markUnsaved();
     if (items.length === 0) return;
     const lastItem = items[items.length - 1];
     const newItem = {
@@ -325,6 +383,7 @@ export default function LoadingSheetPage() {
   };
 
   const removeItem = (index) => {
+    markUnsaved();
     if (items.length === 1) {
       toast.error("At least one item is required");
       return;
@@ -333,6 +392,7 @@ export default function LoadingSheetPage() {
   };
 
   const updateItem = (index, field, value) => {
+    markUnsaved();
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
 
@@ -433,10 +493,10 @@ export default function LoadingSheetPage() {
     );
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options = {}) => {
     if (!shippingMark?.trim()) {
       toast.error("Shipping mark is required");
-      return;
+      return false;
     }
 
     // Remove empty items (where particular is empty)
@@ -444,7 +504,7 @@ export default function LoadingSheetPage() {
 
     if (validItems.length === 0) {
       toast.error("At least one item with description is required");
-      return;
+      return false;
     }
 
     try {
@@ -463,14 +523,35 @@ export default function LoadingSheetPage() {
       );
 
       if (response.data.success) {
-        toast.success("Loading sheet saved successfully");
+        markSaved();
+        const msg = options.saveAndLeave
+          ? "Saved successfully. Your progress has been saved."
+          : "Loading sheet saved successfully";
+        toast.success(msg);
         fetchContainerData();
+        return true;
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to save");
     } finally {
       setSaving(false);
     }
+    return false;
+  };
+
+  const goBack = () => router.push("/dashboard/loading");
+
+  const handleSaveAndLeave = async () => {
+    const ok = await handleSave({ saveAndLeave: true });
+    if (ok) {
+      setShowLeaveConfirm(false);
+      goBack();
+    }
+  };
+
+  const handleLeaveWithoutSaving = () => {
+    setShowLeaveConfirm(false);
+    goBack();
   };
 
   const handleExportExcel = async () => {
@@ -499,6 +580,7 @@ export default function LoadingSheetPage() {
   };
 
   const handleNewSheet = () => {
+    markSaved();
     setActiveSheet(null);
     setShippingMark("");
     setClientName("");
@@ -686,12 +768,67 @@ export default function LoadingSheetPage() {
         />
       )}
 
+      {/* Leave with unsaved changes confirm */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            ref={leaveConfirmDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-confirm-title"
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+          >
+            <h3 id="leave-confirm-title" className="text-lg font-bold text-slate-900 mb-2">Unsaved changes</h3>
+            <p className="text-sm text-slate-600 mb-6">
+              You have unsaved changes. Do you want to save before leaving?
+            </p>
+            <div className="flex items-center justify-between gap-4">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleLeaveWithoutSaving}
+                  className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                >
+                  Leave without saving
+                </button>
+                <button
+                  ref={saveAndLeaveRef}
+                  onClick={handleSaveAndLeave}
+                  disabled={saving}
+                  className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 flex items-center justify-center gap-2 min-w-[120px]"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save & leave
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Container Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push("/dashboard/loading")}
+              onClick={() => {
+                if (hasUnsavedChangesRef.current) setShowLeaveConfirm(true);
+                else goBack();
+              }}
               className="p-2 hover:bg-white rounded-lg transition-colors"
               title="Back (Esc)"
             >
@@ -915,6 +1052,7 @@ export default function LoadingSheetPage() {
                     type="text"
                     value={shippingMark}
                     onChange={(e) => {
+                      markUnsaved();
                       setShippingMark(e.target.value.toUpperCase());
                       fetchMarkSuggestions(e.target.value);
                     }}
@@ -937,6 +1075,7 @@ export default function LoadingSheetPage() {
                       <button
                         key={idx}
                         onClick={() => {
+                          markUnsaved();
                           setShippingMark(suggestion.mark);
                           setClientName(suggestion.client || "");
                           setClientId(suggestion.clientId || "");
@@ -975,6 +1114,7 @@ export default function LoadingSheetPage() {
                       type="text"
                       value={clientName}
                       onChange={(e) => {
+                        markUnsaved();
                         setClientName(e.target.value);
                         setClientId(""); // Clear ID if user types manually
                         fetchClientSuggestions(e.target.value);
@@ -992,6 +1132,7 @@ export default function LoadingSheetPage() {
                         </span>
                         <button
                           onClick={() => {
+                            markUnsaved();
                             setClientId("");
                             setClientName("");
                           }}
@@ -1010,6 +1151,7 @@ export default function LoadingSheetPage() {
                           <button
                             key={idx}
                             onClick={() => {
+                              markUnsaved();
                               setClientName(suggestion.name);
                               setClientId(suggestion.id);
                               setClientSuggestions([]);
@@ -1037,7 +1179,7 @@ export default function LoadingSheetPage() {
                           !clientId &&
                           !clientSuggestions.some(
                             (s) =>
-                              s.name.toLowerCase() === clientName.toLowerCase(),
+                              s.name?.toLowerCase().trim() === clientName?.toLowerCase().trim(),
                           ) && (
                             <button
                               onClick={async () => {
@@ -1046,17 +1188,36 @@ export default function LoadingSheetPage() {
                                     name: clientName,
                                   });
                                   if (response.data.success) {
-                                    // Set the ID first to trigger the "Linked" UI
+                                    markUnsaved();
                                     setClientId(response.data.data.id);
-                                    // Clear suggestions to close the dropdown
                                     setClientSuggestions([]);
                                     toast.success("Client added and linked");
                                   }
                                 } catch (error) {
-                                  const errorMsg =
-                                    error.response?.data?.message ||
-                                    "Failed to add client";
-                                  toast.error(errorMsg);
+                                  const errorMsg = error.response?.data?.message || "";
+
+                                  // If client already exists, try to find and link it automatically
+                                  if (errorMsg.includes("already exists")) {
+                                    try {
+                                      const searchRes = await API.get("/clients/search/suggestions", {
+                                        params: { search: clientName }
+                                      });
+                                      const existing = searchRes.data.data.find(
+                                        c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim()
+                                      );
+                                      if (existing) {
+                                        setClientId(existing.id);
+                                        setClientSuggestions([]);
+                                        markUnsaved();
+                                        toast.success(`Linked to existing client: ${existing.name}`);
+                                        return;
+                                      }
+                                    } catch (fetchErr) {
+                                      console.error("Failed to fetch existing client:", fetchErr);
+                                    }
+                                  }
+
+                                  toast.error(errorMsg || "Failed to add client");
                                 }
                               }}
                               className="w-full px-4 py-3 text-left bg-blue-50 hover:bg-blue-100 flex items-center gap-2 text-blue-700 font-bold"
@@ -1076,45 +1237,19 @@ export default function LoadingSheetPage() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 uppercase tracking-widest font-medium text-[10px]">
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      No.
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      Photo
-                    </th>
-                    <th className="px-3 py-4 text-left min-w-[150px] border-b border-slate-100">
-                      Particular
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">
-                      Mark
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">
-                      Item No
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      CTN
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      PCS
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">
-                      Total PCS
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      Unit
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      CBM
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">
-                      Total CBM
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[100px] border-b border-slate-100">
-                      WT
-                    </th>
-                    <th className="px-3 py-4 text-center min-w-[120px] border-b border-slate-100">
-                      Total WT
-                    </th>
+                    <th className="px-3 py-4 text-center align-middle min-w-[100px] border-b border-slate-100">No.</th>
+                    <th className="px-3 py-4 text-center align-middle min-w-[100px] border-b border-slate-100">Photo</th>
+                    <th className="px-3 py-4 text-left align-middle min-w-[150px] border-b border-slate-100">Particular</th>
+                    <th className="px-3 py-4 text-center align-middle min-w-[120px] border-b border-slate-100">Mark</th>
+                    <th className="px-3 py-4 text-center align-middle min-w-[120px] border-b border-slate-100">Item No</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[100px] border-b border-slate-100">CTN</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[100px] border-b border-slate-100">PCS</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Total PCS</th>
+                    <th className="px-3 py-4 text-center align-middle min-w-[100px] border-b border-slate-100">Unit</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[100px] border-b border-slate-100">CBM</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Total CBM</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[100px] border-b border-slate-100">WT</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Total WT</th>
                     <th className="min-w-[100px] border-b border-slate-100"></th>
                   </tr>
                 </thead>
@@ -1124,10 +1259,10 @@ export default function LoadingSheetPage() {
                       key={item.id}
                       className="hover:bg-slate-50 transition-colors"
                     >
-                      <td className="px-2 py-1 border-r border-slate-200 text-center font-medium text-slate-500">
+                      <td className="px-2 py-1 border-r border-slate-200 text-center align-middle font-medium text-slate-500">
                         {idx + 1}
                       </td>
-                      <td className="px-1 py-1 border-r border-slate-200 text-center">
+                      <td className="px-1 py-1 border-r border-slate-200 text-center align-middle">
                         <div className="flex justify-center">
                           {item.photo ? (
                             <div
@@ -1136,14 +1271,8 @@ export default function LoadingSheetPage() {
                               onMouseLeave={() => setHoveredIndex(null)}
                               onContextMenu={(e) => onCellContextMenu(e, idx)}
                               onPaste={(e) => {
-                                const items = e.clipboardData.items;
-                                for (let i = 0; i < items.length; i++) {
-                                  if (items[i].type.indexOf("image") !== -1) {
-                                    const file = items[i].getAsFile();
-                                    handlePhotoUpload(idx, file);
-                                    break;
-                                  }
-                                }
+                                const file = getImageFileFromClipboardEvent(e);
+                                if (file) handlePhotoUpload(idx, file);
                               }}
                             >
                               <img
@@ -1185,14 +1314,8 @@ export default function LoadingSheetPage() {
                                 }
                               }}
                               onPaste={(e) => {
-                                const items = e.clipboardData.items;
-                                for (let i = 0; i < items.length; i++) {
-                                  if (items[i].type.indexOf("image") !== -1) {
-                                    const file = items[i].getAsFile();
-                                    handlePhotoUpload(idx, file);
-                                    break;
-                                  }
-                                }
+                                const file = getImageFileFromClipboardEvent(e);
+                                if (file) handlePhotoUpload(idx, file);
                               }}
                             >
                               <Upload className="w-4 h-4" />
@@ -1209,30 +1332,27 @@ export default function LoadingSheetPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <textarea
                           ref={idx === items.length - 1 ? lastItemRef : null}
                           value={item.particular}
                           onChange={(e) =>
                             updateItem(idx, "particular", e.target.value)
                           }
-                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg resize-none h-12 transition-all font-normal text-slate-900 placeholder:text-slate-300"
+                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg resize-none h-12 leading-normal transition-all font-normal text-slate-900 placeholder:text-slate-300"
                           placeholder="Item Description"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                           onPaste={(e) => {
-                            const items = e.clipboardData.items;
-                            for (let i = 0; i < items.length; i++) {
-                              if (items[i].type.indexOf("image") !== -1) {
-                                const file = items[i].getAsFile();
-                                handlePhotoUpload(idx, file);
-                                break;
-                              }
+                            const file = getImageFileFromClipboardEvent(e);
+                            if (file) {
+                              e.preventDefault();
+                              handlePhotoUpload(idx, file);
                             }
                           }}
                           rows={1}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
                           value={item.mark || ""}
@@ -1244,7 +1364,7 @@ export default function LoadingSheetPage() {
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
                           value={item.itemNo || ""}
@@ -1256,34 +1376,34 @@ export default function LoadingSheetPage() {
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
                           value={item.ctn}
                           onChange={(e) =>
                             updateItem(idx, "ctn", e.target.value)
                           }
-                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-900 transition-all"
+                          className="w-full px-2 py-2 text-sm text-right bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-900 transition-all"
                           placeholder="0"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
                           value={item.pcs}
                           onChange={(e) =>
                             updateItem(idx, "pcs", e.target.value)
                           }
-                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-700 transition-all"
+                          className="w-full px-2 py-2 text-sm text-right bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-700 transition-all"
                           placeholder="0"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-normal text-slate-400 bg-slate-50/30">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-right align-middle font-normal text-slate-400 bg-slate-50/30">
                         {calculateRowTotal(item.ctn, item.pcs)}
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
                           value={item.unit || "PCS"}
@@ -1294,39 +1414,39 @@ export default function LoadingSheetPage() {
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
                           value={item.cbm}
                           onChange={(e) =>
                             updateItem(idx, "cbm", e.target.value)
                           }
-                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
+                          className="w-full px-2 py-2 text-sm text-right bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
                           placeholder="0"
                           step="0.001"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-bold text-blue-600 bg-blue-50/30">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-right align-middle font-bold text-blue-600 bg-blue-50/30">
                         {(item.ctn * item.cbm || 0).toFixed(3)}
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50">
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
                           value={item.wt}
                           onChange={(e) =>
                             updateItem(idx, "wt", e.target.value)
                           }
-                          className="w-full px-2 py-2 text-sm text-center bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
+                          className="w-full px-2 py-2 text-sm text-right bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
                           placeholder="0"
                           step="0.01"
                           onKeyDown={(e) => handleKeyDown(e, idx)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50 text-center font-bold text-orange-600 bg-orange-50/30">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-right align-middle font-bold text-orange-600 bg-orange-50/30">
                         {(item.ctn * item.wt || 0).toFixed(2)}
                       </td>
-                      <td className="px-2 py-1.5 border-b border-slate-50 text-center">
+                      <td className="px-2 py-1.5 border-b border-slate-50 text-center align-middle">
                         <button
                           onClick={() => removeItem(idx)}
                           tabIndex="-1"
@@ -1347,20 +1467,20 @@ export default function LoadingSheetPage() {
                     >
                       Totals
                     </td>
-                    <td className="px-2 py-2 border-l border-slate-200 text-center font-bold text-slate-900 text-base">
+                    <td className="px-2 py-2 border-l border-slate-200 text-right font-bold text-slate-900 text-base">
                       {totals.ctn}
                     </td>
                     <td className="px-2 py-2 border-l border-slate-200 bg-slate-100"></td>
-                    <td className="px-2 py-2 border-l border-slate-200 text-center font-bold text-blue-700 text-base shadow-sm bg-white">
+                    <td className="px-2 py-2 border-l border-slate-200 text-right font-bold text-blue-700 text-base shadow-sm bg-white">
                       {totals.tPcs}
                     </td>
                     <td className="px-2 py-2 border-l border-slate-200 bg-slate-100"></td>
                     <td className="px-2 py-2 border-l border-slate-200 bg-slate-100"></td>
-                    <td className="px-2 py-2 border-l border-slate-200 text-center font-bold text-blue-700 text-base shadow-sm bg-white">
+                    <td className="px-2 py-2 border-l border-slate-200 text-right font-bold text-blue-700 text-base shadow-sm bg-white">
                       {totals.tCbm.toFixed(3)}
                     </td>
                     <td className="px-2 py-2 border-l border-slate-200 bg-slate-100"></td>
-                    <td className="px-2 py-2 border-l border-slate-200 text-center font-bold text-orange-700 text-base shadow-sm bg-white">
+                    <td className="px-2 py-2 border-l border-slate-200 text-right font-bold text-orange-700 text-base shadow-sm bg-white">
                       {totals.tWt.toFixed(2)}
                     </td>
                     <td className="border-l border-slate-200 bg-slate-100"></td>

@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { APP_VERSION } from "@/lib/constants";
 import {
   Home,
   Truck,
@@ -496,7 +497,7 @@ export default function SidebarAdvanced({
             }`}
           >
             <Image
-              src="/logo.png"
+              src="/LOGO.jpeg"
               alt="Logo"
               width={open ? 170 : 48}
               height={48}
@@ -901,7 +902,7 @@ export default function SidebarAdvanced({
               <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <Code className="w-3 h-3 text-slate-400" />
-                  <span className="font-medium">v{process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'}</span>
+                  <span className="font-medium">v{APP_VERSION}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">by</span>
@@ -919,7 +920,7 @@ export default function SidebarAdvanced({
               </div>
             ) : (
               <div className="flex justify-center">
-                <Code className="w-3.5 h-3.5 text-slate-400" title={`v${process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'}`} />
+                <Code className="w-3.5 h-3.5 text-slate-400" title={`v${APP_VERSION}`} />
               </div>
             )}
           </div>

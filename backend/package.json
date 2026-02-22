@@ -1,6 +1,7 @@
 {
-  "name": "impexina-backend",
-  "version": "1.0.5",
+  "name": "bennet-tradding-backend",
+  "description": "Bennet Tradding Internal Management System",
+  "version": "1.0.7",
   "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

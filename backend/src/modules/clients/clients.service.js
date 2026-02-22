@@ -55,6 +55,15 @@ const clientsService = {
 
   // Create new client
   createClient: async (data) => {
+    // Check for existing client with same name (case-insensitive)
+    const existing = await prisma.client.findFirst({
+      where: { name: { equals: data.name, mode: 'insensitive' } }
+    });
+
+    if (existing) {
+      throw new Error(`Client "${data.name}" already exists`);
+    }
+
     return prisma.client.create({
       data,
     });
@@ -62,6 +71,19 @@ const clientsService = {
 
   // Update client
   updateClient: async (clientId, data) => {
+    if (data.name) {
+      const existing = await prisma.client.findFirst({
+        where: {
+          name: { equals: data.name, mode: 'insensitive' },
+          id: { not: clientId }
+        }
+      });
+
+      if (existing) {
+        throw new Error(`Another client with name "${data.name}" already exists`);
+      }
+    }
+
     return prisma.client.update({
       where: { id: clientId },
       data,
@@ -78,7 +100,7 @@ const clientsService = {
   // Search Suggestions (Lightweight)
   getSuggestions: async (search) => {
     if (!search) return [];
-    
+
     return prisma.client.findMany({
       where: {
         OR: [

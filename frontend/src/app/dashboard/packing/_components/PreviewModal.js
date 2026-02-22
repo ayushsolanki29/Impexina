@@ -1,111 +1,253 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Printer, FileText, Download, Table } from 'lucide-react';
-import Image from 'next/image';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
-
-// Helper function to get image URL
-const getImageUrl = (photoPath) => {
-  if (!photoPath) return null;
-
-  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
-    return photoPath;
-  }
-
-  const normalizedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
-  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || "").replace(/\/$/, "");
-
-  return `${baseUrl}${normalizedPath}`;
-};
+import * as XLSX from 'xlsx-js-style';
+import { getImageUrl } from '@/lib/image-utils';
 
 export default function PreviewModal({ isOpen, onClose, data, items, container }) {
   const [exporting, setExporting] = useState(false);
+  const previewRef = useRef(null);
+
   if (!isOpen) return null;
+
+  const exporterName = data.headerCompanyName || data.exporterCompanyName;
+  const exporterAddress = data.headerCompanyAddress || data.exporterAddress;
+  const exporterPhone = data.headerPhone;
 
   const totalCtn = items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0);
   const totalQty = items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0);
   const totalWeight = items.reduce((s, i) => s + (parseFloat(i.tKg) || 0), 0);
 
-  const handleDownloadPDF = async () => {
-    const element = document.getElementById('print-area-content');
-    if (!element) return;
+  const performExport = async () => {
+    if (!previewRef.current) return;
+
+    // 1. Create hidden iframe to isolate from Tailwind 4 CSS variables (lab/oklch)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '800px';
+    iframe.style.height = '2000px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
 
     try {
       setExporting(true);
-      const canvas = await html2canvas(element, {
+
+      // 2. Prepare iframe document structure
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 0; font-family: "Cambria", serif; -webkit-print-color-adjust: exact; background: #ffffff; }
+              * { box-sizing: border-box; }
+              .p-1 { padding: 4px; } .p-3 { padding: 12px; } .p-4 { padding: 16px; }
+              .px-4 { padding-left: 16px; padding-right: 16px; } .py-5 { padding-top: 20px; padding-bottom: 20px; }
+              .text-center { text-align: center; } .text-left { text-align: left; } .text-right { text-align: right; }
+              .font-bold { font-weight: bold; } .font-black { font-weight: 900; }
+              .uppercase { text-transform: uppercase; } .italic { font-style: italic; }
+              .w-full { width: 100%; } .flex { display: flex; } .gap-2 { gap: 8px; }
+              table { border-collapse: collapse; width: 100%; }
+              img { max-width: 100%; height: auto; }
+            </style>
+          </head>
+          <body>
+            <div id="capture-mount" style="display: inline-block; width: 100%;"></div>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      // 3. Clone content and STRIP classes (keeps inline styles from Previews)
+      const content = previewRef.current.cloneNode(true);
+      const stripClasses = (node) => {
+        if (node.nodeType === 1) {
+          node.removeAttribute('class');
+          node.removeAttribute('className');
+          Array.from(node.children).forEach(stripClasses);
+        }
+      };
+      stripClasses(content);
+
+      const mountPoint = doc.getElementById('capture-mount');
+      mountPoint.appendChild(content);
+
+      // 4. Wait for images to load in iframe
+      const imagesList = Array.from(doc.images);
+      await Promise.all(imagesList.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+
+      // 5. Capture with html2canvas inside the clean environment
+      const canvas = await html2canvas(mountPoint.firstElementChild, {
         scale: 2,
         useCORS: true,
+        backgroundColor: "#ffffff",
         logging: false,
-        backgroundColor: '#ffffff'
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      // 6. Generate multi-page PDF
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save(`Packing_List_${data.invNo || 'Draft'}.pdf`);
     } catch (error) {
-      console.error('PDF Export failed:', error);
+      console.error("PDF Export failed:", error);
     } finally {
+      document.body.removeChild(iframe);
       setExporting(false);
     }
   };
 
+  const handleDownloadPDF = () => performExport();
+
   const handleDownloadExcel = () => {
+    const wb = XLSX.utils.book_new();
+
     const wsData = [
-      [data.headerCompanyName?.toUpperCase()],
-      [`Add.: ${data.headerCompanyAddress} ${data.headerPhone ? 'Tel.:' + data.headerPhone : ''}`],
+      [exporterName?.toUpperCase()],
+      [`Add.: ${exporterAddress || ''} ${exporterPhone ? 'Tel.:' + exporterPhone : ''}`],
+      [],
       ['PACKING LIST'],
       [],
-      ['CONSIGNEE:', '', 'INVOICE DETAILS'],
-      [data.sellerCompanyName, '', `INV NO.: ${data.invNo}`],
-      [data.sellerAddress, '', `DATE: ${new Date(data.invoiceDate).toLocaleDateString('en-GB')}`],
-      [`IEC NO.: ${data.sellerIecNo}`, '', `TO: ${data.to || container?.destination || ''}`],
-      [`GST NO.: ${data.sellerGst}`, '', `FROM: ${data.from || container?.origin || ''}`],
-      [`EMAIL: ${data.sellerEmail}`, ''],
+      ['CONSIGNEE:', '', '', 'INVOICE DETAILS'],
+      [data.sellerCompanyName || '', '', '', `INV NO.: ${data.invNo || ''}`],
+      [data.sellerAddress || '', '', '', `DATE: ${data.invoiceDate ? new Date(data.invoiceDate).toLocaleDateString('en-GB') : ''}`],
+      [`IEC NO.: ${data.sellerIecNo || ''}`, '', '', `TO: ${data.to || container?.destination || ''}`],
+      [`GST NO.: ${data.sellerGst || ''}`, '', '', `FROM: ${data.from || container?.origin || ''}`],
+      [`EMAIL: ${data.sellerEmail || ''}`],
       [],
-      ['S.N.', 'MARK', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'KG', 'T.KG']
+      ['S.N.', 'MARK', 'DESCRIPTIONS', 'CTN.', 'QTY/CTN', 'UNIT', 'T-QTY', 'KG', 'T.KG', 'MIX', 'HSN']
     ];
 
     items.forEach((item, idx) => {
       wsData.push([
         idx + 1,
-        item.itemNumber,
-        item.particular,
-        item.ctn,
-        item.qtyPerCtn,
+        item.itemNumber || '',
+        item.particular || '',
+        parseInt(item.ctn) || 0,
+        parseInt(item.qtyPerCtn) || 0,
         item.unit || 'PCS',
-        item.tQty,
-        item.kg,
-        item.tKg
+        parseInt(item.tQty) || 0,
+        parseFloat(item.kg) || 0,
+        parseFloat(item.tKg) || 0,
+        item.mix || '',
+        item.hsn || ''
       ]);
     });
 
     wsData.push([]);
-    wsData.push(['TOTAL', '', '', totalCtn, '', '', totalQty, '', totalWeight.toFixed(2)]);
+    wsData.push(['TOTAL', '', '', totalCtn, '', '', totalQty, '', totalWeight.toFixed(2), '', '']);
+
     wsData.push([]);
     wsData.push(['BANK DETAILS:']);
-    wsData.push(['BANK NAME:', data.bankName]);
-    wsData.push(['BENEFICIARY:', data.beneficiaryName]);
-    wsData.push(['SWIFT:', data.swiftBic]);
-    wsData.push(['ACCOUNT NO:', data.accountNumber]);
+    wsData.push([`BANK NAME: ${data.bankName || ''}`]);
+    wsData.push([`BENEFICIARY: ${data.beneficiaryName || ''}`]);
+    wsData.push([`SWIFT BIC: ${data.swiftBic || ''}`]);
+    wsData.push([`BANK ADDRESS: ${data.bankAddress || ''}`]);
+    wsData.push([`ACCOUNT NO: ${data.accountNumber || ''}`]);
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Packing List");
 
-    // Auto-width for columns
-    const wscols = [
-      { wch: 5 }, { wch: 15 }, { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }
+    // Apply Styles (Borders and Alignment)
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cell_address = { c: C, r: R };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
+
+        // Default style for all cells
+        ws[cell_ref].s = {
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          },
+          alignment: {
+            vertical: "center",
+            horizontal: "center",
+            wrapText: true
+          },
+          font: {
+            name: "Arial",
+            sz: 10
+          }
+        };
+
+        // Header styles (specific rows)
+        if (R === 0) { // Main Exporter Title
+          ws[cell_ref].s.font = { name: "Arial", sz: 16, bold: true };
+          ws[cell_ref].s.alignment.horizontal = "center";
+        }
+        if (R === 3) { // Title
+          ws[cell_ref].s.font = { name: "Arial", sz: 14, bold: true };
+          ws[cell_ref].s.fill = { fgColor: { rgb: "EEEEEE" } };
+        }
+        if (R === 12) { // Table Column Headers
+          ws[cell_ref].s.font = { name: "Arial", sz: 10, bold: true };
+          ws[cell_ref].s.fill = { fgColor: { rgb: "E2E8F0" } };
+        }
+
+        // Particulars alignment (Column 3)
+        if (R > 12 && R <= 12 + items.length && C === 2) {
+          ws[cell_ref].s.alignment.horizontal = "left";
+        }
+      }
+    }
+
+    // Dynamic column widths
+    const maxWidths = wsData.reduce((acc, row) => {
+      row.forEach((cell, i) => {
+        const cellValue = cell?.toString() || "";
+        acc[i] = Math.max(acc[i] || 0, cellValue.length);
+      });
+      return acc;
+    }, []);
+    ws['!cols'] = maxWidths.map(w => ({ wch: Math.min(Math.max(w + 2, 8), 50) }));
+
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }, // Exporter Name
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }, // Exporter Address
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 10 } }, // Title
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } }, // Consignee label
+      { s: { r: 5, c: 3 }, e: { r: 5, c: 10 } }, // Invoice Details label
+      { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } }, { s: { r: 6, c: 3 }, e: { r: 6, c: 10 } },
+      { s: { r: 7, c: 0 }, e: { r: 7, c: 2 } }, { s: { r: 7, c: 3 }, e: { r: 7, c: 10 } },
+      { s: { r: 8, c: 0 }, e: { r: 8, c: 2 } }, { s: { r: 8, c: 3 }, e: { r: 8, c: 10 } },
+      { s: { r: 9, c: 0 }, e: { r: 9, c: 2 } }, { s: { r: 9, c: 3 }, e: { r: 9, c: 10 } },
+      { s: { r: 10, c: 0 }, e: { r: 10, c: 2 } },
     ];
-    ws['!cols'] = wscols;
 
+    XLSX.utils.book_append_sheet(wb, ws, "Packing List");
     XLSX.writeFile(wb, `Packing_List_${data.invNo || 'Draft'}.xlsx`);
   };
 
@@ -130,7 +272,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold text-sm shadow-md disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              {exporting ? 'Generating PDF...' : 'Download PDF'}
+              {exporting ? 'Generating...' : 'PDF'}
             </button>
             <button
               onClick={handleDownloadExcel}
@@ -155,24 +297,25 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
           </div>
         </div>
 
-        <div id="print-area" className="flex-1 overflow-y-auto bg-slate-100/50 p-4 md:p-10 print:p-0 print:bg-white flex justify-center">
+        <div id="print-area" className="flex-1 min-h-0 overflow-auto bg-slate-100/50 p-4 md:p-10 print:overflow-visible print:p-0 print:bg-white flex justify-center items-start">
           <div
             id="print-area-content"
+            ref={previewRef}
             style={{
               backgroundColor: '#ffffff',
               color: '#000000',
               border: '1px solid #000000'
             }}
-            className="mx-auto w-full max-w-[210mm] min-h-[297mm] print:max-w-none p-0 overflow-hidden font-cambria leading-[1.2]"
+            className="mx-auto w-full max-w-[210mm] min-h-[297mm] print:max-w-none p-0 font-cambria leading-[1.2] shrink-0"
           >
 
             {/* Topmost Header (Exporter/Agent) */}
             <div style={{ borderBottom: '1px solid #000000' }} className="py-5">
               <div className="text-center font-bold text-[32px] leading-none mb-1 uppercase tracking-tight">
-                {data.headerCompanyName}
+                {exporterName}
               </div>
               <div className="text-center font-bold text-[12.5px] px-12 leading-tight">
-                Add.: {data.headerCompanyAddress} {data.headerPhone && `Tel.:${data.headerPhone}`}
+                Add.: {exporterAddress} {exporterPhone && `Tel.:${exporterPhone}`}
               </div>
               <div className="text-center font-bold text-[42px] mt-4 tracking-[0.1em] pt-1" style={{ borderTop: '1px solid #000000' }}>
                 PACKING LIST
@@ -193,7 +336,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                   <td className="w-[40%] p-4 align-top text-[15px] leading-[1.8]">
                     <div className="p-1 px-4 mb-4" style={{ border: '1px solid #000000' }}>
                       <div className="font-bold">INV NO.: {data.invNo}</div>
-                      <div className="font-bold">DATE : {new Date(data.invoiceDate).toLocaleDateString('en-GB')}</div>
+                      <div className="font-bold">DATE : {data.invoiceDate ? new Date(data.invoiceDate).toLocaleDateString('en-GB') : ''}</div>
                     </div>
                     <div className="font-bold uppercase tracking-wide">TO: {data.to || container?.destination || 'NHAVA SHEVA'}</div>
                     <div className="font-bold uppercase tracking-wide">FROM: {data.from || container?.origin || 'CHINA'}</div>
@@ -202,7 +345,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
               </tbody>
             </table>
 
-            {/* Items Table (12 columns) */}
+            {/* Items Table */}
             <div className="flex-1">
               <table className="w-full border-collapse text-[10px]">
                 <thead>
@@ -229,6 +372,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                           <img
                             src={getImageUrl(item.photo)}
                             alt="item"
+                            crossOrigin="anonymous"
                             className="w-10 h-10 object-contain mx-auto"
                           />
                         )}
@@ -240,8 +384,8 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                       <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>{item.qtyPerCtn}</td>
                       <td className="p-1 text-center align-top uppercase" style={{ borderRight: '1px solid #000000' }}>{item.unit || 'PCS'}</td>
                       <td className="p-1 text-center font-bold align-top" style={{ borderRight: '1px solid #000000' }}>{item.tQty}</td>
-                      <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>{parseFloat(item.kg).toFixed(2)}</td>
-                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{parseFloat(item.tKg).toFixed(2)}</td>
+                      <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>{parseFloat(item.kg || 0).toFixed(2)}</td>
+                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{parseFloat(item.tKg || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                   {/* Totals Row */}
@@ -265,10 +409,10 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                   <td className="w-[65%] p-3 align-top" style={{ borderRight: '1px solid #000000' }}>
                     <div className="font-bold underline text-[10px] mb-2 uppercase tracking-wide italic">Bank Detail:</div>
                     <div className="text-[10px] font-medium leading-[1.3] uppercase" style={{ color: '#0f172a' }}>
-                      <div className="flex gap-2"><b>BENEFICIARY'S BANK NAME:</b> <span>{data.bankName}</span></div>
+                      <div className="flex gap-2"><b>BENEFICIARY&apos;S BANK NAME:</b> <span>{data.bankName}</span></div>
                       <div className="flex gap-2"><b>BENEFICIARY NAME :</b> <span>{data.beneficiaryName}</span></div>
                       <div className="flex gap-2"><b>SWIFT BIC:</b> <span>{data.swiftBic}</span></div>
-                      <div className="flex gap-2"><b>BENEFICIARY'S BANK ADD:</b> <span>{data.bankAddress}</span></div>
+                      <div className="flex gap-2"><b>BENEFICIARY&apos;S BANK ADD:</b> <span>{data.bankAddress}</span></div>
                       <div className="flex gap-2"><b>BENEFICIARY A/C NO.:</b> <span>{data.accountNumber}</span></div>
                     </div>
                   </td>
@@ -278,6 +422,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
                         <img
                           src={getImageUrl(data.stampImage)}
                           alt="Stamp"
+                          crossOrigin="anonymous"
                           style={{
                             width: data.stampSize === 'SM' ? '80px' : data.stampSize === 'LG' ? '180px' : '130px',
                             opacity: 0.9

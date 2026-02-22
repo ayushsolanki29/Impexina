@@ -62,7 +62,7 @@ app.use("/uploads", async (req, res, next) => {
 
   // Decode URL-encoded path (handles %20 for spaces, etc.)
   const decodedPath = decodeURIComponent(req.path);
-  
+
   // Remove /uploads prefix
   const relativePath = decodedPath.replace(/^\/uploads\//, "");
   const requestedPath = path.join(uploadsPath, relativePath);
@@ -85,49 +85,34 @@ app.use("/uploads", async (req, res, next) => {
     res.setHeader("Cache-Control", "public, max-age=31536000");
     res.sendFile(normalizedRequested);
   } catch (err) {
-    // File not found at requested path - try to find it in other shipping mark folders
-    // Path format: /uploads/containerCode/shippingMark/filename
-    const pathParts = relativePath.split(/[/\\]/);
-    if (pathParts.length >= 3) {
-      const containerCode = pathParts[0];
-      const fileName = pathParts[pathParts.length - 1];
-      const containerDir = path.join(uploadsPath, containerCode);
+    // File not found at requested path - let's search recursively
+    const fileName = path.basename(relativePath);
 
-      try {
-        const entries = await fs.readdir(containerDir, { withFileTypes: true });
-        const directories = entries.filter(e => e.isDirectory());
+    try {
+      // Find files recursively in uploads dir
+      const { exec } = require("child_process");
+      const findCommand = process.platform === "win32"
+        ? `where /r "${uploadsPath}" "${fileName}"`
+        : `find "${uploadsPath}" -name "${fileName}" -print -quit`;
 
-        console.log(`[Static Files] File not found at ${normalizedRequested}, searching in ${directories.length} directories for ${fileName}`);
-
-        // Search each directory for the file
-        for (const entry of directories) {
-          const potentialPath = path.join(containerDir, entry.name, fileName);
-          try {
-            await fs.access(potentialPath);
-            // Found the file - serve it directly with proper headers
-            console.log(`[Static Files] Found file at ${potentialPath}, serving...`);
-            res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-            res.setHeader("Access-Control-Allow-Origin", CLIENT_URL === "*" ? "*" : CLIENT_URL);
-            res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-            res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-            res.setHeader("Cache-Control", "public, max-age=31536000");
-            res.sendFile(potentialPath);
-            return;
-          } catch (searchErr) {
-            // File not in this directory, continue searching
-            continue;
-          }
+      exec(findCommand, (findErr, stdout) => {
+        if (findErr || !stdout) {
+          console.log(`[Static Files] File ${fileName} not found anywhere in ${uploadsPath}`);
+          return res.status(404).type("text/plain").send("File not found");
         }
-        // File not found in any directory
-        console.log(`[Static Files] File ${fileName} not found in any directory under ${containerDir}`);
-        res.status(404).type("text/plain").send("File not found");
-      } catch (dirErr) {
-        console.error(`[Static Files] Error reading directory ${containerDir}:`, dirErr.message);
-        res.status(404).type("text/plain").send("File not found");
-      }
-    } else {
-      // Invalid path format
-      console.log(`[Static Files] Invalid path format: ${relativePath}`);
+
+        const foundPath = stdout.split('\n')[0].trim();
+        if (foundPath) {
+          console.log(`[Static Files] Found file via search: ${foundPath}`);
+          res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+          res.setHeader("Access-Control-Allow-Origin", CLIENT_URL === "*" ? "*" : CLIENT_URL);
+          res.sendFile(foundPath);
+        } else {
+          res.status(404).type("text/plain").send("File not found");
+        }
+      });
+    } catch (searchErr) {
+      console.error(`[Static Files] Search error:`, searchErr.message);
       res.status(404).type("text/plain").send("File not found");
     }
   }
