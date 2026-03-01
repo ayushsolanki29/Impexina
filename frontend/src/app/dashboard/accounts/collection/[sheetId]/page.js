@@ -184,6 +184,24 @@ export default function PaymentCollectionSheetPage() {
     }
   };
 
+  // Keyboard: Ctrl+S save, Escape back
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (isPreviewOpen) setIsPreviewOpen(false);
+        else router.push("/dashboard/accounts/collection");
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        if (!isSaving) saveSheet();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isPreviewOpen, isSaving, saveSheet, router]);
+
   // Entry management
   const addRow = () => {
     const newRow = {
