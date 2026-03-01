@@ -259,56 +259,59 @@ const dineshbhaiController = {
   exportSheet: async (req, res) => {
     try {
       const { sheetId } = req.params;
-      
+
       const exportData = await dineshbhaiService.exportSheetToExcel(sheetId);
-      
+
       // Create workbook
       const workbook = XLSX.utils.book_new();
-      
-      // Main entries sheet
-      const entriesSheet = XLSX.utils.json_to_sheet(exportData.entries);
+
+      // Main entries sheet (ensure array for empty sheet)
+      const entries = Array.isArray(exportData.entries) ? exportData.entries : [];
+      const entriesSheet = XLSX.utils.json_to_sheet(entries.length ? entries : [{ "Supplier": "", "Payment Date": "", "Total": "", "Paid": "", "Client Ref": "" }]);
       XLSX.utils.book_append_sheet(workbook, entriesSheet, "Entries");
-      
+
       // Summary sheet
+      const sheet = exportData.sheet || {};
       const summaryData = [
         {
-          "Sheet Title": exportData.sheet.title,
-          "Description": exportData.sheet.description || "",
-          "Status": exportData.sheet.status,
-          "Month": exportData.sheet.month || "",
-          "Year": exportData.sheet.year || "",
-          "Tags": exportData.sheet.tags.join(", "),
-          "Created": new Date(exportData.sheet.createdAt).toLocaleDateString(),
-          "Last Updated": new Date(exportData.sheet.updatedAt).toLocaleDateString(),
+          "Sheet Title": sheet.title || "Untitled",
+          "Description": sheet.description || "",
+          "Status": sheet.status || "",
+          "Month": sheet.month ?? "",
+          "Year": sheet.year ?? "",
+          "Tags": Array.isArray(sheet.tags) ? sheet.tags.join(", ") : "",
+          "Created": sheet.createdAt ? new Date(sheet.createdAt).toLocaleDateString() : "",
+          "Last Updated": sheet.updatedAt ? new Date(sheet.updatedAt).toLocaleDateString() : "",
         },
       ];
-      
+
       const summarySheet = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-      
+
       // Write to buffer
       const excelBuffer = XLSX.write(workbook, {
         type: "buffer",
         bookType: "xlsx",
       });
-      
-      // Set response headers
+
+      const safeTitle = (sheet.title || "sheet").replace(/\s+/g, "_");
+      const filename = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
       res.setHeader(
         "Content-Type",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=${exportData.sheet.title.replace(/\s+/g, "_")}_${new Date()
-          .toISOString()
-          .slice(0, 10)}.xlsx`
+        `attachment; filename=${filename}`
       );
-      
+
       res.send(excelBuffer);
     } catch (error) {
+      console.error("Export sheet error:", error);
       res.status(500).json({
         success: false,
-        message: error.message,
+        message: error.message || "Export failed",
       });
     }
   },

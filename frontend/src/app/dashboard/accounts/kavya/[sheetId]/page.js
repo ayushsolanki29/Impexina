@@ -32,6 +32,7 @@ export default function KavyaSheetPage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isEditingSheet, setIsEditingSheet] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -78,6 +79,97 @@ export default function KavyaSheetPage() {
       toast.error(error.message || "Failed to load sheet");
     }
   }, [sheetId]);
+
+  const generateDefaultTitle = useCallback(async () => {
+    try {
+      const data = await kavyaAPI.generateDefaultTitle();
+      setEditSheet((prev) => ({ ...prev, title: data.data.data.title }));
+    } catch (error) {
+      console.error("Failed to generate title:", error);
+    }
+  }, []);
+
+  const loadEntries = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = {
+        search,
+        containerCode: containerFilter,
+        page: 1,
+        limit: 1000,
+      };
+
+      const data = await kavyaAPI.getSheetEntries(sheetId, params);
+      setEntries(data.data.data.entries || []);
+    } catch (error) {
+      toast.error(error.message || "Failed to load entries");
+    } finally {
+      setLoading(false);
+    }
+  }, [sheetId, search, containerFilter]);
+
+  // Handle Add Entry
+  const handleAddEntry = useCallback(async (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+
+    // Validate numeric fields to ensure they're >= 0
+    const rateCbmWeight = parseFloat(entry.rateCbmWeight) || 0;
+    const cbmKg = parseFloat(entry.cbmKg) || 0;
+    const dutyFvb = parseFloat(entry.dutyFvb) || 0;
+    const paid = parseFloat(entry.paid) || 0;
+
+    if (rateCbmWeight < 0 || cbmKg < 0 || dutyFvb < 0 || paid < 0) {
+      return toast.error("Numeric fields must be greater than or equal to 0");
+    }
+
+    try {
+      const entryData = {
+        ...entry,
+        rateCbmWeight: rateCbmWeight,
+        cbmKg: cbmKg,
+        dutyFvb: dutyFvb,
+        paid: paid,
+      };
+
+      await kavyaAPI.addEntry(sheetId, entryData);
+      toast.success("Entry added successfully");
+
+      // Reset form
+      setEntry({
+        containerCode: "",
+        loadingDate: "",
+        deliveryDate: "",
+        shippingMark: "",
+        particular: "",
+        rateCbmWeight: "",
+        cbmKg: "",
+        dutyFvb: "",
+        total: 0,
+        paid: "",
+        paymentDate: "",
+      });
+
+      loadEntries();
+      loadSheetData();
+    } catch (error) {
+      console.error("Add entry error:", error);
+      const responseData = error.response?.data || error.data || {};
+      const errorMessage = responseData.message || error.message || "Failed to add entry";
+      const errors = responseData.errors || [];
+      if (errors && Array.isArray(errors) && errors.length > 0) {
+        errors.forEach(err => {
+          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
+          toast.error(message);
+        });
+      } else if (errorMessage && errorMessage !== "Failed to add entry") {
+        toast.error(errorMessage);
+      } else {
+        toast.error("Failed to add entry. Please check all fields are valid.");
+      }
+    }
+  }, [sheetId, entry, loadEntries, loadSheetData]);
 
   // Load Data
   useEffect(() => {
@@ -126,6 +218,7 @@ export default function KavyaSheetPage() {
 
         await kavyaAPI.updateSheet(sheetId, sheetData);
         toast.success("Sheet updated successfully");
+        setIsEditingSheet(false);
         loadSheetData();
       }
     } catch (error) {
@@ -147,142 +240,8 @@ export default function KavyaSheetPage() {
     }
   }, [sheetId, editSheet, router, loadSheetData]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        const target = e.target;
-        const isInEntriesTable = target.closest('table');
-
-        if (isInEntriesTable) {
-          return;
-        }
-
-        const isNewSheet = sheetId === "new";
-        const isEditMode = sheet && editSheet && editSheet.title;
-
-        if (isNewSheet || isEditMode) {
-          e.preventDefault();
-          const syntheticEvent = {
-            preventDefault: () => { },
-            target: { form: document.querySelector('form') }
-          };
-          handleSaveSheet(syntheticEvent);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sheetId, sheet, editSheet, handleSaveSheet]);
-
-  const generateDefaultTitle = async () => {
-    try {
-      const data = await kavyaAPI.generateDefaultTitle();
-      setEditSheet((prev) => ({ ...prev, title: data.data.data.title }));
-    } catch (error) {
-      console.error("Failed to generate title:", error);
-    }
-  };
-
-  const loadEntries = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        search,
-        containerCode: containerFilter,
-        page: 1,
-        limit: 1000,
-      };
-
-      const data = await kavyaAPI.getSheetEntries(sheetId, params);
-      setEntries(data.data.data.entries || []);
-    } catch (error) {
-      toast.error(error.message || "Failed to load entries");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate total automatically (rateCbmWeight + cbmKg + dutyFvb)
-  useEffect(() => {
-    const rateCbmWeight = parseFloat(entry.rateCbmWeight) || 0;
-    const cbmKg = parseFloat(entry.cbmKg) || 0;
-    const dutyFvb = parseFloat(entry.dutyFvb) || 0;
-    const total = rateCbmWeight + cbmKg + dutyFvb;
-    setEntry((prev) => ({
-      ...prev,
-      total: isNaN(total) ? 0 : parseFloat(total.toFixed(2)),
-    }));
-  }, [entry.rateCbmWeight, entry.cbmKg, entry.dutyFvb]);
-
-  // Handle Add Entry
-  const handleAddEntry = async (e) => {
-    if (e) {
-      e.preventDefault();
-    }
-
-    // Validate numeric fields to ensure they're >= 0
-    const rateCbmWeight = parseFloat(entry.rateCbmWeight) || 0;
-    const cbmKg = parseFloat(entry.cbmKg) || 0;
-    const dutyFvb = parseFloat(entry.dutyFvb) || 0;
-    const paid = parseFloat(entry.paid) || 0;
-
-    if (rateCbmWeight < 0 || cbmKg < 0 || dutyFvb < 0 || paid < 0) {
-      return toast.error("Numeric fields must be greater than or equal to 0");
-    }
-
-    try {
-      const entryData = {
-        ...entry,
-        rateCbmWeight: rateCbmWeight,
-        cbmKg: cbmKg,
-        dutyFvb: dutyFvb,
-        paid: paid,
-      };
-
-      await kavyaAPI.addEntry(sheetId, entryData);
-
-      toast.success("Entry added successfully");
-
-      // Reset form
-      setEntry({
-        containerCode: "",
-        loadingDate: "",
-        deliveryDate: "",
-        shippingMark: "",
-        particular: "",
-        rateCbmWeight: "",
-        cbmKg: "",
-        dutyFvb: "",
-        total: 0,
-        paid: "",
-        paymentDate: "",
-      });
-
-      loadEntries();
-      loadSheetData();
-    } catch (error) {
-      console.error("Add entry error:", error);
-      const responseData = error.response?.data || error.data || {};
-      const errorMessage = responseData.message || error.message || "Failed to add entry";
-      const errors = responseData.errors || [];
-
-      if (errors && Array.isArray(errors) && errors.length > 0) {
-        errors.forEach(err => {
-          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
-          toast.error(message);
-        });
-      } else if (errorMessage && errorMessage !== "Failed to add entry") {
-        toast.error(errorMessage);
-      } else {
-        toast.error("Failed to add entry. Please check all fields are valid.");
-      }
-    }
-  };
-
   // Handle Update Entry
-  const handleUpdateEntry = async (entryId, field, value) => {
+  const handleUpdateEntry = useCallback(async (entryId, field, value) => {
     try {
       const entryToUpdate = entries.find((e) => e.id === entryId);
       if (!entryToUpdate) return;
@@ -338,10 +297,10 @@ export default function KavyaSheetPage() {
         toast.error("Failed to update entry. Please check all fields are valid.");
       }
     }
-  };
+  }, [entries, loadSheetData]);
 
   // Handle Delete Entry
-  const handleDeleteEntry = async (entryId) => {
+  const handleDeleteEntry = useCallback(async (entryId) => {
     if (!confirm("Are you sure you want to delete this entry?")) return;
 
     try {
@@ -352,10 +311,10 @@ export default function KavyaSheetPage() {
     } catch (error) {
       toast.error(error.message || "Failed to delete entry");
     }
-  };
+  }, [loadEntries, loadSheetData]);
 
   // Handle Export
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     try {
       const blob = await kavyaAPI.exportSheet(sheetId);
       const url = window.URL.createObjectURL(blob);
@@ -372,7 +331,49 @@ export default function KavyaSheetPage() {
     } catch (error) {
       toast.error(error.message || "Failed to export");
     }
-  };
+  }, [sheetId, sheet]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Escape to go back
+      if (e.key === "Escape") {
+        router.push("/dashboard/accounts");
+        return;
+      }
+
+      // Ctrl+S to save
+      if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+
+        const target = e.target;
+        const isInEntriesTable = target.closest("table");
+
+        if (isInEntriesTable) {
+          // Detect if we are in the "New Entry" row
+          const isNewEntry = target.closest('tr')?.classList.contains('bg-pink-50/30') ||
+            target.placeholder === "Search Container..." ||
+            target.placeholder === "Mark";
+
+          if (isNewEntry && (entry.containerCode || entry.particular)) {
+            handleAddEntry();
+            return;
+          }
+        }
+
+        // If not adding a new entry, trigger sheet save
+        // This handles both creating a new sheet and updating existing sheet info
+        handleSaveSheet();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sheetId, sheet, editSheet, entry, handleSaveSheet, handleAddEntry, router]);
+
+
+
+
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -469,7 +470,8 @@ export default function KavyaSheetPage() {
                     Export
                   </button>
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      setIsEditingSheet(true);
                       setEditSheet({
                         title: sheet.title,
                         description: sheet.description || "",
@@ -477,8 +479,8 @@ export default function KavyaSheetPage() {
                         isLocked: sheet.isLocked || false,
                         status: sheet.status,
                         openingBalance: sheet.openingBalance || 0,
-                      })
-                    }
+                      });
+                    }}
                     className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 font-medium text-sm"
                   >
                     <Edit className="w-4 h-4" />
@@ -493,7 +495,7 @@ export default function KavyaSheetPage() {
 
       {/* Sheet Info Form (Only for new or edit mode) */}
       {
-        (sheetId === "new" || (sheet && editSheet.title !== sheet.title)) && (
+        (sheetId === "new" || isEditingSheet) && (
           <div className="max-w-7xl mx-auto px-6 py-8">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8">
               <h2 className="text-xl font-bold text-slate-900 mb-6">
@@ -554,18 +556,21 @@ export default function KavyaSheetPage() {
                 <div className="flex gap-4 pt-4">
                   <button
                     type="button"
-                    onClick={() =>
-                      sheetId === "new"
-                        ? router.push("/dashboard/accounts/kavya")
-                        : setEditSheet({
+                    onClick={() => {
+                      if (sheetId === "new") {
+                        router.push("/dashboard/accounts/kavya");
+                      } else {
+                        setIsEditingSheet(false);
+                        setEditSheet({
                           title: sheet.title,
                           description: sheet.description || "",
                           tags: sheet.tags || [],
                           isLocked: sheet.isLocked || false,
                           status: sheet.status,
                           openingBalance: sheet.openingBalance || 0,
-                        })
-                    }
+                        });
+                      }
+                    }}
                     className="flex-1 py-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 font-bold uppercase text-[10px] tracking-widest"
                   >
                     Cancel
@@ -577,8 +582,9 @@ export default function KavyaSheetPage() {
                     {sheetId === "new" ? "Create Sheet" : "Save Changes"}
                   </button>
                 </div>
-                <p className="text-xs text-slate-400 text-center mt-4">
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">S</kbd> to save
+                <p className="text-xs text-slate-400 text-center mt-4 flex items-center justify-center gap-4">
+                  <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">S</kbd> to save</span>
+                  <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Esc</kbd> to go back</span>
                 </p>
               </form>
             </div>
@@ -670,8 +676,12 @@ export default function KavyaSheetPage() {
                     <span className="text-slate-400">Navigate</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Enter</kbd>
-                    <span className="text-slate-400">Add entry</span>
+                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">S</kbd>
+                    <span className="text-slate-400">Save/Add</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Esc</kbd>
+                    <span className="text-slate-400">Go back</span>
                   </span>
                 </p>
               </div>

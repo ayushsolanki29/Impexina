@@ -80,6 +80,108 @@ export default function TukaramSheetPage() {
     }
   }, [sheetId]);
 
+  const generateDefaultTitle = useCallback(async () => {
+    try {
+      const data = await tukaramAPI.generateDefaultTitle();
+      setEditSheet((prev) => ({ ...prev, title: data.data.data.title }));
+    } catch (error) {
+      console.error("Failed to generate title:", error);
+    }
+  }, []);
+
+  const loadEntries = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = {
+        search,
+        containerCode: containerFilter,
+        page: 1,
+        limit: 1000,
+      };
+
+      const data = await tukaramAPI.getSheetEntries(sheetId, params);
+      setEntries(data.data.data.entries || []);
+    } catch (error) {
+      toast.error(error.message || "Failed to load entries");
+    } finally {
+      setLoading(false);
+    }
+  }, [sheetId, search, containerFilter]);
+
+  // Handle Add Entry
+  const handleAddEntry = useCallback(async (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+
+    if (!entry.containerCode) {
+      return toast.error("Container code is required");
+    }
+
+    // Validate numeric fields to ensure they're >= 0
+    const charges = parseFloat(entry.charges) || 0;
+    const scanning = parseFloat(entry.scanning) || 0;
+    const dc = parseFloat(entry.dc) || 0;
+    const paid = parseFloat(entry.paid) || 0;
+
+    if (charges < 0 || scanning < 0 || dc < 0 || paid < 0) {
+      return toast.error("Numeric fields (charges, scanning, DC, paid) must be greater than or equal to 0");
+    }
+
+    try {
+      const entryData = {
+        ...entry,
+        totalCtn: entry.totalCtn ? parseInt(entry.totalCtn) : 0,
+        charges: charges,
+        scanning: scanning,
+        dc: dc,
+        paid: paid,
+      };
+
+      await tukaramAPI.addEntry(sheetId, entryData);
+
+      toast.success("Entry added successfully");
+
+      // Reset form
+      setEntry({
+        containerCode: "",
+        totalCtn: "",
+        loadingDate: "",
+        deliveryDate: "",
+        particular: "",
+        charges: "",
+        scanning: "",
+        dc: "",
+        total: 0,
+        paid: "",
+        paymentDate: "",
+        note: "",
+      });
+
+      loadEntries();
+      loadSheetData();
+    } catch (error) {
+      console.error("Add entry error:", error);
+
+      // Handle different error response formats
+      const responseData = error.response?.data || error.data || {};
+      const errorMessage = responseData.message || error.message || "Failed to add entry";
+      const errors = responseData.errors || [];
+
+      if (errors && Array.isArray(errors) && errors.length > 0) {
+        // Show all validation errors
+        errors.forEach(err => {
+          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
+          toast.error(message);
+        });
+      } else if (errorMessage && errorMessage !== "Failed to add entry") {
+        toast.error(errorMessage);
+      } else {
+        toast.error("Failed to add entry. Please check all fields are valid.");
+      }
+    }
+  }, [sheetId, entry, loadEntries, loadSheetData]);
+
   // Load Data
   useEffect(() => {
     if (sheetId !== "new") {
@@ -151,155 +253,8 @@ export default function TukaramSheetPage() {
     }
   }, [sheetId, editSheet, router, loadSheetData]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ctrl+S or Cmd+S to save sheet (when in edit mode)
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        const target = e.target;
-        const isInEntriesTable = target.closest('table');
-
-        // Don't trigger if we're typing in the entries table
-        if (isInEntriesTable) {
-          return;
-        }
-
-        // Check if the sheet form is visible (for new or edit mode)
-        const isNewSheet = sheetId === "new";
-        const isEditMode = sheet && editSheet && editSheet.title;
-
-        if (isNewSheet || isEditMode) {
-          e.preventDefault();
-          // Create a synthetic event and call handleSaveSheet directly
-          const syntheticEvent = {
-            preventDefault: () => { },
-            target: { form: document.querySelector('form') }
-          };
-          handleSaveSheet(syntheticEvent);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sheetId, sheet, editSheet, handleSaveSheet]);
-
-  const generateDefaultTitle = async () => {
-    try {
-      const data = await tukaramAPI.generateDefaultTitle();
-      setEditSheet((prev) => ({ ...prev, title: data.data.data.title }));
-    } catch (error) {
-      console.error("Failed to generate title:", error);
-    }
-  };
-
-  const loadEntries = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        search,
-        containerCode: containerFilter,
-        page: 1,
-        limit: 1000,
-      };
-
-      const data = await tukaramAPI.getSheetEntries(sheetId, params);
-      setEntries(data.data.data.entries || []);
-    } catch (error) {
-      toast.error(error.message || "Failed to load entries");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate total automatically (charges + scanning + dc)
-  useEffect(() => {
-    const charges = parseFloat(entry.charges) || 0;
-    const scanning = parseFloat(entry.scanning) || 0;
-    const dc = parseFloat(entry.dc) || 0;
-    const total = charges + scanning + dc;
-    setEntry((prev) => ({
-      ...prev,
-      total: isNaN(total) ? 0 : parseFloat(total.toFixed(2)),
-    }));
-  }, [entry.charges, entry.scanning, entry.dc]);
-
-  // Handle Add Entry
-  const handleAddEntry = async (e) => {
-    if (e) {
-      e.preventDefault();
-    }
-
-    if (!entry.containerCode) {
-      return toast.error("Container code is required");
-    }
-
-    // Validate numeric fields to ensure they're >= 0
-    const charges = parseFloat(entry.charges) || 0;
-    const scanning = parseFloat(entry.scanning) || 0;
-    const dc = parseFloat(entry.dc) || 0;
-    const paid = parseFloat(entry.paid) || 0;
-
-    if (charges < 0 || scanning < 0 || dc < 0 || paid < 0) {
-      return toast.error("Numeric fields (charges, scanning, DC, paid) must be greater than or equal to 0");
-    }
-
-    try {
-      const entryData = {
-        ...entry,
-        totalCtn: entry.totalCtn ? parseInt(entry.totalCtn) : 0,
-        charges: charges,
-        scanning: scanning,
-        dc: dc,
-        paid: paid,
-      };
-
-      await tukaramAPI.addEntry(sheetId, entryData);
-
-      toast.success("Entry added successfully");
-
-      // Reset form
-      setEntry({
-        containerCode: "",
-        totalCtn: "",
-        loadingDate: "",
-        deliveryDate: "",
-        particular: "",
-        charges: "",
-        scanning: "",
-        dc: "",
-        total: 0,
-        paid: "",
-        paymentDate: "",
-        note: "",
-      });
-
-      loadEntries();
-      loadSheetData();
-    } catch (error) {
-      console.error("Add entry error:", error);
-
-      // Handle different error response formats
-      const responseData = error.response?.data || error.data || {};
-      const errorMessage = responseData.message || error.message || "Failed to add entry";
-      const errors = responseData.errors || [];
-
-      if (errors && Array.isArray(errors) && errors.length > 0) {
-        // Show all validation errors
-        errors.forEach(err => {
-          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
-          toast.error(message);
-        });
-      } else if (errorMessage && errorMessage !== "Failed to add entry") {
-        toast.error(errorMessage);
-      } else {
-        toast.error("Failed to add entry. Please check all fields are valid.");
-      }
-    }
-  };
-
   // Handle Update Entry
-  const handleUpdateEntry = async (entryId, field, value) => {
+  const handleUpdateEntry = useCallback(async (entryId, field, value) => {
     try {
       const entryToUpdate = entries.find((e) => e.id === entryId);
       if (!entryToUpdate) return;
@@ -344,14 +299,10 @@ export default function TukaramSheetPage() {
       loadSheetData();
     } catch (error) {
       console.error("Update entry error:", error);
-
-      // Handle different error response formats
       const responseData = error.response?.data || error.data || {};
       const errorMessage = responseData.message || error.message || "Failed to update entry";
       const errors = responseData.errors || [];
-
       if (errors && Array.isArray(errors) && errors.length > 0) {
-        // Show all validation errors
         errors.forEach(err => {
           const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
           toast.error(message);
@@ -362,12 +313,11 @@ export default function TukaramSheetPage() {
         toast.error("Failed to update entry. Please check all fields are valid.");
       }
     }
-  };
+  }, [entries, loadSheetData]);
 
   // Handle Delete Entry
-  const handleDeleteEntry = async (entryId) => {
+  const handleDeleteEntry = useCallback(async (entryId) => {
     if (!confirm("Are you sure you want to delete this entry?")) return;
-
     try {
       await tukaramAPI.deleteEntry(entryId);
       toast.success("Entry deleted");
@@ -376,10 +326,10 @@ export default function TukaramSheetPage() {
     } catch (error) {
       toast.error(error.message || "Failed to delete entry");
     }
-  };
+  }, [loadEntries, loadSheetData]);
 
   // Handle Export
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     try {
       const blob = await tukaramAPI.exportSheet(sheetId);
       const url = window.URL.createObjectURL(blob);
@@ -396,7 +346,79 @@ export default function TukaramSheetPage() {
     } catch (error) {
       toast.error(error.message || "Failed to export");
     }
-  };
+  }, [sheetId, sheet]);
+
+  // Calculate total automatically (charges + scanning + dc)
+  useEffect(() => {
+    const charges = parseFloat(entry.charges) || 0;
+    const scanning = parseFloat(entry.scanning) || 0;
+    const dc = parseFloat(entry.dc) || 0;
+    const total = charges + scanning + dc;
+    setEntry((prev) => ({
+      ...prev,
+      total: isNaN(total) ? 0 : parseFloat(total.toFixed(2)),
+    }));
+  }, [entry.charges, entry.scanning, entry.dc]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Escape to go back
+      if (e.key === "Escape") {
+        router.push("/dashboard/accounts");
+        return;
+      }
+
+      // Ctrl+S to save
+      if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+
+        // If target is in the new entry row (identified by having 'entry' state values)
+        // or just generally in the table, we might want to trigger add entry if data exists
+        const target = e.target;
+        const isInEntriesTable = target.closest("table");
+
+        if (isInEntriesTable) {
+          // If focus is in the bottom "new entry" row inputs
+          const isNewEntryInput = target.placeholder === "Search..." ||
+            target.placeholder === "MIX/FULL" ||
+            target.placeholder === "Note" ||
+            target.placeholder === "0" ||
+            target.type === "date"; // Simple heuristic for new entry row
+
+          if (isNewEntryInput && (entry.containerCode || entry.particular)) {
+            handleAddEntry(e);
+            return;
+          }
+        }
+
+        const isNewSheet = sheetId === "new";
+        // Check if there are changes to save
+        const hasChanges = sheet && (
+          editSheet.title !== sheet.title ||
+          editSheet.description !== (sheet.description || "") ||
+          parseFloat(editSheet.openingBalance) !== (sheet.openingBalance || 0)
+        );
+
+        if (isNewSheet || hasChanges) {
+          const syntheticEvent = {
+            preventDefault: () => { },
+            target: { form: document.querySelector("form") }
+          };
+          handleSaveSheet(syntheticEvent);
+        } else if (!isInEntriesTable) {
+          toast.info("No changes to save");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sheetId, sheet, editSheet, entry, handleSaveSheet, handleAddEntry, router]);
+
+
+
+
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -593,8 +615,9 @@ export default function TukaramSheetPage() {
                   {sheetId === "new" ? "Create Sheet" : "Save Changes"}
                 </button>
               </div>
-              <p className="text-xs text-slate-400 text-center mt-4">
-                <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">S</kbd> to save
+              <p className="text-xs text-slate-400 text-center mt-4 flex items-center justify-center gap-4">
+                <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">S</kbd> to save</span>
+                <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Esc</kbd> to go back</span>
               </p>
             </form>
           </div>
@@ -684,8 +707,12 @@ export default function TukaramSheetPage() {
                   <span className="text-slate-400">Navigate</span>
                 </span>
                 <span className="flex items-center gap-1">
-                  <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Enter</kbd>
-                  <span className="text-slate-400">Add entry</span>
+                  <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">S</kbd>
+                  <span className="text-slate-400">Save/Add</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Esc</kbd>
+                  <span className="text-slate-400">Go back</span>
                 </span>
               </p>
             </div>

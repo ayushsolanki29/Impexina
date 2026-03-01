@@ -1,109 +1,62 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { 
-  X, FileSpreadsheet, FileText, Loader2, Printer, 
-  TrendingUp, Wallet, CheckCircle2, Clock
-} from "lucide-react";
+import React, { useRef, useState } from "react";
+import { X, Printer, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 
-export default function DineshPreviewModal({ 
-  isOpen, 
-  onClose, 
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+export default function DineshPreviewModal({
+  isOpen,
+  onClose,
   sheet,
   entries,
-  totals
+  totals,
 }) {
-  const [loading, setLoading] = useState(false);
   const previewRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen || !sheet) return null;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount || 0);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  const performExport = async (format) => {
-    if (!previewRef.current) return;
-
-    try {
-      setLoading(true);
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      if (format === 'pdf') {
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "px",
-          format: "a4"
-        });
-        
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${sheet.title}.pdf`);
-        toast.success("PDF Generated Successfully");
-      } else {
-        const link = document.createElement("a");
-        link.download = `${sheet.title}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-        toast.success("Image Saved Successfully");
-      }
-    } catch (error) {
-      console.error("Export Error:", error);
-      toast.error(`Failed to export ${format.toUpperCase()}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const totalLeft = totals?.totalPayable ?? 0;
+  const totalPaid = totals?.totalPaid ?? 0;
+  const balance = totals?.totalBalance ?? totalPaid - totalLeft;
 
   const handleDownloadExcel = () => {
     try {
       setLoading(true);
-      const wb = XLSX.utils.book_new();
       const data = [
-        ['SUPPLIER', 'DATE', 'BOOKING', 'RATE', 'TOTAL', 'PAID', 'BALANCE', 'STATUS'],
-        ...entries.map(e => [
+        ["SUPPLIER", "PAYMENT DATE", "AMOUNT", "BOOKING", "RATE", "TOTAL", "PAID", "DATE", "CLIENT"],
+        ...entries.map((e) => [
           e.supplier,
-          formatDate(e.paymentDate),
-          e.booking || 0,
-          e.rate || 0,
-          e.total || 0,
-          e.paid || 0,
-          e.balance || 0,
-          e.isPaid ? 'PAID' : 'PENDING'
+          formatDateDDMMYYYY(e.paymentDate),
+          e.amount ?? "",
+          e.booking ?? "",
+          e.rate ?? "",
+          e.total ?? 0,
+          e.paid ?? 0,
+          formatDateDDMMYYYY(e.paymentDate),
+          e.clientRef ?? "",
         ]),
         [],
-        ['', '', '', 'GRAND TOTALS', totals.totalPayable, totals.totalPaid, totals.totalBalance, '']
+        ["", "", "", "", "TOTAL", totalLeft, totalPaid, "", ""],
+        [formatDateDDMMYYYY(new Date()) + " INR", "", "", "", "", "", "", "", `₹ ${balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} BALANCE`],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, 'Logistics Ledger');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Ledger");
       XLSX.writeFile(wb, `${sheet.title}.xlsx`);
-      toast.success("Excel Sheet Downloaded");
-    } catch (error) {
-      toast.error("Excel Export Failed");
+      toast.success("Excel downloaded");
+    } catch (err) {
+      toast.error("Export failed");
     } finally {
       setLoading(false);
     }
@@ -111,150 +64,97 @@ export default function DineshPreviewModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-5xl h-[92vh] rounded-3xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-        {/* Modal Header */}
-        <div className="px-8 py-5 border-b flex justify-between items-center bg-white sticky top-0 z-10">
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase italic flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-emerald-600" />
-              Logistics Preview
-            </h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Dineshbhai Central Booking Ledger</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-xs font-bold uppercase tracking-wider">
-              <Printer className="w-4 h-4" /> Print
+      <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0">
+          <h2 className="text-lg font-bold text-slate-900">Preview</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium text-slate-700"
+            >
+              <Printer className="w-4 h-4" />
+              Print
             </button>
-            <button onClick={handleDownloadExcel} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all text-xs font-bold uppercase tracking-wider shadow-lg shadow-emerald-100">
-              <FileSpreadsheet className="w-4 h-4" /> Excel
+            <button
+              onClick={handleDownloadExcel}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Excel
             </button>
-            <button onClick={() => performExport('pdf')} className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-100">
-              <FileText className="w-4 h-4" /> PDF
-            </button>
-            <button onClick={onClose} className="ml-4 p-2.5 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 transition-colors border border-slate-100">
-              <X className="w-6 h-6" />
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Preview Area */}
-        <div className="flex-1 overflow-y-auto p-12 bg-slate-100/50 print:bg-white print:p-0">
-          <div 
-            ref={previewRef}
-            className="bg-white p-16 shadow-2xl border border-slate-200 mx-auto max-w-[850px] space-y-10 print:shadow-none print:border-none print:p-6 rounded-sm"
-          >
-            {/* Header */}
-            <div className="flex justify-between items-start border-b-8 border-slate-900 pb-8">
-              <div>
-                <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-3">
-                  Logistics & Booking Ledger
-                </h1>
-                <div className="flex items-center gap-4">
-                  <div className="bg-emerald-600 text-white px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
-                    {sheet.title}
-                  </div>
-                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                    Generated: {new Date().toLocaleDateString('en-GB')}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Sheet ID</div>
-                <div className="font-mono text-sm font-bold text-slate-900">#DBS-{sheet.id.slice(-6).toUpperCase()}</div>
-              </div>
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-3 gap-6">
-              <div className="p-6 bg-slate-50 border-2 border-slate-100 rounded-2xl flex flex-col justify-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                   Total Payable
-                </p>
-                <p className="text-3xl font-black text-slate-900 tracking-tight leading-none italic">
-                  ₹{totals.totalPayable.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-6 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex flex-col justify-center">
-                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-3 h-3" /> Total Paid
-                </p>
-                <p className="text-3xl font-black text-emerald-700 tracking-tight leading-none italic">
-                  ₹{totals.totalPaid.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-6 bg-amber-50 border-2 border-amber-100 rounded-2xl flex flex-col justify-center">
-                <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                  <Clock className="w-3 h-3" /> Balance Due
-                </p>
-                <p className="text-3xl font-black text-slate-900 tracking-tight leading-none italic">
-                  ₹{totals.totalBalance.toLocaleString()}
-                </p>
-              </div>
+        <div className="flex-1 overflow-auto p-6 bg-slate-100 print:bg-white print:p-4">
+          <div ref={previewRef} className="bg-white border border-slate-300 shadow-sm print:shadow-none max-w-4xl mx-auto">
+            {/* Green title */}
+            <div className="bg-emerald-600 text-white px-6 py-4">
+              <h1 className="text-2xl font-black uppercase tracking-tight">
+                {sheet.title}
+              </h1>
             </div>
 
             {/* Table */}
-            <div className="border-4 border-slate-900 rounded-xl overflow-hidden shadow-2xl shadow-slate-200">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-900 text-white font-black uppercase tracking-widest border-b-4 border-slate-900">
-                    <th className="px-4 py-5 text-left border-r border-slate-700">Supplier / Ref</th>
-                    <th className="px-4 py-5 text-center border-r border-slate-700">Date</th>
-                    <th className="px-4 py-5 text-right border-r border-slate-700">Calc</th>
-                    <th className="px-4 py-5 text-right border-r border-slate-700 w-32">Amount</th>
-                    <th className="px-4 py-5 text-right border-r border-slate-700 w-32">Paid</th>
-                    <th className="px-4 py-5 text-right w-32">Balance</th>
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-amber-200 text-slate-900 border border-slate-300">
+                  <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Supplier</th>
+                  <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Payment Date</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Amount</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Booking</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Rate</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Total</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Paid</th>
+                  <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Date</th>
+                  <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Client</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e) => (
+                  <tr key={e.id} className="border-b border-slate-200">
+                    <td className="border border-slate-200 px-3 py-2 font-medium text-slate-800">{e.supplier || "-"}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-slate-600">{formatDateDDMMYYYY(e.paymentDate)}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-right">{(e.amount ?? "").toString() || "-"}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-right">{(e.booking ?? "").toString() || "-"}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-right">{(e.rate ?? "").toString() || "-"}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-right font-medium">{(e.total ?? 0).toLocaleString("en-IN")}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-right">{(e.paid ?? 0).toLocaleString("en-IN")}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-slate-600">{formatDateDDMMYYYY(e.paymentDate)}</td>
+                    <td className="border border-slate-200 px-3 py-2 text-slate-700">{e.clientRef || "-"}</td>
                   </tr>
-                </thead>
-                <tbody className="font-bold divide-y divide-slate-100">
-                  {entries.map((e, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
-                      <td className="px-4 py-4 border-r border-slate-100">
-                        <div className="text-slate-900 uppercase font-black">{e.supplier}</div>
-                        {e.clientRef && <div className="text-[9px] text-slate-400 mt-0.5">{e.clientRef}</div>}
-                      </td>
-                      <td className="px-4 py-4 text-center border-r border-slate-100 text-slate-500 font-mono">
-                        {formatDate(e.paymentDate)}
-                      </td>
-                      <td className="px-4 py-4 text-right border-r border-slate-100 text-[10px] text-slate-400">
-                        {e.booking} × {e.rate}
-                      </td>
-                      <td className="px-4 py-4 text-right border-r border-slate-100 font-black text-slate-900">
-                        ₹{e.total.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-right border-r border-slate-100 font-bold text-emerald-600">
-                        ₹{e.paid ? e.paid.toLocaleString() : '0'}
-                      </td>
-                      <td className={`px-4 py-4 text-right font-black ${e.balance > 0 ? "text-amber-500" : "text-emerald-500"}`}>
-                        ₹{e.balance.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-slate-900 text-white font-black border-t-8 border-slate-900 uppercase tracking-widest text-[10px]">
-                    <td colSpan="3" className="px-4 py-6 text-right">Ledger Summary Totals</td>
-                    <td className="px-4 py-6 text-right font-mono text-xs">₹{totals.totalPayable.toLocaleString()}</td>
-                    <td className="px-4 py-6 text-right font-mono text-xs">₹{totals.totalPaid.toLocaleString()}</td>
-                    <td className="px-4 py-6 text-right font-mono text-xs italic">₹{totals.totalBalance.toLocaleString()}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            {/* Verification Footer */}
-            <div className="pt-12 border-t font-black uppercase tracking-[0.4em] text-[8px] text-slate-300 flex justify-between">
-              <span>Verified Logistics Statement • {sheet.status} Mode</span>
-              <span>Impexina Financial Hub</span>
-            </div>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+                  <td colSpan="5" className="border border-slate-300 px-3 py-2 text-right">TOTAL</td>
+                  <td className="border border-slate-300 px-3 py-2 text-right">
+                    ₹ {totalLeft.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="border border-slate-300 px-3 py-2 text-right">
+                    ₹ {totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td colSpan="2" className="border border-slate-300"></td>
+                </tr>
+                <tr className="bg-amber-100 border-b border-slate-300">
+                  <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                    {formatDateDDMMYYYY(new Date())} INR
+                  </td>
+                  <td colSpan="6" className="border border-slate-300"></td>
+                  <td className="border border-slate-300 px-3 py-2 text-right font-black text-amber-800 bg-amber-200/80">
+                    ₹ {balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} BALANCE
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
-
-        {loading && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-300">
-            <Loader2 className="w-12 h-12 animate-spin text-emerald-600 mb-4" />
-            <p className="text-sm font-black text-slate-900 uppercase tracking-widest">Generating Document...</p>
-          </div>
-        )}
       </div>
     </div>
   );

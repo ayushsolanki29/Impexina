@@ -597,18 +597,18 @@ const dineshbhaiService = {
       // Prepare data for Excel
       const excelData = sheet.entries.map((entry, index) => ({
         "S.No": index + 1,
-        "Supplier": entry.supplier,
-        "Payment Date": new Date(entry.paymentDate).toLocaleDateString(),
-        "Amount": entry.amount || "",
-        "Booking": entry.booking || "",
-        "Rate": entry.rate || "",
-        "Total": entry.total,
-        "Paid": entry.paid || "",
-        "Balance": entry.balance,
-        "Client Ref": entry.clientRef || "",
-        "Notes": entry.notes || "",
+        "Supplier": entry.supplier ?? "",
+        "Payment Date": entry.paymentDate ? new Date(entry.paymentDate).toLocaleDateString() : "",
+        "Amount": entry.amount ?? "",
+        "Booking": entry.booking ?? "",
+        "Rate": entry.rate ?? "",
+        "Total": entry.total ?? 0,
+        "Paid": entry.paid ?? "",
+        "Balance": entry.balance ?? 0,
+        "Client Ref": entry.clientRef ?? "",
+        "Notes": entry.notes ?? "",
         "Status": entry.isPaid ? "Paid" : "Pending",
-        "Priority": entry.priority || "MEDIUM",
+        "Priority": entry.priority ?? "MEDIUM",
       }));
       
       return {
