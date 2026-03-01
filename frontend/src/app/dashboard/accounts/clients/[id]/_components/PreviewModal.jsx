@@ -17,7 +17,8 @@ export default function AccountsPreviewModal({
   client, 
   expenseTransactions, 
   trfTransactions, 
-  sheetName 
+  sheetName,
+  dateRange
 }) {
   const [loading, setLoading] = useState(false);
   const previewRef = useRef(null);
@@ -208,57 +209,58 @@ export default function AccountsPreviewModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-[1600px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
-        {/* Header */}
-        <div className="px-6 py-4 border-b flex justify-between items-center bg-white print:hidden">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Account Preview</h2>
-            <p className="text-xs text-slate-500 font-medium">
+        {/* Responsive Header */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white print:hidden overflow-x-auto">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">Account Preview</h2>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
               {client?.name} • {sheetName || 'Entire Ledger'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <button 
               onClick={() => window.print()} 
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
+              className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-bold text-[10px] sm:text-xs shadow-sm"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               Print
             </button>
-            <button
-              onClick={handleDownloadExcel}
-              disabled={loading}
-              className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-            </button>
-            <button
-              onClick={handleDownloadPDF}
-              disabled={loading}
-              className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-            >
-              <FileText className="w-3.5 h-3.5" /> PDF
-            </button>
-            <button
-              onClick={handleDownloadImage}
-              disabled={loading}
-              className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-            >
-              <ImageIcon className="w-3.5 h-3.5" /> Image
-            </button>
+            <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+              <button
+                onClick={handleDownloadExcel}
+                disabled={loading}
+                className="px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1 sm:gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> Excel
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={loading}
+                className="px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1 sm:gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                <FileText className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> PDF
+              </button>
+              <button
+                onClick={handleDownloadImage}
+                disabled={loading}
+                className="px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1 sm:gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                <ImageIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> Image
+              </button>
+            </div>
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+              className="p-1 sm:p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8 bg-slate-100 print:bg-white print:p-0">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 bg-slate-100 print:bg-white print:p-0">
           <div 
             ref={previewRef}
-            className="print-area space-y-6 max-w-[1500px] mx-auto bg-white p-8 shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-4"
+            className="print-area space-y-6 max-w-[1500px] mx-auto bg-white p-4 sm:p-6 md:p-8 shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-4"
           >
             {/* Document Header */}
             <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
@@ -272,14 +274,24 @@ export default function AccountsPreviewModal({
               </div>
               <div className="text-right">
                 <div className="inline-block bg-slate-100 px-3 py-1 rounded">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date Generated</p>
-                  <p className="text-sm font-bold text-slate-800">{new Date().toLocaleDateString('en-GB')}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    {dateRange?.from || dateRange?.to ? `Period Filtered By ${
+                      dateRange.type === 'deliveryDate' ? 'Delivery Date' : 
+                      dateRange.type === 'paymentDate' ? 'Payment Date' : 'Entry Date'
+                    }` : 'Date Generated'}
+                  </p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {dateRange?.from || dateRange?.to 
+                      ? `${dateRange.from || '...'} to ${dateRange.to || '...'}`
+                      : new Date().toLocaleDateString('en-GB')
+                    }
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Side by Side Sheets */}
-            <div className="grid grid-cols-2 gap-6">
+            {/* Side by Side Sheets (Responsive Grid) */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* EXPENSE Sheet (Blue) */}
               <div className="border-2 border-blue-200 rounded-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3">

@@ -16,9 +16,9 @@ const davidSheetService = {
   getAllSheets: async ({ page = 1, limit = 20, search = "", status, tags }) => {
     try {
       const skip = (page - 1) * limit;
-      
+
       const where = {};
-      
+
       if (search) {
         where.OR = [
           { name: { contains: search, mode: 'insensitive' } },
@@ -26,17 +26,17 @@ const davidSheetService = {
           { tags: { has: search } },
         ];
       }
-      
+
       if (status) {
         where.status = status;
       }
-      
+
       if (tags && Array.isArray(tags)) {
         where.tags = { hasEvery: tags };
       } else if (tags) {
         where.tags = { has: tags };
       }
-      
+
       const [sheets, total] = await Promise.all([
         prisma.davidSheet.findMany({
           where,
@@ -62,7 +62,7 @@ const davidSheetService = {
         }),
         prisma.davidSheet.count({ where }),
       ]);
-      
+
       // Calculate summary for each sheet
       const sheetsWithSummary = sheets.map(sheet => {
         const totals = sheet.entries.reduce(
@@ -74,10 +74,10 @@ const davidSheetService = {
           }),
           { totalDebitRMB: 0, totalCreditRMB: 0, totalDebitUSD: 0, totalCreditUSD: 0 }
         );
-        
+
         const netRMB = totals.totalDebitRMB - totals.totalCreditRMB;
         const netUSD = totals.totalDebitUSD - totals.totalCreditUSD;
-        
+
         return {
           ...sheet,
           summary: {
@@ -88,9 +88,9 @@ const davidSheetService = {
           },
         };
       });
-      
+
       const totalPages = Math.ceil(total / limit);
-      
+
       return {
         sheets: sheetsWithSummary,
         pagination: {
@@ -107,7 +107,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Get sheet by ID with entries
   getSheetById: async (sheetId) => {
     try {
@@ -115,18 +115,18 @@ const davidSheetService = {
         where: { id: sheetId },
         include: {
           entries: {
-            orderBy: { date: 'desc' },
+            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
           },
           _count: {
             select: { entries: true },
           },
         },
       });
-      
+
       if (!sheet) {
         throw new Error("Sheet not found");
       }
-      
+
       // Calculate totals
       const totals = sheet.entries.reduce(
         (acc, entry) => ({
@@ -137,10 +137,10 @@ const davidSheetService = {
         }),
         { totalDebitRMB: 0, totalCreditRMB: 0, totalDebitUSD: 0, totalCreditUSD: 0 }
       );
-      
+
       const netRMB = totals.totalDebitRMB - totals.totalCreditRMB;
       const netUSD = totals.totalDebitUSD - totals.totalCreditUSD;
-      
+
       return {
         ...sheet,
         totals: {
@@ -154,23 +154,23 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Create new sheet with default name
   createSheet: async (sheetData, userId) => {
     try {
       const { name, description, tags = [], currencyTypes = ["RMB", "USD"] } = sheetData;
-      
+
       // Generate default name if not provided
       let finalName = name;
       if (!finalName) {
         finalName = davidSheetService.generateDefaultName();
       }
-      
+
       // Check if name already exists
       const existingSheet = await prisma.davidSheet.findUnique({
         where: { name: finalName },
       });
-      
+
       if (existingSheet) {
         // Append number if name exists
         let counter = 1;
@@ -181,7 +181,7 @@ const davidSheetService = {
         }
         finalName = newName;
       }
-      
+
       const sheet = await prisma.davidSheet.create({
         data: {
           name: finalName,
@@ -192,19 +192,19 @@ const davidSheetService = {
           createdBy: userId.toString(),
         },
       });
-      
+
       return sheet;
     } catch (error) {
       console.error("Error creating David sheet:", error);
       throw error;
     }
   },
-  
+
   // Update sheet details
   updateSheet: async (sheetId, sheetData, userId) => {
     try {
       const { name, description, status, isLocked, tags, currencyTypes } = sheetData;
-      
+
       // If updating name, check uniqueness
       if (name) {
         const existingSheet = await prisma.davidSheet.findFirst({
@@ -213,12 +213,12 @@ const davidSheetService = {
             NOT: { id: sheetId },
           },
         });
-        
+
         if (existingSheet) {
           throw new Error("Sheet with this name already exists");
         }
       }
-      
+
       const sheet = await prisma.davidSheet.update({
         where: { id: sheetId },
         data: {
@@ -232,14 +232,14 @@ const davidSheetService = {
           updatedAt: new Date(),
         },
       });
-      
+
       return sheet;
     } catch (error) {
       console.error("Error updating David sheet:", error);
       throw error;
     }
   },
-  
+
   // Delete sheet (soft delete by changing status to ARCHIVED)
   deleteSheet: async (sheetId, userId) => {
     try {
@@ -251,7 +251,7 @@ const davidSheetService = {
           updatedAt: new Date(),
         },
       });
-      
+
       return {
         message: "Sheet archived successfully",
         sheet,
@@ -261,20 +261,20 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Get sheet entries
   getSheetEntries: async (sheetId, { page = 1, limit = 50, search = "" }) => {
     try {
       const skip = (page - 1) * limit;
-      
+
       const where = {
         sheetId,
       };
-      
+
       if (search) {
         where.particulars = { contains: search, mode: 'insensitive' };
       }
-      
+
       const [entries, total] = await Promise.all([
         prisma.davidSheetEntry.findMany({
           where,
@@ -287,9 +287,9 @@ const davidSheetService = {
         }),
         prisma.davidSheetEntry.count({ where }),
       ]);
-      
+
       const totalPages = Math.ceil(total / limit);
-      
+
       return {
         entries,
         pagination: {
@@ -306,7 +306,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Add entry to sheet
   addEntry: async (sheetId, entryData, userId) => {
     try {
@@ -318,13 +318,13 @@ const davidSheetService = {
         debitUSD = 0,
         creditUSD = 0,
       } = entryData;
-      
+
       // Validate amounts
       const finalDebitRMB = parseFloat(debitRMB) || 0;
       const finalCreditRMB = parseFloat(creditRMB) || 0;
       const finalDebitUSD = parseFloat(debitUSD) || 0;
       const finalCreditUSD = parseFloat(creditUSD) || 0;
-      
+
       const entry = await prisma.davidSheetEntry.create({
         data: {
           sheetId,
@@ -342,14 +342,14 @@ const davidSheetService = {
           createdBy: userId.toString(),
         },
       });
-      
+
       return entry;
     } catch (error) {
       console.error("Error adding David sheet entry:", error);
       throw error;
     }
   },
-  
+
   // Update entry
   updateEntry: async (entryId, entryData, userId) => {
     try {
@@ -361,13 +361,13 @@ const davidSheetService = {
         debitUSD,
         creditUSD,
       } = entryData;
-      
+
       // Convert to numbers
       const finalDebitRMB = debitRMB !== undefined ? (parseFloat(debitRMB) || 0) : undefined;
       const finalCreditRMB = creditRMB !== undefined ? (parseFloat(creditRMB) || 0) : undefined;
       const finalDebitUSD = debitUSD !== undefined ? (parseFloat(debitUSD) || 0) : undefined;
       const finalCreditUSD = creditUSD !== undefined ? (parseFloat(creditUSD) || 0) : undefined;
-      
+
       const updateData = {
         ...(date !== undefined && { date: date ? new Date(date) : new Date() }),
         ...(particulars !== undefined && { particulars }),
@@ -378,32 +378,32 @@ const davidSheetService = {
         updatedBy: userId.toString(),
         updatedAt: new Date(),
       };
-      
+
       // Update calculated totals
       if (finalDebitRMB !== undefined) updateData.totalDebitRMB = finalDebitRMB;
       if (finalCreditRMB !== undefined) updateData.totalCreditRMB = finalCreditRMB;
       if (finalDebitUSD !== undefined) updateData.totalDebitUSD = finalDebitUSD;
       if (finalCreditUSD !== undefined) updateData.totalCreditUSD = finalCreditUSD;
-      
+
       const entry = await prisma.davidSheetEntry.update({
         where: { id: entryId },
         data: updateData,
       });
-      
+
       return entry;
     } catch (error) {
       console.error("Error updating David sheet entry:", error);
       throw error;
     }
   },
-  
+
   // Delete entry
   deleteEntry: async (entryId, userId) => {
     try {
       await prisma.davidSheetEntry.delete({
         where: { id: entryId },
       });
-      
+
       return {
         message: "Entry deleted successfully",
       };
@@ -412,14 +412,14 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Bulk import entries
   importEntries: async (sheetId, entriesData, userId) => {
     try {
       if (!Array.isArray(entriesData) || entriesData.length === 0) {
         throw new Error("Entries data must be a non-empty array");
       }
-      
+
       const entries = await prisma.$transaction(
         entriesData.map(entryData => {
           const {
@@ -430,12 +430,12 @@ const davidSheetService = {
             debitUSD = 0,
             creditUSD = 0,
           } = entryData;
-          
+
           const finalDebitRMB = parseFloat(debitRMB) || 0;
           const finalCreditRMB = parseFloat(creditRMB) || 0;
           const finalDebitUSD = parseFloat(debitUSD) || 0;
           const finalCreditUSD = parseFloat(creditUSD) || 0;
-          
+
           return prisma.davidSheetEntry.create({
             data: {
               sheetId,
@@ -455,7 +455,7 @@ const davidSheetService = {
           });
         })
       );
-      
+
       return {
         message: `${entries.length} entries imported successfully`,
         entries,
@@ -465,7 +465,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Bulk update entries (for saving entire sheet)
   bulkUpdateEntries: async (sheetId, entriesData, userId) => {
     try {
@@ -473,7 +473,7 @@ const davidSheetService = {
       await prisma.davidSheetEntry.deleteMany({
         where: { sheetId },
       });
-      
+
       // Then create new entries
       const entries = await prisma.$transaction(
         entriesData.map(entryData => {
@@ -485,12 +485,12 @@ const davidSheetService = {
             debitUSD = 0,
             creditUSD = 0,
           } = entryData;
-          
+
           const finalDebitRMB = parseFloat(debitRMB) || 0;
           const finalCreditRMB = parseFloat(creditRMB) || 0;
           const finalDebitUSD = parseFloat(debitUSD) || 0;
           const finalCreditUSD = parseFloat(creditUSD) || 0;
-          
+
           return prisma.davidSheetEntry.create({
             data: {
               sheetId,
@@ -510,7 +510,7 @@ const davidSheetService = {
           });
         })
       );
-      
+
       return {
         message: `${entries.length} entries updated successfully`,
         entries,
@@ -520,7 +520,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Get sheet statistics
   getSheetStats: async (sheetId) => {
     try {
@@ -535,7 +535,7 @@ const davidSheetService = {
           creditUSD: true,
         },
       });
-      
+
       // Calculate totals
       const totals = entries.reduce(
         (acc, entry) => ({
@@ -546,17 +546,17 @@ const davidSheetService = {
         }),
         { totalDebitRMB: 0, totalCreditRMB: 0, totalDebitUSD: 0, totalCreditUSD: 0 }
       );
-      
+
       const netRMB = totals.totalDebitRMB - totals.totalCreditRMB;
       const netUSD = totals.totalDebitUSD - totals.totalCreditUSD;
-      
+
       // Monthly breakdown
       const monthlyBreakdown = entries.reduce((acc, entry) => {
         if (!entry.date) return acc;
-        
+
         const date = new Date(entry.date);
         const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        
+
         if (!acc[monthYear]) {
           acc[monthYear] = {
             debitRMB: 0,
@@ -566,16 +566,16 @@ const davidSheetService = {
             count: 0,
           };
         }
-        
+
         acc[monthYear].debitRMB += entry.debitRMB || 0;
         acc[monthYear].creditRMB += entry.creditRMB || 0;
         acc[monthYear].debitUSD += entry.debitUSD || 0;
         acc[monthYear].creditUSD += entry.creditUSD || 0;
         acc[monthYear].count += 1;
-        
+
         return acc;
       }, {});
-      
+
       return {
         totals: {
           ...totals,
@@ -595,7 +595,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Export sheet to Excel
   exportSheetToExcel: async (sheetId) => {
     try {
@@ -603,15 +603,15 @@ const davidSheetService = {
         where: { id: sheetId },
         include: {
           entries: {
-            orderBy: { date: 'desc' },
+            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
           },
         },
       });
-      
+
       if (!sheet) {
         throw new Error("Sheet not found");
       }
-      
+
       // Prepare data for Excel
       const excelData = sheet.entries.map((entry, index) => ({
         "S.No": index + 1,
@@ -624,7 +624,7 @@ const davidSheetService = {
         "Net RMB": (entry.debitRMB || 0) - (entry.creditRMB || 0),
         "Net USD": (entry.debitUSD || 0) - (entry.creditUSD || 0),
       }));
-      
+
       return {
         sheet,
         entries: excelData,
@@ -634,7 +634,7 @@ const davidSheetService = {
       throw error;
     }
   },
-  
+
   // Get dashboard overview
   getDashboardOverview: async () => {
     try {
@@ -669,7 +669,7 @@ const davidSheetService = {
           },
         }),
       ]);
-      
+
       // Calculate totals for recent sheets
       const recentSheetsWithTotals = recentSheets.map(sheet => {
         const totals = sheet.entries.reduce(
@@ -681,7 +681,7 @@ const davidSheetService = {
           }),
           { debitRMB: 0, creditRMB: 0, debitUSD: 0, creditUSD: 0 }
         );
-        
+
         return {
           ...sheet,
           summary: {
@@ -691,7 +691,7 @@ const davidSheetService = {
           },
         };
       });
-      
+
       return {
         totals: {
           totalSheets,

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
@@ -10,9 +10,9 @@ import AccountsPreviewModal from "./_components/PreviewModal";
 // --- Components ---
 
 const HeaderMetric = ({ label, value, colorClass = "text-gray-900" }) => (
-    <div className="flex flex-col items-end">
-        <span className="text-[10px]   uppercase tracking-widest text-gray-400 mb-1">{label}</span>
-        <span className={`text-2xl  tracking-tight ${colorClass}`}>{value}</span>
+    <div className="flex flex-col items-end shrink-0">
+        <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-400 mb-0.5 sm:mb-1">{label}</span>
+        <span className={`text-lg sm:text-2xl font-bold tracking-tight ${colorClass}`}>{value}</span>
     </div>
 );
 
@@ -105,10 +105,25 @@ export default function ExcelLedgerPage() {
     const [mixLimit, setMixLimit] = useState(5);
     const [activeTab, setActiveTab] = useState('expense');
     const [showPreview, setShowPreview] = useState(false);
+    const [dateRange, setDateRange] = useState({ from: "", to: "", type: "transactionDate" });
+
+    const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+    const menuRef = useRef(null);
+
+    // Click outside for menu
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setShowOptionsMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, [id, containerCode, querySheetName]);
+    }, [id, containerCode, querySheetName, dateRange.from, dateRange.to]);
 
     // Global Keyboard Shortcuts
     useEffect(() => {
@@ -207,6 +222,9 @@ export default function ExcelLedgerPage() {
             const params = new URLSearchParams();
             if (containerCode) params.set("containerCode", containerCode);
             if (querySheetName) params.set("sheetName", querySheetName);
+            if (dateRange.from) params.set("dateFrom", dateRange.from);
+            if (dateRange.to) params.set("dateTo", dateRange.to);
+            if (dateRange.type) params.set("dateType", dateRange.type);
 
             const res = await get(`/accounts/clts/${id}?${params.toString()}`);
             if (res.success) {
@@ -685,162 +703,202 @@ export default function ExcelLedgerPage() {
     return (
         <div className="flex flex-col h-screen w-full overflow-hidden bg-white font-sans text-slate-900">
 
-            {/* Clean Header */}
-            <div className="flex-none px-6 py-4 border-b border-slate-200 bg-white">
+            {/* Optimized Header with Menu */}
+            <div className="flex-none px-6 py-4 border-b border-slate-200 bg-white relative z-50">
                 <div className="flex items-center justify-between gap-4">
-                    {/* Left: Client Info & Sheet Selector */}
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <button
-                            onClick={() => router.push(`/dashboard/accounts/clients/${id}/containers`)}
-                            className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-900 shrink-0"
-                            title="Go Back"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <h1 className="text-xl font-bold text-slate-900 truncate">
+                    {/* Left Group: Name and Tab */}
+                    <div className="flex items-center gap-6 min-w-0">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => router.push(`/dashboard/accounts/clients/${id}/containers`)}
+                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-900 shrink-0"
+                                title="Go Back"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                            <h1 className="text-xl font-black text-slate-900 truncate tracking-tight">
                                 {client.name}
                             </h1>
-
-                            <div className="relative">
-                                <select
-                                    value={querySheetName ? querySheetName.toUpperCase() : (containerCode ? containerCode : "ENTIRE LEDGER")}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === "NEW") {
-                                            const newName = prompt("ENTER NEW SHEET NAME:");
-                                            if (newName) {
-                                                const cleanName = newName.toUpperCase().trim();
-                                                router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(cleanName)}`);
-                                            }
-                                        } else if (val === "ENTIRE LEDGER") {
-                                            router.push(`/dashboard/accounts/clients/${id}`);
-                                        } else {
-                                            router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(val)}`);
-                                        }
-                                    }}
-                                    className="bg-blue-50 text-blue-600 font-semibold px-3 py-1.5 rounded-lg border border-blue-200 focus:border-blue-400 outline-none appearance-none cursor-pointer pr-8 text-sm"
-                                >
-                                    <option value="ENTIRE LEDGER">ENTIRE LEDGER</option>
-                                    <optgroup label="SHEETS">
-                                        {availableSheets.map(s => (
-                                            <option key={s} value={s}>{s}</option>
-                                        ))}
-                                    </optgroup>
-                                    <option value="NEW" className="text-emerald-600 font-bold">+ NEW SHEET</option>
-                                </select>
-                                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            {containerCode && (
-                                <button
-                                    onClick={async () => {
-                                        const info = await fetchContainerInfo(containerCode, client.name);
-                                        if (info) {
-                                            setTransactions(prev => {
-                                                const existingGstRow = prev.find(t => t.particulars?.startsWith("GST INV"));
-                                                const updated = prev.map(t => {
-                                                    if (t.particulars?.startsWith("GST INV")) {
-                                                        // Update GST INV line with FROM/TO format
-                                                        const fromPart = info.from ? ` FROM: ${info.from}` : '';
-                                                        const toPart = info.to ? ` TO: ${info.to}` : '';
-                                                        return {
-                                                            ...t,
-                                                            particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
-                                                            amount: info.totalGstAmount,
-                                                            from: info.from || t.from || '',
-                                                            to: info.to || t.to || ''
-                                                        };
-                                                    }
-                                                    return {
-                                                        ...t,
-                                                        containerCode: info.formatted,
-                                                        particulars: info.particulars,
-                                                        deliveryDate: info.delDateStr,
-                                                        quantity: info.totalCbm,
-                                                        weight: info.totalWeight,
-                                                        from: info.from || t.from || '',
-                                                        to: info.to || t.to || ''
-                                                    };
-                                                });
-
-                                                if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
-                                                    const fromPart = info.from ? ` FROM: ${info.from}` : '';
-                                                    const toPart = info.to ? ` TO: ${info.to}` : '';
-                                                    updated.push({
-                                                        id: `temp-${Date.now()}`,
-                                                        isNew: true,
-                                                        containerCode: "",
-                                                        deliveryDate: "",
-                                                        particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
-                                                        amount: info.totalGstAmount,
-                                                        paid: "",
-                                                        clientId: id,
-                                                        billingType: "FLAT",
-                                                        sheetName: querySheetName || "",
-                                                        from: info.from || '',
-                                                        to: info.to || ''
-                                                    });
-                                                }
-                                                return updated;
-                                            });
-                                            toast.success("Details Updated from Bifurcation");
-                                        }
-                                    }}
-                                    className="bg-emerald-50 text-emerald-600 font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-all text-xs flex items-center gap-2 shrink-0"
-                                >
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                    SYNC
-                                </button>
-                            )}
                         </div>
-                    </div>
 
-                    {/* Right: Actions & Metrics */}
-                    <div className="flex items-center gap-4 shrink-0">
-                        <button
-                            onClick={() => setShowPreview(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
-                            title="Preview Account Sheets"
-                        >
-                            <Eye className="w-4 h-4" />
-                            Preview
-                        </button>
-
-                        <div className="h-8 w-px bg-slate-200" />
+                        <div className="hidden md:block h-8 w-px bg-slate-200" />
 
                         <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
+                    </div>
 
-                        <div className="h-8 w-px bg-slate-200" />
+                    {/* Right Group: Metrics & Ellipsis Menu */}
+                    <div className="flex items-center gap-6">
+                        {/* Metrics Group */}
+                        <div className="flex items-center gap-6">
+                            {activeTab === 'expense' ? (
+                                <>
+                                    <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
+                                    <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                                        <div className={`text-xl font-black tracking-tight px-3 py-1 rounded-lg ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
+                                            ₹{balance.toLocaleString()}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <HeaderMetric label="Total" value={`₹${trfTotalAmount.toLocaleString()}`} />
+                                    <HeaderMetric label="Paid" value={`₹${trfTotalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
+                                        <div className={`text-xl font-black tracking-tight px-3 py-1 rounded-lg ${trfBalance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
+                                            ₹{trfBalance.toLocaleString()}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
-                        {activeTab === 'expense' ? (
-                            <>
-                                <HeaderMetric label="Billed" value={`₹${totalAmount.toLocaleString()}`} />
-                                <HeaderMetric label="Paid" value={`₹${totalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                                    <div className={`text-xl tracking-tight px-3 py-1 rounded-lg ${balance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
-                                        ₹{balance.toLocaleString()}
+                        {/* More Options Ellipsis */}
+                        <div className="relative" ref={menuRef}>
+                            <button
+                                onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                                className={`p-2.5 rounded-xl transition-all ${showOptionsMenu ? 'bg-slate-900 text-white rotate-90 shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            >
+                                <MoreVertical className="w-5 h-5" />
+                            </button>
+
+                            {showOptionsMenu && (
+                                <div className="absolute top-14 right-0 w-80 bg-white border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-2xl p-4 animate-in slide-in-from-top-2 duration-200">
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 px-1">Ledger Controls</h3>
+
+                                    <div className="space-y-4">
+                                        {/* Sheet Selection Section */}
+                                        <div className="p-3 bg-slate-50 rounded-xl space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Selected Sheet</label>
+                                            <div className="relative">
+                                                <select
+                                                    value={querySheetName ? querySheetName.toUpperCase() : (containerCode ? containerCode : "ENTIRE LEDGER")}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        if (val === "NEW") {
+                                                            const newName = prompt("ENTER NEW SHEET NAME:");
+                                                            if (newName) {
+                                                                const cleanName = newName.toUpperCase().trim();
+                                                                router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(cleanName)}`);
+                                                            }
+                                                        } else if (val === "ENTIRE LEDGER") {
+                                                            router.push(`/dashboard/accounts/clients/${id}`);
+                                                        } else {
+                                                            router.push(`/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(val)}`);
+                                                        }
+                                                        setShowOptionsMenu(false);
+                                                    }}
+                                                    className="w-full bg-white text-blue-600 font-bold px-3 py-2.5 rounded-lg border border-slate-200 focus:border-blue-400 outline-none appearance-none cursor-pointer pr-10 text-sm shadow-sm"
+                                                >
+                                                    <option value="ENTIRE LEDGER">ENTIRE LEDGER</option>
+                                                    <optgroup label="SHEETS">
+                                                        {availableSheets.map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                    <option value="NEW" className="text-emerald-600 font-bold">+ NEW SHEET</option>
+                                                </select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                    <RefreshCw className="w-4 h-4 text-slate-300" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Date Filter Section */}
+                                        <div className="p-3 bg-slate-50 rounded-xl space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Period Filter</label>
+                                                <select
+                                                    value={dateRange.type}
+                                                    onChange={(e) => setDateRange(prev => ({ ...prev, type: e.target.value }))}
+                                                    className="bg-transparent text-[10px] font-bold text-blue-600 outline-none border-none cursor-pointer hover:underline"
+                                                >
+                                                    <option value="transactionDate">By Entry Date</option>
+                                                    <option value="deliveryDate">By Delivery Date</option>
+                                                    <option value="paymentDate">By Payment Date</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                                                    <Calendar className="w-4 h-4 text-slate-400" />
+                                                    <input
+                                                        type="date"
+                                                        className="bg-transparent text-xs font-bold text-slate-600 outline-none flex-1"
+                                                        value={dateRange.from}
+                                                        onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                                                    />
+                                                    <span className="text-slate-300 font-bold">to</span>
+                                                    <input
+                                                        type="date"
+                                                        className="bg-transparent text-xs font-bold text-slate-600 outline-none flex-1"
+                                                        value={dateRange.to}
+                                                        onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                                                    />
+                                                    {(dateRange.from || dateRange.to) && (
+                                                        <button
+                                                            onClick={() => setDateRange(prev => ({ ...prev, from: "", to: "" }))}
+                                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex flex-col gap-2 pt-2">
+                                            {containerCode && (
+                                                <button
+                                                    onClick={async () => {
+                                                        const info = await fetchContainerInfo(containerCode, client.name);
+                                                        // ... nested SYNC logic same as before ...
+                                                        if (info) {
+                                                            setTransactions(prev => {
+                                                                const existingGstRow = prev.find(t => t.particulars?.startsWith("GST INV"));
+                                                                const updated = prev.map(t => {
+                                                                    if (t.particulars?.startsWith("GST INV")) {
+                                                                        const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                                                                        const toPart = info.to ? ` TO: ${info.to}` : '';
+                                                                        return { ...t, particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, amount: info.totalGstAmount, from: info.from || t.from || '', to: info.to || t.to || '' };
+                                                                    }
+                                                                    return { ...t, containerCode: info.formatted, particulars: info.particulars, deliveryDate: info.delDateStr, quantity: info.totalCbm, weight: info.totalWeight, from: info.from || t.from || '', to: info.to || t.to || '' };
+                                                                });
+                                                                if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
+                                                                    const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                                                                    const toPart = info.to ? ` TO: ${info.to}` : '';
+                                                                    updated.push({ id: `temp-${Date.now()}`, isNew: true, containerCode: "", deliveryDate: "", particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, amount: info.totalGstAmount, paid: "", clientId: id, billingType: "FLAT", sheetName: querySheetName || "", from: info.from || '', to: info.to || '' });
+                                                                }
+                                                                return updated;
+                                                            });
+                                                            toast.success("Details Updated from Bifurcation");
+                                                        }
+                                                        setShowOptionsMenu(false);
+                                                    }}
+                                                    className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all text-xs"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    SYNC FROM BIFURCATION
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => {
+                                                    setShowPreview(true);
+                                                    setShowOptionsMenu(false);
+                                                }}
+                                                className="flex items-center justify-center gap-2 w-full py-3 bg-slate-900 text-white font-bold rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs shadow-lg shadow-slate-200"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                                PREVIEW ACCOUNT SHEET
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </>
-                        ) : (
-                            <>
-                                <HeaderMetric label="Total" value={`₹${trfTotalAmount.toLocaleString()}`} />
-                                <HeaderMetric label="Paid" value={`₹${trfTotalPaid.toLocaleString()}`} colorClass="text-emerald-500" />
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Balance</span>
-                                    <div className={`text-xl tracking-tight px-3 py-1 rounded-lg ${trfBalance > 0 ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
-                                        ₹{trfBalance.toLocaleString()}
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1190,6 +1248,7 @@ export default function ExcelLedgerPage() {
                 expenseTransactions={transactions}
                 trfTransactions={trfTransactions}
                 sheetName={sheetName}
+                dateRange={dateRange}
             />
         </div>
     );

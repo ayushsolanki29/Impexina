@@ -20,8 +20,14 @@ const getClients = async (req, res) => {
 // Get client ledger details
 const getClientLedger = async (req, res) => {
   try {
-    const { containerCode, sheetName } = req.query;
-    const result = await clientsService.getClientLedger(req.params.id, containerCode, sheetName);
+    const { containerCode, sheetName, dateFrom, dateTo, dateType } = req.query;
+    const result = await clientsService.getClientLedger(req.params.id, {
+      containerCode,
+      sheetName,
+      dateFrom,
+      dateTo,
+      dateType
+    });
     res.json({ success: true, data: result });
   } catch (error) {
     console.error(error);

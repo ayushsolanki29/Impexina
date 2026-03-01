@@ -54,7 +54,12 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
         const sheet = response.data.data;
         setSheetDetails(sheet);
         setSheetName(sheet.name || "");
-        setRows(sheet.entries || []);
+        // Format dates for the date input (YYYY-MM-DD)
+        const formattedEntries = (sheet.entries || []).map(entry => ({
+          ...entry,
+          date: entry.date ? new Date(entry.date).toISOString().split('T')[0] : ""
+        }));
+        setRows(formattedEntries);
         setLastSaved(new Date(sheet.updatedAt));
       }
     } catch (error) {
@@ -95,6 +100,14 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
       if (response.data.success) {
         toast.success("Sheet saved successfully");
         setLastSaved(new Date());
+        
+        // Sync rows with response (important because IDs change on bulk save)
+        const savedEntries = (response.data.data || []).map(entry => ({
+          ...entry,
+          date: entry.date ? new Date(entry.date).toISOString().split('T')[0] : ""
+        }));
+        setRows(savedEntries);
+        
         if (sheetName !== sheetDetails?.name) loadSheet();
       }
     } catch (error) {
@@ -134,7 +147,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
 
       if (response.data.success) {
         const newSheet = response.data.data;
-        await API.put(
+        const bulkResponse = await API.put(
           `/accounts/david/${newSheet.id}/bulk-entries`,
           rows.map((row) => ({
             date: row.date || new Date().toISOString().split("T")[0],
@@ -146,8 +159,10 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
           }))
         );
 
-        toast.success("Sheet created successfully");
-        router.push(`/dashboard/accounts/${partnerPath}/${newSheet.id}`);
+        if (bulkResponse.data.success) {
+          toast.success("Sheet created successfully");
+          router.push(`/dashboard/accounts/${partnerPath}/${newSheet.id}`);
+        }
       }
     } catch (error) {
       console.error("Error creating sheet:", error);

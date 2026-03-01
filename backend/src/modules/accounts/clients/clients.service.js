@@ -71,14 +71,50 @@ const AccountClientsService = {
     },
 
     // Get single client ledger
-    getClientLedger: async (clientId, containerCode, sheetName) => {
+    getClientLedger: async (clientId, filters = {}) => {
+        const { containerCode, sheetName, dateFrom, dateTo, dateType = "transactionDate" } = filters;
+
+        // Map frontend values to Prisma fields
+        const dateField = (dateType === "deliveryDate") ? "deliveryDate" :
+            (dateType === "paymentDate") ? "paymentDate" : "transactionDate";
+
         const where = { clientId };
         if (containerCode) where.containerCode = containerCode;
         if (sheetName) where.sheetName = sheetName;
 
+        if (dateFrom || dateTo) {
+            where[dateField] = {};
+            if (dateFrom) where[dateField].gte = new Date(dateFrom);
+            if (dateTo) where[dateField].lte = new Date(dateTo);
+        }
+
         // TRF transactions filter
         const trfWhere = { clientId };
         if (sheetName) trfWhere.sheetName = sheetName;
+
+        // TRF transactions only have transactionDate and paymentDate
+        const trfDateField = (dateType === "paymentDate") ? "paymentDate" : "transactionDate";
+
+        if ((dateFrom || dateTo) && (dateType !== "deliveryDate" || dateType === "paymentDate" || dateType === "transactionDate")) {
+            // Note: If filtering by deliveryDate, TRF txns won't match anything 
+            // but we usually filter them by transactionDate in that case or just skip filter.
+            // Let's stay safe:
+            if (dateType === "deliveryDate") {
+                // If they filter specifically by delivery date, maybe they don't want TRF txns?
+                // Or maybe they want TRF txns regardless?
+                // Let's assume for TRF they still want it filtered by transactionDate if "deliveryDate" is chosen?
+                // Actually, if I am filtering a statement by "Delivery Date", maybe TRF transactions should not be filtered (should show all)?
+                // Or filtered by their primary date? 
+                // Let's filter TRF by transactionDate as a fallback for deliveryDate.
+                trfWhere.transactionDate = {};
+                if (dateFrom) trfWhere.transactionDate.gte = new Date(dateFrom);
+                if (dateTo) trfWhere.transactionDate.lte = new Date(dateTo);
+            } else {
+                trfWhere[trfDateField] = {};
+                if (dateFrom) trfWhere[trfDateField].gte = new Date(dateFrom);
+                if (dateTo) trfWhere[trfDateField].lte = new Date(dateTo);
+            }
+        }
 
         const client = await prisma.client.findUnique({
             where: { id: clientId },
