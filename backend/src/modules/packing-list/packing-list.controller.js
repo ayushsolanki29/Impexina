@@ -48,7 +48,8 @@ const packingListController = {
   delete: async (req, res) => {
     try {
       const { id } = req.params;
-      await packingListService.delete(id);
+      const userId = req.user.id;
+      await packingListService.delete(id, userId);
       res.json({ success: true, message: "Packing list deleted" });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });

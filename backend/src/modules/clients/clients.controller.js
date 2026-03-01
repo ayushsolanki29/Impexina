@@ -25,7 +25,7 @@ const clientsController = {
 
   createClient: async (req, res) => {
     try {
-      const client = await clientsService.createClient(req.body);
+      const client = await clientsService.createClient(req.body, req.user);
       res.status(201).json({ success: true, data: client });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -34,7 +34,7 @@ const clientsController = {
 
   updateClient: async (req, res) => {
     try {
-      const client = await clientsService.updateClient(req.params.id, req.body);
+      const client = await clientsService.updateClient(req.params.id, req.body, req.user);
       res.json({ success: true, data: client });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -43,7 +43,7 @@ const clientsController = {
 
   deleteClient: async (req, res) => {
     try {
-      await clientsService.deleteClient(req.params.id);
+      await clientsService.deleteClient(req.params.id, req.user);
       res.json({ success: true, message: "Client deleted successfully" });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -53,31 +53,31 @@ const clientsController = {
   // Export to Excel
   exportClients: async (req, res) => {
     try {
-        const { clients } = await clientsService.getAllClients({ ...req.query, limit: 10000 });
-        
-        const data = clients.map(client => ({
-            "Name": client.name,
-            "Company": client.companyName || '-',
-            "Type": client.type,
-            "Status": client.status,
-            "Email": client.email || '-',
-            "Phone": client.phone || '-',
-            "City": client.city || '-',
-            "GST No": client.gstNumber || '-',
-            "Created At": new Date(client.createdAt).toLocaleDateString()
-        }));
+      const { clients } = await clientsService.getAllClients({ ...req.query, limit: 10000 });
 
-        const wb = xlsx.utils.book_new();
-        const ws = xlsx.utils.json_to_sheet(data);
-        xlsx.utils.book_append_sheet(wb, ws, "Clients");
+      const data = clients.map(client => ({
+        "Name": client.name,
+        "Company": client.companyName || '-',
+        "Type": client.type,
+        "Status": client.status,
+        "Email": client.email || '-',
+        "Phone": client.phone || '-',
+        "City": client.city || '-',
+        "GST No": client.gstNumber || '-',
+        "Created At": new Date(client.createdAt).toLocaleDateString()
+      }));
 
-        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const wb = xlsx.utils.book_new();
+      const ws = xlsx.utils.json_to_sheet(data);
+      xlsx.utils.book_append_sheet(wb, ws, "Clients");
 
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=Clients.xlsx');
-        res.send(buffer);
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=Clients.xlsx');
+      res.send(buffer);
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 

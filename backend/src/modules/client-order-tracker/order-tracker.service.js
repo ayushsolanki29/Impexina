@@ -235,6 +235,21 @@ class OrderTrackerService {
       }
     });
 
+    // Log Activity
+    if (userId) {
+      await prisma.orderTrackerActivity.create({
+        data: {
+          orderTrackerId: updatedOrder.id,
+          userId: userId,
+          type: 'STATUS_CHANGE',
+          field: 'status',
+          oldValue: order.status,
+          newValue: status,
+          note: `Status changed to ${status}`
+        }
+      });
+    }
+
     return updatedOrder;
   }
 

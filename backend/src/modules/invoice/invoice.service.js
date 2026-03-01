@@ -218,7 +218,8 @@ const invoiceService = {
   },
 
   // Delete invoice
-  delete: async (id) => {
+  delete: async (id, userId) => {
+    // Activities are cascaded, so they will be deleted.
     return await prisma.invoice.delete({
       where: { id }
     });

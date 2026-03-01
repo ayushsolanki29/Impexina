@@ -54,7 +54,7 @@ const clientsService = {
   },
 
   // Create new client
-  createClient: async (data) => {
+  createClient: async (data, user) => {
     // Check for existing client with same name (case-insensitive)
     const existing = await prisma.client.findFirst({
       where: { name: { equals: data.name, mode: 'insensitive' } }
@@ -64,13 +64,29 @@ const clientsService = {
       throw new Error(`Client "${data.name}" already exists`);
     }
 
-    return prisma.client.create({
+    const client = await prisma.client.create({
       data,
     });
+
+    // Log Activity
+    if (user) {
+      await prisma.clientActivity.create({
+        data: {
+          clientId: client.id,
+          userId: String(user.id),
+          userName: user.name,
+          type: 'CREATE',
+          description: `Created client: ${client.name}`,
+          metadata: data
+        }
+      });
+    }
+
+    return client;
   },
 
   // Update client
-  updateClient: async (clientId, data) => {
+  updateClient: async (clientId, data, user) => {
     if (data.name) {
       const existing = await prisma.client.findFirst({
         where: {
@@ -84,14 +100,39 @@ const clientsService = {
       }
     }
 
-    return prisma.client.update({
+    const client = await prisma.client.update({
       where: { id: clientId },
       data,
     });
+
+    // Log Activity
+    if (user) {
+      await prisma.clientActivity.create({
+        data: {
+          clientId,
+          userId: String(user.id),
+          userName: user.name,
+          type: 'UPDATE',
+          description: `Updated client: ${client.name}`,
+          metadata: data
+        }
+      });
+    }
+
+    return client;
   },
 
   // Delete client
-  deleteClient: async (clientId) => {
+  deleteClient: async (clientId, user) => {
+    const client = await prisma.client.findUnique({ where: { id: clientId } });
+
+    // Log Activity before deletion (optional since cascaded)
+    if (user && client) {
+      // Since it cascades, the activity would be deleted. 
+      // We can keep it if we want to log it to a different table, 
+      // but following existing pattern for now.
+    }
+
     return prisma.client.delete({
       where: { id: clientId },
     });

@@ -47,7 +47,8 @@ const invoiceController = {
   delete: async (req, res) => {
     try {
       const { id } = req.params;
-      await invoiceService.delete(id);
+      const userId = req.user.id;
+      await invoiceService.delete(id, userId);
       res.json({ success: true, message: "Invoice deleted" });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });

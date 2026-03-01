@@ -1314,6 +1314,60 @@ class DashboardService {
         }
       }
 
+      // 10. Order Tracker Activities
+      if (!moduleFilter || moduleFilter === 'orders') {
+        try {
+          const orderActivities = await prisma.orderTrackerActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { note: { contains: search, mode: 'insensitive' } },
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { orderTracker: { shippingMark: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              orderTracker: { select: { id: true, shippingMark: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
+          });
+
+          orderActivities.forEach(activity => {
+            allActivities.push({
+              id: `order-tk-${activity.id}`,
+              module: 'orders',
+              type: activity.type,
+              description: activity.note || `${activity.field || 'Field'} changed`,
+              user: activity.user,
+              entityId: activity.orderTrackerId,
+              entityName: activity.orderTracker?.shippingMark || 'Order',
+              createdAt: activity.createdAt,
+              metadata: {
+                orderTrackerId: activity.orderTrackerId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue,
+                note: activity.note
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Error fetching order tracker activities:', err);
+        }
+      }
+
       // Sort all activities by createdAt descending
       allActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
