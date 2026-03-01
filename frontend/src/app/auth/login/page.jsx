@@ -289,8 +289,8 @@ function LoginForm() {
 
         {/* Backend status */}
         {backendHealth !== null && (
-          <div className={`w-full flex-shrink-0 mt-3 px-4 py-2.5 rounded-xl border text-center text-[11px] ${backendHealth.up ? "bg-emerald-50/80 border-emerald-200 text-emerald-800" : "bg-amber-50/80 border-amber-200 text-amber-800"}`}>
-            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <div className={`w-full flex-shrink-0 mt-3 px-4 py-2.5 rounded-xl border text-center text-[11px] leading-5 ${backendHealth.up ? "bg-emerald-50/80 border-emerald-200 text-emerald-800" : "bg-amber-50/80 border-amber-200 text-amber-800"}`}>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
               <span className="inline-flex items-center gap-1.5 font-medium">
                 <span className={`w-1.5 h-1.5 rounded-full ${backendHealth.up ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
                 <Server className="w-3 h-3 opacity-70" />
@@ -298,7 +298,7 @@ function LoginForm() {
               </span>
               {backendHealth.up && backendHealth.lastUpdated && (
                 <>
-                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-400">&bull;</span>
                   <span className="inline-flex items-center gap-1 text-slate-600">
                     <Clock className="w-3 h-3 opacity-70" />
                     Last updated: {new Date(backendHealth.lastUpdated).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -307,13 +307,13 @@ function LoginForm() {
               )}
               {backendHealth.up && backendHealth.version && (
                 <>
-                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-400">&bull;</span>
                   <span className="text-slate-600">API v{backendHealth.version}</span>
                 </>
               )}
               {backendHealth.up && backendHealth.uptimeFormatted && (
                 <>
-                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-400">&bull;</span>
                   <span className="text-slate-600">Uptime: {backendHealth.uptimeFormatted}</span>
                 </>
               )}
@@ -322,19 +322,20 @@ function LoginForm() {
         )}
 
         {/* Help + Footer - compact inline */}
-        <div className="w-full flex-shrink-0 mt-3 flex items-center justify-center gap-4 text-[11px] text-slate-400">
+        <div className="w-full flex-shrink-0 mt-3">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] leading-5 text-slate-500 text-center">
           <button
             type="button"
             onClick={() => setShowHelpModal(true)}
-            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors"
             tabIndex={-1}
           >
             <HelpCircle className="w-3.5 h-3.5" />
             Need help?
           </button>
-          <span>•</span>
-          <p>
-            v{APP_VERSION} • by{" "}
+          <span className="text-slate-400">&bull;</span>
+          <p className="m-0 text-slate-500">
+            v{APP_VERSION} &bull; by{" "}
             <a
               href="https://ayushsolanki.site"
               target="_blank"
@@ -345,6 +346,7 @@ function LoginForm() {
               ayushsolanki
             </a>
           </p>
+          </div>
         </div>
       </div>
 
