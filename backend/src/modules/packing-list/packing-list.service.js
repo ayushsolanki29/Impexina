@@ -245,11 +245,36 @@ const packingListService = {
       data: { totalCtn, totalQty, totalWeight }
     });
 
+    // 5. Log activity
+    if (userId) {
+      await prisma.packingListActivity.create({
+        data: {
+          packingListId: result.id,
+          userId: parseInt(userId),
+          type: packingList ? "UPDATED" : "CREATED",
+          note: packingList
+            ? `Updated packing list for ${container.containerCode}`
+            : `Created packing list for ${container.containerCode}`,
+          oldValue: packingList ? JSON.stringify({ invNo: packingList.invNo, status: packingList.status }) : null,
+          newValue: JSON.stringify({ invNo: result.invNo, status: result.status })
+        }
+      });
+    }
+
     return result;
   },
 
   // Delete packing list
-  delete: async (id) => {
+  delete: async (id, userId) => {
+    // Log before deletion (if needed, but note activities might be cascaded)
+    if (userId) {
+      const pl = await prisma.packingList.findUnique({ where: { id } });
+      if (pl) {
+        // Since activities are cascaded, a "DELETED" log here will be lost 
+        // unless we log it to a different table or don't use cascade.
+        // For now, I'll just perform the delete as requested.
+      }
+    }
     return await prisma.packingList.delete({
       where: { id }
     });

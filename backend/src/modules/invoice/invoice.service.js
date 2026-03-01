@@ -198,6 +198,22 @@ const invoiceService = {
       });
     }
 
+    // 5. Log activity
+    if (userId) {
+      await prisma.invoiceActivity.create({
+        data: {
+          invoiceId: result.id,
+          userId: parseInt(userId),
+          type: invoice ? "UPDATED" : "CREATED",
+          note: invoice
+            ? `Updated invoice ${result.invNo} for ${container.containerCode}`
+            : `Created invoice ${result.invNo} for ${container.containerCode}`,
+          oldValue: invoice ? JSON.stringify({ invNo: invoice.invNo, status: invoice.status }) : null,
+          newValue: JSON.stringify({ invNo: result.invNo, status: result.status })
+        }
+      });
+    }
+
     return result;
   },
 

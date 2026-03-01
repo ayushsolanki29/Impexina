@@ -119,6 +119,19 @@ class OrderTrackerService {
       }
     });
 
+    // Log Activity
+    if (userId) {
+      await prisma.orderTrackerActivity.create({
+        data: {
+          orderTrackerId: order.id,
+          userId: userId,
+          type: 'CREATED',
+          note: `Created order for mark: ${order.shippingMark}`,
+          newValue: JSON.stringify(order)
+        }
+      });
+    }
+
     return order;
   }
 
@@ -165,6 +178,20 @@ class OrderTrackerService {
       }
     });
 
+    // Log Activity
+    if (userId) {
+      await prisma.orderTrackerActivity.create({
+        data: {
+          orderTrackerId: updatedOrder.id,
+          userId: userId,
+          type: 'UPDATED',
+          note: `Updated order: ${order.shippingMark}`,
+          oldValue: JSON.stringify(order),
+          newValue: JSON.stringify(updatedOrder)
+        }
+      });
+    }
+
     return updatedOrder;
   }
 
@@ -181,6 +208,11 @@ class OrderTrackerService {
     await prisma.orderTracker.delete({
       where: { id }
     });
+
+    // Log Activity (optional since cascaded, but for record before delete)
+    // Actually, activities are cascaded, so they will be deleted.
+    // However, we could log to a SystemLog if we had one.
+    // For now, simple delete.
 
     return { success: true };
   }
@@ -573,12 +605,22 @@ class OrderTrackerService {
           });
         } else {
           // Create new
-          await tx.orderTracker.create({
+          const newOrder = await tx.orderTracker.create({
             data: {
               ...sanitizedData,
               sheetId,
               createdById: userId,
               updatedById: userId
+            }
+          });
+
+          // Log
+          await tx.orderTrackerActivity.create({
+            data: {
+              orderTrackerId: newOrder.id,
+              userId,
+              type: 'CREATED',
+              note: `Created order ${newOrder.shippingMark} in sheet update`
             }
           });
         }

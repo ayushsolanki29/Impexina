@@ -19,11 +19,8 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="bg-gray-50">
         {/* All client things wrapped inside client LayoutShell */}
-    
-          <ToasterProvider />
-            {children}
-        
-  
+        <ToasterProvider />
+        {children}
       </body>
     </html>
   );

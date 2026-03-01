@@ -153,12 +153,11 @@ function LoginForm() {
     <>
       <div className="w-full max-w-[380px] flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-4 duration-300">
         {/* Logo */}
-        <div className="flex-shrink-0 mb-4">
+        <div className="relative flex-shrink-0 mb-4 h-14 w-[180px]">
           <Image
-            src="/LOGO.jpeg"
+            src="/logo.svg"
             alt="Logo"
-            width={180}
-            height={56}
+            fill
             className="object-contain"
             priority
           />

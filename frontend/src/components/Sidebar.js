@@ -345,7 +345,7 @@ export default function SidebarAdvanced({
   useEffect(() => {
     fetchUserData();
     fetchTaskStats();
-    
+
     // Load footer state from localStorage
     const savedFooterState = localStorage.getItem('sidebarFooterExpanded');
     if (savedFooterState !== null) {
@@ -480,27 +480,23 @@ export default function SidebarAdvanced({
   return (
     <aside
       ref={containerRef}
-      className={`relative flex flex-col h-screen transition-all duration-200 ${
-        open ? "w-64" : "w-20"
-      } bg-white border-r border-slate-200`}
+      className={`relative flex flex-col h-screen transition-all duration-200 ${open ? "w-64" : "w-20"
+        } bg-white border-r border-slate-200`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-slate-200">
         <div
-          className={`flex items-center transition-all duration-300 ${
-            open ? "justify-start" : "justify-center w-full"
-          }`}
+          className={`flex items-center transition-all duration-300 w-full ${open ? "justify-start pr-2" : "justify-center"
+            }`}
         >
           <div
-            className={`flex items-center justify-center rounded-xl overflow-hidden transition-all duration-300 ${
-              open ? "w-44 h-14" : "w-14 h-14"
-            }`}
+            className={`flex items-center justify-center overflow-hidden transition-all duration-300 relative ${open ? "w-full h-14" : "w-14 h-14"
+              }`}
           >
             <Image
-              src="/LOGO.jpeg"
+              src="/logo.svg"
               alt="Logo"
-              width={open ? 170 : 48}
-              height={48}
+              fill
               className="object-contain"
               priority
             />
@@ -509,14 +505,12 @@ export default function SidebarAdvanced({
 
         <button
           onClick={() => setOpen((s) => !s)}
-          className={`p-1.5 rounded-full hover:bg-slate-100 border border-slate-200 transition-all ${
-            open ? "ml-2" : "absolute right-3"
-          }`}
+          className={`p-1.5 rounded-full hover:bg-slate-100 border border-slate-200 transition-all ${open ? "ml-2" : "absolute right-3"
+            }`}
         >
           <ChevronLeft
-            className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${
-              open ? "" : "rotate-180"
-            }`}
+            className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${open ? "" : "rotate-180"
+              }`}
           />
         </button>
       </div>
@@ -546,8 +540,8 @@ export default function SidebarAdvanced({
               // Filter children based on permissions
               const visibleChildren = hasChildren
                 ? item.children.filter((child) =>
-                    hasPermission(child.moduleKey),
-                  )
+                  hasPermission(child.moduleKey),
+                )
                 : [];
 
               // Don't show parent if no children are visible (unless parent itself has permission)
@@ -563,11 +557,10 @@ export default function SidebarAdvanced({
                 <li key={item.key} className="relative">
                   <div
                     ref={(el) => (itemsRef.current[item.key] = el)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-all duration-150 ${
-                      isActive
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-all duration-150 ${isActive
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
                   >
                     <button
                       onClick={() => {
@@ -581,22 +574,19 @@ export default function SidebarAdvanced({
                       disabled={!item.path && !hasChildren}
                     >
                       <Icon
-                        className={`w-5 h-5 shrink-0 transition-colors ${
-                          isActive
-                            ? "text-blue-600"
-                            : "text-slate-400 group-hover:text-slate-600"
-                        } ${!item.path && !hasChildren ? "opacity-50" : ""}`}
+                        className={`w-5 h-5 shrink-0 transition-colors ${isActive
+                          ? "text-blue-600"
+                          : "text-slate-400 group-hover:text-slate-600"
+                          } ${!item.path && !hasChildren ? "opacity-50" : ""}`}
                       />
 
                       {open && (
                         <>
                           <div className="flex-1 flex items-center justify-between overflow-hidden">
                             <span
-                              className={`text-sm truncate ${
-                                isActive ? "font-semibold" : "font-medium"
-                              } ${
-                                !item.path && !hasChildren ? "opacity-50" : ""
-                              }`}
+                              className={`text-sm truncate ${isActive ? "font-semibold" : "font-medium"
+                                } ${!item.path && !hasChildren ? "opacity-50" : ""
+                                }`}
                             >
                               {item.label}
                             </span>
@@ -631,18 +621,16 @@ export default function SidebarAdvanced({
                             <li key={child.key}>
                               <button
                                 onClick={() => navTo(child.path)}
-                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
-                                  isChildActive
-                                    ? "bg-slate-100 text-slate-900 font-medium"
-                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                }`}
+                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${isChildActive
+                                  ? "bg-slate-100 text-slate-900 font-medium"
+                                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                                  }`}
                               >
                                 <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    isChildActive
-                                      ? "bg-blue-500"
-                                      : "bg-slate-300"
-                                  }`}
+                                  className={`w-1.5 h-1.5 rounded-full ${isChildActive
+                                    ? "bg-blue-500"
+                                    : "bg-slate-300"
+                                    }`}
                                 />
                                 <span>{child.label}</span>
                               </button>
@@ -815,14 +803,13 @@ export default function SidebarAdvanced({
       ) : (
         <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-3">
           <button
-          title="View Profile"
+            title="View Profile"
             onClick={() => navTo("/dashboard/profile")}
             className="flex-1 flex items-center gap-3 text-left p-2 -ml-2 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors group"
           >
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                roleColor(currentUser.role, currentUser.isSuper).bg
-              } ${roleColor(currentUser.role, currentUser.isSuper).text}`}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${roleColor(currentUser.role, currentUser.isSuper).bg
+                } ${roleColor(currentUser.role, currentUser.isSuper).text}`}
             >
               {(currentUser.name || "Bennet User")[0].toUpperCase()}
             </div>
@@ -841,15 +828,14 @@ export default function SidebarAdvanced({
                     )}
                   </div>
                   <div
-                    className={`text-[10px] truncate capitalize leading-tight ${
-                      currentUser.isSuper
-                        ? "text-slate-900 font-medium"
-                        : currentUser.role === "ADMIN"
+                    className={`text-[10px] truncate capitalize leading-tight ${currentUser.isSuper
+                      ? "text-slate-900 font-medium"
+                      : currentUser.role === "ADMIN"
                         ? "text-red-600 font-medium"
                         : currentUser.role === "EMPLOYEE"
-                        ? "text-emerald-600 font-medium"
-                        : "text-slate-500"
-                    }`}
+                          ? "text-emerald-600 font-medium"
+                          : "text-slate-500"
+                      }`}
                   >
                     {currentUser.role?.toLowerCase().replace("_", " ")}
                   </div>
@@ -893,9 +879,8 @@ export default function SidebarAdvanced({
 
         {/* Footer Content - Accordion */}
         <div
-          className={`transition-all duration-300 ease-in-out ${
-            footerExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
-          }`}
+          className={`transition-all duration-300 ease-in-out ${footerExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
+            }`}
         >
           <div className="px-4 py-1.5">
             {open ? (

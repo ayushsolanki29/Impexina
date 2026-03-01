@@ -9,35 +9,35 @@ class DashboardService {
       totalTasks,
       totalClients,
       totalUsers,
-      
+
       // Order status counts
       pendingOrders,
       loadedOrders,
       inTransitOrders,
       arrivedOrders,
       deliveredOrders,
-      
+
       // Task status counts
       pendingTasks,
       completedTasks,
-      
+
       // Recent data
       recentOrders,
       recentTasks,
       recentTransactions,
-      
+
       // Monthly stats
       monthlyOrderStats,
       monthlyTaskStats,
-      
+
       // Container stats
       totalContainers,
       activeContainers,
-      
+
       // Financial stats
       totalRevenue,
       pendingPayments,
-      
+
       // Quick stats
       todayOrders,
       thisWeekOrders,
@@ -52,18 +52,18 @@ class DashboardService {
       prisma.task.count(),
       prisma.client.count(),
       prisma.user.count({ where: { isActive: true } }),
-      
+
       // Order status counts
       prisma.orderTracker.count({ where: { status: 'PENDING' } }),
       prisma.orderTracker.count({ where: { status: 'LOADED' } }),
       prisma.orderTracker.count({ where: { status: 'IN_TRANSIT' } }),
       prisma.orderTracker.count({ where: { status: 'ARRIVED' } }),
       prisma.orderTracker.count({ where: { status: 'DELIVERED' } }),
-      
+
       // Task status counts
       prisma.task.count({ where: { status: 'PENDING' } }),
       prisma.task.count({ where: { status: 'COMPLETED' } }),
-      
+
       // Recent data (last 7 days)
       prisma.orderTracker.findMany({
         take: 10,
@@ -92,14 +92,14 @@ class DashboardService {
           }
         }
       }),
-      
+
       // Monthly stats
       this.getMonthlyOrderStats(),
       this.getMonthlyTaskStats(),
-      
+
       prisma.container.count(),
       Promise.resolve(0), // Placeholder for active containers
-      
+
       // Financial stats (from order tracker)
       prisma.orderTracker.aggregate({
         _sum: { totalAmount: true }
@@ -108,7 +108,7 @@ class DashboardService {
         _sum: { balanceAmount: true },
         where: { status: { in: ['PENDING', 'LOADED', 'IN_TRANSIT', 'ARRIVED'] } }
       }),
-      
+
       // Time-based stats
       prisma.orderTracker.count({
         where: {
@@ -139,7 +139,7 @@ class DashboardService {
       }) : Promise.resolve(null),
 
       userId ? prisma.task.findMany({
-        where: { 
+        where: {
           assigneeId: userId,
           status: { not: 'COMPLETED' }
         },
@@ -159,7 +159,7 @@ class DashboardService {
         }
       }) : Promise.resolve([])
     ]);
-    
+
     return {
       currentUser,
       myAssignedTasks: myAssignedTasks?.map(t => ({
@@ -181,7 +181,7 @@ class DashboardService {
         totalRevenue: totalRevenue._sum.totalAmount || 0,
         pendingPayments: pendingPayments._sum.balanceAmount || 0
       },
-      
+
       orderStatus: {
         pending: pendingOrders,
         loaded: loadedOrders,
@@ -189,18 +189,18 @@ class DashboardService {
         arrived: arrivedOrders,
         delivered: deliveredOrders
       },
-      
+
       taskStatus: {
         pending: pendingTasks,
         completed: completedTasks
       },
-      
+
       timeStats: {
         today: todayOrders,
         thisWeek: thisWeekOrders,
         thisMonth: thisMonthOrders
       },
-      
+
       recentData: {
         orders: recentOrders.map(order => ({
           id: order.id,
@@ -229,7 +229,7 @@ class DashboardService {
           date: transaction.transactionDate
         }))
       },
-      
+
       monthlyStats: {
         orders: monthlyOrderStats,
         tasks: monthlyTaskStats
@@ -241,7 +241,7 @@ class DashboardService {
   async getMonthlyOrderStats() {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    
+
     const orders = await prisma.orderTracker.findMany({
       where: {
         createdAt: {
@@ -254,7 +254,7 @@ class DashboardService {
         totalAmount: true
       }
     });
-    
+
     // Group by month
     const monthlyStats = {};
     orders.forEach(order => {
@@ -270,18 +270,18 @@ class DashboardService {
           delivered: 0
         };
       }
-      
+
       monthlyStats[monthYear].total += order.totalAmount || 0;
       monthlyStats[monthYear].count += 1;
       monthlyStats[monthYear][order.status.toLowerCase()] += 1;
     });
-    
+
     // Convert to array and ensure last 6 months
     const result = [];
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-      
+
       result.push({
         month: monthYear,
         ...(monthlyStats[monthYear] || {
@@ -295,7 +295,7 @@ class DashboardService {
         })
       });
     }
-    
+
     return result;
   }
 
@@ -303,7 +303,7 @@ class DashboardService {
   async getMonthlyTaskStats() {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    
+
     const tasks = await prisma.task.findMany({
       where: {
         createdAt: {
@@ -316,7 +316,7 @@ class DashboardService {
         frequency: true
       }
     });
-    
+
     // Group by month
     const monthlyStats = {};
     tasks.forEach(task => {
@@ -331,18 +331,18 @@ class DashboardService {
           monthly: 0
         };
       }
-      
+
       monthlyStats[monthYear].total += 1;
       monthlyStats[monthYear][task.status.toLowerCase()] += 1;
       monthlyStats[monthYear][task.frequency.toLowerCase()] += 1;
     });
-    
+
     // Convert to array and ensure last 6 months
     const result = [];
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-      
+
       result.push({
         month: monthYear,
         ...(monthlyStats[monthYear] || {
@@ -355,7 +355,7 @@ class DashboardService {
         })
       });
     }
-    
+
     return result;
   }
 
@@ -374,12 +374,12 @@ class DashboardService {
         }
       }
     });
-    
+
     // Group by shipping code
     const codeStats = {};
     orders.forEach(order => {
       if (!order.shippingCode) return;
-      
+
       if (!codeStats[order.shippingCode]) {
         codeStats[order.shippingCode] = {
           totalOrders: 0,
@@ -392,13 +392,13 @@ class DashboardService {
           delivered: 0
         };
       }
-      
+
       codeStats[order.shippingCode].totalOrders += 1;
       codeStats[order.shippingCode].totalQuantity += order.quantity || 0;
       codeStats[order.shippingCode].totalAmount += order.totalAmount || 0;
       codeStats[order.shippingCode][order.status.toLowerCase()] += 1;
     });
-    
+
     // Convert to array and sort by total orders
     return Object.entries(codeStats)
       .map(([code, stats]) => ({
@@ -423,12 +423,12 @@ class DashboardService {
         }
       }
     });
-    
+
     // Group by supplier
     const supplierStats = {};
     orders.forEach(order => {
       if (!order.supplier) return;
-      
+
       if (!supplierStats[order.supplier]) {
         supplierStats[order.supplier] = {
           totalOrders: 0,
@@ -436,12 +436,12 @@ class DashboardService {
           totalAmount: 0
         };
       }
-      
+
       supplierStats[order.supplier].totalOrders += 1;
       supplierStats[order.supplier].totalQuantity += order.quantity || 0;
       supplierStats[order.supplier].totalAmount += order.totalAmount || 0;
     });
-    
+
     // Convert to array and sort by total amount
     return Object.entries(supplierStats)
       .map(([supplier, stats]) => ({
@@ -478,18 +478,18 @@ class DashboardService {
         }
       }
     });
-    
+
     return users.map(user => {
       const createdTasks = user.createdTasks;
       const assignedTasks = user.assignedTasks;
       const createdOrders = user.createdOrders;
-      
+
       const completedTasks = assignedTasks.filter(t => t.status === 'COMPLETED').length;
       const pendingTasks = assignedTasks.filter(t => t.status === 'PENDING').length;
-      
+
       const ordersCreated = createdOrders.length;
       const ordersValue = createdOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-      
+
       return {
         id: user.id,
         name: user.name,
@@ -516,7 +516,7 @@ class DashboardService {
   async getUpcomingDeadlines() {
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     const [upcomingTasks, upcomingOrders] = await Promise.all([
       // Tasks due in next 7 days
       prisma.task.findMany({
@@ -545,7 +545,7 @@ class DashboardService {
         orderBy: { completedAt: 'asc' },
         take: 20
       }),
-      
+
       // Orders with upcoming dates
       prisma.orderTracker.findMany({
         where: {
@@ -571,7 +571,7 @@ class DashboardService {
         take: 20
       })
     ]);
-    
+
     return {
       tasks: upcomingTasks.map(task => ({
         id: task.id,
@@ -600,11 +600,11 @@ class DashboardService {
   async getSystemHealth() {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    
+
     const [recentActivities, activeUsers, pendingJobs] = await Promise.all([
       // Recent activities - Placeholder
       Promise.resolve([]),
-      
+
       // Active users (users with activity in last 24 hours)
       prisma.user.count({
         where: {
@@ -614,7 +614,7 @@ class DashboardService {
           ]
         }
       }),
-      
+
       // Pending jobs/tasks
       prisma.task.count({
         where: {
@@ -623,9 +623,9 @@ class DashboardService {
         }
       })
     ]);
-    
+
     const databaseStatus = await this.checkDatabaseStatus();
-    
+
     return {
       database: databaseStatus,
       recentActivities: recentActivities,
@@ -659,10 +659,10 @@ class DashboardService {
   async getQuickStats() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const [
       todayOrders,
       yesterdayOrders,
@@ -677,79 +677,79 @@ class DashboardService {
       prisma.orderTracker.count({
         where: { createdAt: { gte: today } }
       }),
-      
+
       // Yesterday's orders
       prisma.orderTracker.count({
-        where: { 
-          createdAt: { 
+        where: {
+          createdAt: {
             gte: yesterday,
             lt: today
-          } 
+          }
         }
       }),
-      
+
       // Today's tasks
       prisma.task.count({
         where: { createdAt: { gte: today } }
       }),
-      
+
       // Yesterday's tasks
       prisma.task.count({
-        where: { 
-          createdAt: { 
+        where: {
+          createdAt: {
             gte: yesterday,
             lt: today
-          } 
+          }
         }
       }),
-      
+
       // Today's revenue
       prisma.orderTracker.aggregate({
         _sum: { totalAmount: true },
         where: { createdAt: { gte: today } }
       }),
-      
+
       // Yesterday's revenue
       prisma.orderTracker.aggregate({
         _sum: { totalAmount: true },
-        where: { 
-          createdAt: { 
+        where: {
+          createdAt: {
             gte: yesterday,
             lt: today
-          } 
+          }
         }
       }),
-      
+
       // Pending shipments
       prisma.orderTracker.count({
         where: { status: { in: ['PENDING', 'LOADED', 'IN_TRANSIT'] } }
       }),
-      
+
       // Completed shipments
       prisma.orderTracker.count({
         where: { status: 'DELIVERED' }
       })
     ]);
-    
+
     return {
       orders: {
         today: todayOrders,
         yesterday: yesterdayOrders,
-        change: yesterdayOrders > 0 
+        change: yesterdayOrders > 0
           ? ((todayOrders - yesterdayOrders) / yesterdayOrders * 100).toFixed(1)
           : '100'
       },
       tasks: {
         today: todayTasks,
         yesterday: yesterdayTasks,
-        change: yesterdayTasks > 0 
+        change: yesterdayTasks > 0
           ? ((todayTasks - yesterdayTasks) / yesterdayTasks * 100).toFixed(1)
           : '100'
       },
       revenue: {
         today: todayRevenue._sum.totalAmount || 0,
         yesterday: yesterdayRevenue._sum.totalAmount || 0,
-        change: (yesterdayRevenue._sum.totalAmount || 0) > 0 
+        change: (yesterdayRevenue._sum.totalAmount || 0) > 0
           ? (((todayRevenue._sum.totalAmount || 0) - (yesterdayRevenue._sum.totalAmount || 0)) / (yesterdayRevenue._sum.totalAmount || 0) * 100).toFixed(1)
           : '100'
       },
@@ -765,10 +765,10 @@ class DashboardService {
 
   // Get all activities from different modules
   async getAllActivities(filters = {}) {
-    const { 
-      page = 1, 
-      limit = 50, 
-      search = '', 
+    const {
+      page = 1,
+      limit = 50,
+      search = '',
       module: moduleFilter = '',
       type: typeFilter = '',
       userId: userIdFilter = '',
@@ -783,63 +783,63 @@ class DashboardService {
       // 1. Container Summary Activities
       if (!moduleFilter || moduleFilter === 'container-summary') {
         try {
-        const summaryActivities = await prisma.summaryActivity.findMany({
-          where: {
-            ...(search && {
-              OR: [
-                { note: { contains: search, mode: 'insensitive' } },
-                { field: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { summary: { month: { contains: search, mode: 'insensitive' } } }
-              ]
-            }),
-            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
-            ...(typeFilter && { type: typeFilter }),
-            ...(startDate || endDate ? {
-              createdAt: {
-                ...(startDate && { gte: new Date(startDate) }),
-                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
-              }
-            } : {})
-          },
-          include: {
-            user: { select: { name: true, username: true, role: true } },
-            summary: { select: { month: true, id: true } }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: parseInt(limit)
-        });
-
-        summaryActivities.forEach(activity => {
-          let description = activity.note || '';
-          if (!description && activity.field) {
-            const oldVal = activity.oldValue ? (typeof activity.oldValue === 'object' ? JSON.stringify(activity.oldValue) : String(activity.oldValue)) : 'empty';
-            const newVal = activity.newValue ? (typeof activity.newValue === 'object' ? JSON.stringify(activity.newValue) : String(activity.newValue)) : 'empty';
-            description = `${activity.field} changed from "${oldVal}" to "${newVal}"`;
-          }
-          if (!description) {
-            description = `${activity.type} operation on ${activity.summary?.month || 'summary'}`;
-          }
-          
-          allActivities.push({
-            id: `summary-${activity.id}`,
-            module: 'container-summary',
-            type: activity.type,
-            description: description,
-            user: activity.user,
-            entityId: activity.summaryId,
-            entityName: activity.summary?.month || 'Unknown',
-            createdAt: activity.createdAt,
-            metadata: {
-              summaryId: activity.summaryId,
-              summaryMonth: activity.summary?.month,
-              field: activity.field,
-              oldValue: activity.oldValue,
-              newValue: activity.newValue,
-              note: activity.note
-            }
+          const summaryActivities = await prisma.summaryActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { note: { contains: search, mode: 'insensitive' } },
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { summary: { month: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              summary: { select: { month: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
           });
-        });
+
+          summaryActivities.forEach(activity => {
+            let description = activity.note || '';
+            if (!description && activity.field) {
+              const oldVal = activity.oldValue ? (typeof activity.oldValue === 'object' ? JSON.stringify(activity.oldValue) : String(activity.oldValue)) : 'empty';
+              const newVal = activity.newValue ? (typeof activity.newValue === 'object' ? JSON.stringify(activity.newValue) : String(activity.newValue)) : 'empty';
+              description = `${activity.field} changed from "${oldVal}" to "${newVal}"`;
+            }
+            if (!description) {
+              description = `${activity.type} operation on ${activity.summary?.month || 'summary'}`;
+            }
+
+            allActivities.push({
+              id: `summary-${activity.id}`,
+              module: 'container-summary',
+              type: activity.type,
+              description: description,
+              user: activity.user,
+              entityId: activity.summaryId,
+              entityName: activity.summary?.month || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                summaryId: activity.summaryId,
+                summaryMonth: activity.summary?.month,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue,
+                note: activity.note
+              }
+            });
+          });
         } catch (err) {
           console.error('Error fetching container summary activities:', err);
         }
@@ -848,63 +848,63 @@ class DashboardService {
       // 2. Bifurcation Activities
       if (!moduleFilter || moduleFilter === 'bifurcation') {
         try {
-        const bifurcationActivities = await prisma.bifurcationActivity.findMany({
-          where: {
-            ...(search && {
-              OR: [
-                { field: { contains: search, mode: 'insensitive' } },
-                { oldValue: { contains: search, mode: 'insensitive' } },
-                { newValue: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { bifurcation: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
-              ]
-            }),
-            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
-            ...(typeFilter && { type: typeFilter }),
-            ...(startDate || endDate ? {
-              createdAt: {
-                ...(startDate && { gte: new Date(startDate) }),
-                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+          const bifurcationActivities = await prisma.bifurcationActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { bifurcation: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              bifurcation: {
+                include: {
+                  container: { select: { containerCode: true, id: true } }
+                }
               }
-            } : {})
-          },
-          include: {
-            user: { select: { name: true, username: true, role: true } },
-            bifurcation: {
-              include: {
-                container: { select: { containerCode: true, id: true } }
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: parseInt(limit)
-        });
-
-        bifurcationActivities.forEach(activity => {
-          const oldVal = activity.oldValue || 'empty';
-          const newVal = activity.newValue || 'empty';
-          const description = activity.field 
-            ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
-            : `${activity.type} operation performed`;
-          
-          allActivities.push({
-            id: `bifurcation-${activity.id}`,
-            module: 'bifurcation',
-            type: activity.type,
-            description: description,
-            user: activity.user,
-            entityId: activity.bifurcation?.containerId || activity.bifurcationId,
-            entityName: activity.bifurcation?.container?.containerCode || 'Unknown',
-            createdAt: activity.createdAt,
-            metadata: {
-              bifurcationId: activity.bifurcationId,
-              containerId: activity.bifurcation?.containerId,
-              field: activity.field,
-              oldValue: activity.oldValue,
-              newValue: activity.newValue
-            }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
           });
-        });
+
+          bifurcationActivities.forEach(activity => {
+            const oldVal = activity.oldValue || 'empty';
+            const newVal = activity.newValue || 'empty';
+            const description = activity.field
+              ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
+              : `${activity.type} operation performed`;
+
+            allActivities.push({
+              id: `bifurcation-${activity.id}`,
+              module: 'bifurcation',
+              type: activity.type,
+              description: description,
+              user: activity.user,
+              entityId: activity.bifurcation?.containerId || activity.bifurcationId,
+              entityName: activity.bifurcation?.container?.containerCode || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                bifurcationId: activity.bifurcationId,
+                containerId: activity.bifurcation?.containerId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue
+              }
+            });
+          });
         } catch (err) {
           console.error('Error fetching bifurcation activities:', err);
         }
@@ -913,63 +913,63 @@ class DashboardService {
       // 3. Loading Sheet Activities
       if (!moduleFilter || moduleFilter === 'loading') {
         try {
-        const loadingActivities = await prisma.loadingActivity.findMany({
-          where: {
-            ...(search && {
-              OR: [
-                { field: { contains: search, mode: 'insensitive' } },
-                { oldValue: { contains: search, mode: 'insensitive' } },
-                { newValue: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
-              ]
-            }),
-            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
-            ...(typeFilter && { type: typeFilter }),
-            ...(startDate || endDate ? {
-              createdAt: {
-                ...(startDate && { gte: new Date(startDate) }),
-                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+          const loadingActivities = await prisma.loadingActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              loadingSheet: {
+                include: {
+                  container: { select: { containerCode: true, id: true } }
+                }
               }
-            } : {})
-          },
-          include: {
-            user: { select: { name: true, username: true, role: true } },
-            loadingSheet: { 
-              include: {
-                container: { select: { containerCode: true, id: true } }
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: parseInt(limit)
-        });
-
-        loadingActivities.forEach(activity => {
-          let description = 'Activity performed';
-          if (activity.field && (activity.oldValue !== null || activity.newValue !== null)) {
-            description = `${activity.field} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`;
-          } else if (activity.type) {
-            description = `${activity.type} operation performed`;
-          }
-          
-          allActivities.push({
-            id: `loading-${activity.id}`,
-            module: 'loading',
-            type: activity.type || 'UPDATE',
-            description: description,
-            user: activity.user,
-            entityId: activity.loadingSheetId,
-            entityName: activity.loadingSheet?.container?.containerCode || 'Unknown',
-            createdAt: activity.createdAt,
-            metadata: {
-              loadingSheetId: activity.loadingSheetId,
-              field: activity.field,
-              oldValue: activity.oldValue,
-              newValue: activity.newValue
-            }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
           });
-        });
+
+          loadingActivities.forEach(activity => {
+            let description = 'Activity performed';
+            if (activity.field && (activity.oldValue !== null || activity.newValue !== null)) {
+              description = `${activity.field} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`;
+            } else if (activity.type) {
+              description = `${activity.type} operation performed`;
+            }
+
+            allActivities.push({
+              id: `loading-${activity.id}`,
+              module: 'loading',
+              type: activity.type || 'UPDATE',
+              description: description,
+              user: activity.user,
+              entityId: activity.loadingSheetId,
+              entityName: activity.loadingSheet?.container?.containerCode || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                loadingSheetId: activity.loadingSheetId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue
+              }
+            });
+          });
         } catch (err) {
           console.error('Error fetching loading activities:', err);
         }
@@ -978,58 +978,58 @@ class DashboardService {
       // 4. Container Activities
       if (!moduleFilter || moduleFilter === 'containers') {
         try {
-        const containerActivities = await prisma.containerActivity.findMany({
-          where: {
-            ...(search && {
-              OR: [
-                { field: { contains: search, mode: 'insensitive' } },
-                { oldValue: { contains: search, mode: 'insensitive' } },
-                { newValue: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { container: { containerCode: { contains: search, mode: 'insensitive' } } }
-              ]
-            }),
-            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
-            ...(typeFilter && { type: typeFilter }),
-            ...(startDate || endDate ? {
-              createdAt: {
-                ...(startDate && { gte: new Date(startDate) }),
-                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
-              }
-            } : {})
-          },
-          include: {
-            user: { select: { name: true, username: true, role: true } },
-            container: { select: { containerCode: true, id: true } }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: parseInt(limit)
-        });
-
-        containerActivities.forEach(activity => {
-          const oldVal = activity.oldValue || 'empty';
-          const newVal = activity.newValue || 'empty';
-          const description = activity.field 
-            ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
-            : `${activity.type} operation performed`;
-          
-          allActivities.push({
-            id: `container-${activity.id}`,
-            module: 'containers',
-            type: activity.type,
-            description: description,
-            user: activity.user,
-            entityId: activity.containerId,
-            entityName: activity.container?.containerCode || 'Unknown',
-            createdAt: activity.createdAt,
-            metadata: {
-              containerId: activity.containerId,
-              field: activity.field,
-              oldValue: activity.oldValue,
-              newValue: activity.newValue
-            }
+          const containerActivities = await prisma.containerActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { container: { containerCode: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              container: { select: { containerCode: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
           });
-        });
+
+          containerActivities.forEach(activity => {
+            const oldVal = activity.oldValue || 'empty';
+            const newVal = activity.newValue || 'empty';
+            const description = activity.field
+              ? `${activity.field} changed from "${oldVal}" to "${newVal}"`
+              : `${activity.type} operation performed`;
+
+            allActivities.push({
+              id: `container-${activity.id}`,
+              module: 'containers',
+              type: activity.type,
+              description: description,
+              user: activity.user,
+              entityId: activity.containerId,
+              entityName: activity.container?.containerCode || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                containerId: activity.containerId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue
+              }
+            });
+          });
         } catch (err) {
           console.error('Error fetching container activities:', err);
         }
@@ -1038,60 +1038,60 @@ class DashboardService {
       // 5. Warehouse Activities
       if (!moduleFilter || moduleFilter === 'warehouse') {
         try {
-        const warehouseActivities = await prisma.warehouseActivity.findMany({
-          where: {
-            ...(search && {
-              OR: [
-                { field: { contains: search, mode: 'insensitive' } },
-                { oldValue: { contains: search, mode: 'insensitive' } },
-                { newValue: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { warehouse: { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } } }
-              ]
-            }),
-            ...(userIdFilter && { userId: parseInt(userIdFilter) }),
-            ...(typeFilter && { type: typeFilter }),
-            ...(startDate || endDate ? {
-              createdAt: {
-                ...(startDate && { gte: new Date(startDate) }),
-                ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
-              }
-            } : {})
-          },
-          include: {
-            user: { select: { name: true, username: true, role: true } },
-            warehouse: {
-              include: {
-                loadingSheet: {
-                  include: {
-                    container: { select: { containerCode: true, id: true } }
+          const warehouseActivities = await prisma.warehouseActivity.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { field: { contains: search, mode: 'insensitive' } },
+                  { oldValue: { contains: search, mode: 'insensitive' } },
+                  { newValue: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
+                  { warehouse: { loadingSheet: { container: { containerCode: { contains: search, mode: 'insensitive' } } } } }
+                ]
+              }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
+              ...(typeFilter && { type: typeFilter }),
+              ...(startDate || endDate ? {
+                createdAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              user: { select: { name: true, username: true, role: true } },
+              warehouse: {
+                include: {
+                  loadingSheet: {
+                    include: {
+                      container: { select: { containerCode: true, id: true } }
+                    }
                   }
                 }
               }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: parseInt(limit)
-        });
-
-        warehouseActivities.forEach(activity => {
-          allActivities.push({
-            id: `warehouse-${activity.id}`,
-            module: 'warehouse',
-            type: activity.type,
-            description: `${activity.field || 'Field'} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`,
-            user: activity.user,
-            entityId: activity.warehouseId,
-            entityName: activity.warehouse?.loadingSheet?.container?.containerCode || 'Unknown',
-            createdAt: activity.createdAt,
-            metadata: {
-              warehouseId: activity.warehouseId,
-              field: activity.field,
-              oldValue: activity.oldValue,
-              newValue: activity.newValue
-            }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
           });
-        });
+
+          warehouseActivities.forEach(activity => {
+            allActivities.push({
+              id: `warehouse-${activity.id}`,
+              module: 'warehouse',
+              type: activity.type,
+              description: `${activity.field || 'Field'} changed from "${activity.oldValue || 'empty'}" to "${activity.newValue || 'empty'}"`,
+              user: activity.user,
+              entityId: activity.warehouseId,
+              entityName: activity.warehouse?.loadingSheet?.container?.containerCode || 'Unknown',
+              createdAt: activity.createdAt,
+              metadata: {
+                warehouseId: activity.warehouseId,
+                field: activity.field,
+                oldValue: activity.oldValue,
+                newValue: activity.newValue
+              }
+            });
+          });
         } catch (err) {
           console.error('Error fetching warehouse activities:', err);
         }
@@ -1244,10 +1244,10 @@ class DashboardService {
               module: 'clients',
               type: activity.type,
               description: activity.description,
-              user: { 
-                name: activity.userName || 'Unknown', 
-                username: activity.userId || null, 
-                role: null 
+              user: {
+                name: activity.userName || 'Unknown',
+                username: activity.userId || null,
+                role: null
               },
               entityId: activity.clientId,
               entityName: activity.client?.name || 'Unknown',
@@ -1261,6 +1261,56 @@ class DashboardService {
           });
         } catch (err) {
           console.error('Error fetching client activities:', err);
+        }
+      }
+
+      // 9. Task Completion Activities (Employee Activities)
+      if (!moduleFilter || moduleFilter === 'tasks') {
+        try {
+          const taskCompletions = await prisma.taskCompletion.findMany({
+            where: {
+              ...(search && {
+                OR: [
+                  { completionNote: { contains: search, mode: 'insensitive' } },
+                  { completedBy: { name: { contains: search, mode: 'insensitive' } } },
+                  { assignment: { title: { contains: search, mode: 'insensitive' } } }
+                ]
+              }),
+              ...(userIdFilter && { completedById: parseInt(userIdFilter) }),
+              ...(startDate || endDate ? {
+                completedAt: {
+                  ...(startDate && { gte: new Date(startDate) }),
+                  ...(endDate && { lte: new Date(endDate + 'T23:59:59.999Z') })
+                }
+              } : {})
+            },
+            include: {
+              completedBy: { select: { name: true, username: true, role: true } },
+              assignment: { select: { id: true, title: true } }
+            },
+            orderBy: { completedAt: 'desc' },
+            take: parseInt(limit)
+          });
+
+          taskCompletions.forEach(completion => {
+            allActivities.push({
+              id: `task-comp-${completion.id}`,
+              module: 'tasks',
+              type: 'COMPLETED',
+              description: `Completed task: ${completion.assignment?.title}`,
+              user: completion.completedBy,
+              entityId: completion.assignmentId,
+              entityName: completion.assignment?.title || 'Task',
+              createdAt: completion.completedAt,
+              metadata: {
+                assignmentId: completion.assignmentId,
+                note: completion.completionNote,
+                isOnTime: completion.isOnTime
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Error fetching task completion activities:', err);
         }
       }
 
