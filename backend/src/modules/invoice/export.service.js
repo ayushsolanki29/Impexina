@@ -7,7 +7,7 @@ const invoiceExportService = {
         const invoice = await prisma.invoice.findUnique({
             where: { id: invoiceId },
             include: {
-                items: { orderBy: { createdAt: 'asc' } },
+                items: { orderBy: { sequence: 'asc' } },
             },
         });
 
@@ -47,7 +47,7 @@ const invoiceExportService = {
             include: {
                 invoice: {
                     include: {
-                        items: { orderBy: { createdAt: 'asc' } }
+                        items: { orderBy: { sequence: 'asc' } }
                     }
                 },
                 loadingSheets: {

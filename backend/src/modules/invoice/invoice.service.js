@@ -58,7 +58,7 @@ const invoiceService = {
       include: {
         invoice: {
           include: {
-            items: { orderBy: { createdAt: "asc" } }
+            items: { orderBy: { sequence: "asc" } }
           }
         }
       }
@@ -88,6 +88,7 @@ const invoiceService = {
 
     // Transform LoadingItems to InvoiceItems
     const transformedItems = [];
+    let globalIndex = 0;
     loadingSheets.forEach(sheet => {
       sheet.items.forEach(item => {
         transformedItems.push({
@@ -100,7 +101,8 @@ const invoiceService = {
           unitPrice: 0, // Default, user will fill
           amountUsd: 0, // Will be calculated
           hsn: "", // Empty by default
-          photo: item.photo
+          photo: item.photo,
+          sequence: globalIndex++
         });
       });
     });
@@ -128,7 +130,7 @@ const invoiceService = {
     });
 
     // 2. Prepare Items Data with calculations
-    const itemsToCreate = items.map(item => {
+    const itemsToCreate = items.map((item, index) => {
       const ctn = parseInt(item.ctn) || 0;
       const qtyPerCtn = parseInt(item.qtyPerCtn) || 0;
       const tQty = parseInt(item.tQty) || (ctn * qtyPerCtn);
@@ -145,7 +147,8 @@ const invoiceService = {
         unitPrice,
         amountUsd,
         hsn: item.hsn || "",
-        photo: item.photo
+        photo: item.photo,
+        sequence: index
       };
     });
 

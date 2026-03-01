@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Plus, Save, Trash2, Loader2, ArrowLeft,
-  Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon, FileSpreadsheet
+  Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon, FileSpreadsheet,
+  ChevronUp, ChevronDown, Info
 } from 'lucide-react';
 import API from '@/lib/api';
 import { DEFAULT_COMPANY_DETAILS } from '@/lib/constants';
@@ -337,6 +338,17 @@ export default function InvoiceEntryPage() {
   const removeItem = (id) => {
     if (items.length === 1) return;
     setItems(items.filter(i => i.id !== id));
+  };
+
+  const moveItem = (index, direction) => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === items.length - 1) return;
+
+    const newItems = [...items];
+    const item = newItems[index];
+    newItems.splice(index, 1);
+    newItems.splice(direction === 'up' ? index - 1 : index + 1, 0, item);
+    setItems(newItems);
   };
 
   const updateItem = (id, field, value) => {
@@ -958,10 +970,10 @@ export default function InvoiceEntryPage() {
         {/* Items Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Invoice Items</h2>
+            <h2 className="text-lg font-bold text-slate-900 uppercase tracking-tight">Invoice Items</h2>
             <button
               onClick={addItem}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold transition-all"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 font-bold text-xs uppercase transition-all shadow-lg shadow-blue-100"
             >
               <Plus className="w-4 h-4" />
               Add Item
@@ -972,6 +984,7 @@ export default function InvoiceEntryPage() {
             <table className="w-full text-sm" style={{ minWidth: '1200px' }}>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                  <th className="w-10 text-center border-r border-slate-200 bg-slate-100/30"></th>
                   <th className="px-4 py-5 w-12 text-center border-r border-slate-200">S.N.</th>
                   <th className="px-2 py-5 w-24 text-center border-r border-slate-200">MARK</th>
                   <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Photo</th>
@@ -988,7 +1001,25 @@ export default function InvoiceEntryPage() {
               </thead>
               <tbody>
                 {items.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="w-10 border-r border-slate-100 bg-slate-50/20">
+                      <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button
+                          onClick={() => moveItem(idx, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => moveItem(idx, 'down')}
+                          disabled={idx === items.length - 1}
+                          className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-2 text-center text-xs font-medium text-slate-400 border-r border-slate-100">{idx + 1}</td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
@@ -1114,10 +1145,10 @@ export default function InvoiceEntryPage() {
                         />
                       </td>
                     )}
-                    <td className="px-4 py-3">
+                    <td className="px-1 py-1 text-center">
                       <button
                         onClick={() => removeItem(item.id)}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1126,6 +1157,21 @@ export default function InvoiceEntryPage() {
                 ))}
               </tbody>
             </table>
+
+            <div className="p-4 bg-slate-50/50 flex justify-end items-center border-t border-slate-200">
+              <div className="flex gap-10">
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total QTY</span>
+                  <div className="text-xl font-bold text-slate-800">{items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0)}</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Amount</span>
+                  <div className="text-xl font-bold text-slate-800">
+                    USD {(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0)).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1144,29 +1190,42 @@ export default function InvoiceEntryPage() {
 
       {/* Import Confirmation Modal */}
       <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Import Items from Loading Sheets?</DialogTitle>
-            <DialogDescription className="text-slate-600">
-              This will replace all current items with data from the loading sheets. Any unsaved changes will be lost.
+        <DialogContent className="max-w-md bg-white rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-red-50 p-6 flex items-center gap-4 border-b border-red-100">
+            <div className="p-3 bg-red-100 text-red-600 rounded-xl">
+              <Info className="w-8 h-8" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold text-red-900 uppercase">Harm Warning!</DialogTitle>
+              <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mt-1">Data Overwrite Alert</p>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <DialogDescription className="text-sm font-bold text-slate-600 leading-relaxed italic">
+              "If you proceed you may lose your entries with realtime data with loading sheet"
             </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-3 mt-6">
-            <button
-              onClick={() => setIsImportModalOpen(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleImport}
-              disabled={importing}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition-all flex items-center gap-2"
-            >
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Proceed & Import
-            </button>
-          </DialogFooter>
+
+            <div className="mt-8 flex gap-3">
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all uppercase tracking-wider"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  handleImport();
+                }}
+                disabled={importing}
+                className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 shadow-lg shadow-red-200 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                {importing && <Loader2 className="w-4 h-4 animate-spin" />}
+                Proceed & Import
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

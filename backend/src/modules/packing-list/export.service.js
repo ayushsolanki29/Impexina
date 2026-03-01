@@ -7,7 +7,7 @@ const packingListExportService = {
         const packingList = await prisma.packingList.findUnique({
             where: { id: packingListId },
             include: {
-                items: { orderBy: { createdAt: 'asc' } },
+                items: { orderBy: { sequence: 'asc' } },
             },
         });
 
@@ -48,7 +48,7 @@ const packingListExportService = {
             include: {
                 packingList: {
                     include: {
-                        items: { orderBy: { createdAt: 'asc' } }
+                        items: { orderBy: { sequence: 'asc' } }
                     }
                 },
                 loadingSheets: {

@@ -67,7 +67,7 @@ const packingListService = {
       include: {
         packingList: {
           include: {
-            items: { orderBy: { createdAt: "asc" } },
+            items: { orderBy: { sequence: "asc" } },
             companyMaster: true
           }
         }
@@ -99,6 +99,7 @@ const packingListService = {
 
     // Transform LoadingItems to PackingListItems
     const transformedItems = [];
+    let globalIndex = 0;
     loadingSheets.forEach(sheet => {
       sheet.items.forEach(item => {
         transformedItems.push({
@@ -113,7 +114,8 @@ const packingListService = {
           photo: item.photo,
           // MIX and HSN are empty by default during import
           mix: "",
-          hsn: ""
+          hsn: "",
+          sequence: globalIndex++
         });
       });
     });
@@ -181,7 +183,7 @@ const packingListService = {
     }
 
     // 3. Prepare Items Data
-    const itemsToCreate = items.map(item => ({
+    const itemsToCreate = items.map((item, index) => ({
       itemNumber: item.itemNumber || item.mark || "", // Support mark for legacy/imports
       particular: item.particular,
       ctn: parseInt(item.ctn) || 0,
@@ -190,9 +192,9 @@ const packingListService = {
       tQty: parseInt(item.tQty) || 0,
       kg: parseFloat(item.kg) || 0,
       tKg: parseFloat(item.tKg) || 0,
-      mix: item.mix || "",
       hsn: item.hsn || "",
-      photo: item.photo
+      photo: item.photo,
+      sequence: index
     }));
 
     // 4. Upsert Packing List
