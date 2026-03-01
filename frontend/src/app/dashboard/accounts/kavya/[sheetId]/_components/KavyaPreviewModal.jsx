@@ -257,7 +257,7 @@ export default function KavyaPreviewModal({
             {/* Branded Footer */}
             <div className="pt-16 border-t flex justify-between items-center opacity-30">
                <div className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-500">Impexina Matrix • Kavya Accounts System</div>
-               <img src="/logo.png" className="h-6 grayscale opacity-50" alt="" />
+                <img src="/logo.svg" className="h-6 grayscale opacity-50" alt="" />
             </div>
           </div>
         </div>

@@ -10,7 +10,15 @@ const bifurcationService = {
     // 1. Get the settings
     const settings = await prisma.systemSetting.findMany({
       where: {
-        key: { in: ['BIFURCATION_ITEM_LIMIT', 'BIFURCATION_WT_VERY_HIGH', 'BIFURCATION_WT_HIGH'] }
+        key: {
+          in: [
+            'BIFURCATION_ITEM_LIMIT',
+            'BIFURCATION_WT_VERY_HIGH',
+            'BIFURCATION_WT_HIGH',
+            'BIFURCATION_CBM_VERY_HIGH',
+            'BIFURCATION_CBM_HIGH'
+          ]
+        }
       }
     });
 
@@ -20,8 +28,10 @@ const bifurcationService = {
     }, {});
 
     const mixLimit = settingsMap['BIFURCATION_ITEM_LIMIT'] ? parseInt(settingsMap['BIFURCATION_ITEM_LIMIT']) : 5;
-    const weightVeryHighThreshold = settingsMap['BIFURCATION_WT_VERY_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_VERY_HIGH']) : 69;
-    const weightHighThreshold = settingsMap['BIFURCATION_WT_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_HIGH']) : 75;
+    const weightVeryHighThreshold = settingsMap['BIFURCATION_WT_VERY_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_VERY_HIGH']) : 20;
+    const weightHighThreshold = settingsMap['BIFURCATION_WT_HIGH'] ? parseFloat(settingsMap['BIFURCATION_WT_HIGH']) : 50;
+    const cbmVeryHighThreshold = settingsMap['BIFURCATION_CBM_VERY_HIGH'] ? parseFloat(settingsMap['BIFURCATION_CBM_VERY_HIGH']) : 68;
+    const cbmHighThreshold = settingsMap['BIFURCATION_CBM_HIGH'] ? parseFloat(settingsMap['BIFURCATION_CBM_HIGH']) : 69;
 
     // 2. Fetch Containers first to paginate grouped data correctly
     const containerWhere = {
@@ -117,7 +127,9 @@ const bifurcationService = {
           gstAmount: sheet.bifurcation?.gstAmount || 0,
           from: sheet.bifurcation?.from || '',
           to: sheet.bifurcation?.to || '',
-          lrNo: sheet.bifurcation?.lrNo || false
+          lrNo: sheet.bifurcation?.lrNo || false,
+          hisab: sheet.bifurcation?.hisab || false,
+          sent: sheet.bifurcation?.sent || false
         });
       });
     });
@@ -133,14 +145,16 @@ const bifurcationService = {
       settings: {
         mixLimit,
         weightVeryHighThreshold,
-        weightHighThreshold
+        weightHighThreshold,
+        cbmVeryHighThreshold,
+        cbmHighThreshold
       }
     };
   },
 
   // Update or Create Bifurcation details
   upsertBifurcation: async (loadingSheetId, data, userId) => {
-    const { invoiceNo, gst, gstAmount, deliveryDate, from, to, lrNo } = data;
+    const { invoiceNo, gst, gstAmount, deliveryDate, from, to, lrNo, hisab, sent } = data;
 
     // Get existing details for comparison
     const existing = await prisma.bifurcation.findUnique({
@@ -164,7 +178,9 @@ const bifurcationService = {
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
         from,
         to,
-        lrNo: Boolean(lrNo)
+        lrNo: Boolean(lrNo),
+        hisab: Boolean(hisab),
+        sent: Boolean(sent)
       },
       create: {
         loadingSheetId,
@@ -175,13 +191,15 @@ const bifurcationService = {
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
         from,
         to,
-        lrNo: Boolean(lrNo)
+        lrNo: Boolean(lrNo),
+        hisab: Boolean(hisab),
+        sent: Boolean(sent)
       }
     });
 
     // Log activities if something changed
     if (userId) {
-      const fields = ['invoiceNo', 'gst', 'gstAmount', 'deliveryDate', 'from', 'to', 'lrNo'];
+      const fields = ['invoiceNo', 'gst', 'gstAmount', 'deliveryDate', 'from', 'to', 'lrNo', 'hisab', 'sent'];
       const activities = [];
 
       for (const field of fields) {

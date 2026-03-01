@@ -4,8 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import API from '@/lib/api';
 import { toast } from 'sonner';
-import { 
-  Loader2, ArrowLeft, History, Calendar, 
+import {
+  Loader2, ArrowLeft, History, Calendar,
   Search, Filter, ChevronLeft, ChevronRight,
   Package, Ship, FileText, Container, Box,
   User, Clock, CheckCircle, XCircle, Edit,
@@ -41,7 +41,7 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
-  
+
   // Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedModule, setSelectedModule] = useState('');
@@ -88,7 +88,7 @@ export default function ActivitiesPage() {
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
       });
-      
+
       const response = await API.get(`/dashboard/activities?${params.toString()}`);
       if (response.data.success) {
         setActivities(response.data.data);
@@ -147,7 +147,7 @@ export default function ActivitiesPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
-       
+
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
                 <History className="w-6 h-6 text-indigo-600" />
@@ -188,7 +188,7 @@ export default function ActivitiesPage() {
                   className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
                 />
               </div>
-              
+
               <select
                 value={selectedModule}
                 onChange={(e) => setSelectedModule(e.target.value)}
@@ -316,7 +316,7 @@ export default function ActivitiesPage() {
                           <div className={`p-3 rounded-xl ${moduleInfo.color}`}>
                             <ModuleIcon className="w-6 h-6" />
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-2">
                               <span className={`px-2 py-1 rounded text-xs font-semibold ${moduleInfo.color}`}>
@@ -327,17 +327,19 @@ export default function ActivitiesPage() {
                                 {typeInfo.label}
                               </span>
                             </div>
-                            
+
                             <p className="text-sm font-medium text-slate-900 mb-2">
                               {activity.description}
                             </p>
-                            
+
                             <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
                               <div className="flex items-center gap-1">
                                 <User className="w-3 h-3" />
                                 <span className="font-medium">{activity.user?.name || activity.user?.username || 'Unknown User'}</span>
                                 {activity.user?.role && (
-                                  <span className="text-slate-400">• {activity.user.role}</span>
+                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                                    {activity.user.role}
+                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-1">
@@ -415,7 +417,7 @@ export default function ActivitiesPage() {
           )}
         </div>
 
-    
+
       </div>
     </div>
   );

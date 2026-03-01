@@ -119,6 +119,60 @@ const exportService = {
     return await ExcelExporter.generateMultiSheetBuffer(workbookSheets);
   },
 
+  // Generate Excel for all sheets in a single container
+  generateContainerExcel: async (containerId) => {
+    const container = await prisma.container.findUnique({
+      where: { id: containerId },
+      include: {
+        loadingSheets: {
+          include: {
+            items: { orderBy: { createdAt: 'asc' } }
+          },
+          orderBy: { shippingMark: 'asc' }
+        }
+      }
+    });
+
+    if (!container) {
+      throw new Error('Container not found');
+    }
+
+    const columns = [
+      { header: 'Particular', key: 'particular', width: 30 },
+      { header: 'Item No.', key: 'itemNo', width: 20 },
+      { header: 'CTN', key: 'ctn', width: 10 },
+      { header: 'PCS', key: 'pcs', width: 10 },
+      { header: 'T.PCS', key: 'tPcs', width: 12 },
+      { header: 'Unit', key: 'unit', width: 10 },
+      { header: 'CBM', key: 'cbm', width: 12 },
+      { header: 'T.CBM', key: 'tCbm', width: 12 },
+      { header: 'WT', key: 'wt', width: 12 },
+      { header: 'T.WT', key: 'tWt', width: 12 },
+    ];
+
+    const workbookSheets = container.loadingSheets.map(sheet => ({
+      name: (sheet.shippingMark || 'Sheet').substring(0, 31).replace(/[\[\]\?\*\/\\:]/g, ''),
+      title: `${sheet.shippingMark || 'Loading Sheet'} | Container: ${container.containerCode}`,
+      columns,
+      data: sheet.items.map(item => ({
+        ...item,
+        tPcs: (item.ctn || 0) * (item.pcs || 0),
+        tCbm: (item.ctn || 0) * (item.cbm || 0),
+        tWt: (item.ctn || 0) * (item.wt || 0)
+      }))
+    }));
+
+    if (workbookSheets.length === 0) {
+      workbookSheets.push({
+        name: 'Empty Container',
+        columns: [{ header: 'Message', key: 'msg', width: 30 }],
+        data: [{ msg: 'No loading sheets found for this container' }]
+      });
+    }
+
+    return await ExcelExporter.generateMultiSheetBuffer(workbookSheets);
+  },
+
   // Generate PDF for a loading sheet
   generatePDF: async (loadingSheetId) => {
     const sheet = await prisma.loadingSheet.findUnique({

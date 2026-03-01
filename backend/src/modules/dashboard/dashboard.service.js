@@ -1218,11 +1218,11 @@ class DashboardService {
               ...(search && {
                 OR: [
                   { description: { contains: search, mode: 'insensitive' } },
-                  { userName: { contains: search, mode: 'insensitive' } },
+                  { user: { name: { contains: search, mode: 'insensitive' } } },
                   { client: { name: { contains: search, mode: 'insensitive' } } }
                 ]
               }),
-              ...(userIdFilter && { userId: userIdFilter.toString() }),
+              ...(userIdFilter && { userId: parseInt(userIdFilter) }),
               ...(typeFilter && { type: typeFilter }),
               ...(startDate || endDate ? {
                 createdAt: {
@@ -1232,7 +1232,8 @@ class DashboardService {
               } : {})
             },
             include: {
-              client: { select: { name: true, id: true } }
+              client: { select: { name: true, id: true } },
+              user: { select: { name: true, username: true, role: true } }
             },
             orderBy: { createdAt: 'desc' },
             take: parseInt(limit)
@@ -1244,9 +1245,9 @@ class DashboardService {
               module: 'clients',
               type: activity.type,
               description: activity.description,
-              user: {
+              user: activity.user || {
                 name: activity.userName || 'Unknown',
-                username: activity.userId || null,
+                username: activity.userId?.toString() || null,
                 role: null
               },
               entityId: activity.clientId,

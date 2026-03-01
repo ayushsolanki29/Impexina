@@ -163,6 +163,30 @@ const loadingSheetController = {
     }
   },
 
+  // Export Container wide Excel (all sheets)
+  exportContainerExcel: async (req, res) => {
+    try {
+      const { containerId } = req.params;
+      const buffer = await exportService.generateContainerExcel(containerId);
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=container-${containerId}-loading.xlsx`
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error('Container export error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate container Excel",
+      });
+    }
+  },
+
   // Export All Containers
   exportAllContainers: async (req, res) => {
     try {

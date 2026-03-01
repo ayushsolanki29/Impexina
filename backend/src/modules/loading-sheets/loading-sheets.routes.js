@@ -41,6 +41,7 @@ router.patch("/:id/status", loadingSheetController.updateStatus);
 
 router.post("/container/:containerId", loadingSheetController.createOrUpdate);
 router.get("/container/:containerId", loadingSheetController.getByContainer);
+router.get("/container/:containerId/export/excel", loadingSheetController.exportContainerExcel);
 router.get("/:id", loadingSheetController.getById);
 router.delete("/:id", loadingSheetController.delete);
 

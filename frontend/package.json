@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "description": "Bennet Tradding Internal Management System",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "scripts": {
     "dev": "next dev",

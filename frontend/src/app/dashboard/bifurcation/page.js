@@ -235,8 +235,10 @@ export default function BifurcationPage() {
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
     const [showSettings, setShowSettings] = useState(false);
     const [mixLimit, setMixLimit] = useState(5);
-    const [weightVeryHighThreshold, setWeightVeryHighThreshold] = useState(69);
-    const [weightHighThreshold, setWeightHighThreshold] = useState(75);
+    const [weightVeryHighThreshold, setWeightVeryHighThreshold] = useState(20);
+    const [weightHighThreshold, setWeightHighThreshold] = useState(50);
+    const [cbmVeryHighThreshold, setCbmVeryHighThreshold] = useState(68);
+    const [cbmHighThreshold, setCbmHighThreshold] = useState(69);
     const [savingSettings, setSavingSettings] = useState(false);
 
     // UI State
@@ -278,6 +280,8 @@ export default function BifurcationPage() {
                     setMixLimit(response.data.settings.mixLimit);
                     setWeightVeryHighThreshold(response.data.settings.weightVeryHighThreshold);
                     setWeightHighThreshold(response.data.settings.weightHighThreshold);
+                    setCbmVeryHighThreshold(response.data.settings.cbmVeryHighThreshold);
+                    setCbmHighThreshold(response.data.settings.cbmHighThreshold);
                 }
             }
         } catch (error) {
@@ -320,6 +324,8 @@ export default function BifurcationPage() {
                 from: item.from,
                 to: item.to,
                 lrNo: item.lrNo,
+                hisab: item.hisab,
+                sent: item.sent,
                 invoiceNo: item.invoiceNo
             };
 
@@ -338,7 +344,9 @@ export default function BifurcationPage() {
             await API.post('/settings/bifurcation/update', {
                 mixLimit: parseInt(mixLimit),
                 weightVeryHighThreshold: parseFloat(weightVeryHighThreshold),
-                weightHighThreshold: parseFloat(weightHighThreshold)
+                weightHighThreshold: parseFloat(weightHighThreshold),
+                cbmVeryHighThreshold: parseFloat(cbmVeryHighThreshold),
+                cbmHighThreshold: parseFloat(cbmHighThreshold)
             });
             toast.success("Settings updated");
             setShowSettings(false);
@@ -614,6 +622,8 @@ export default function BifurcationPage() {
                                                                 <th className="px-5 py-4 min-w-[120px] text-amber-600/60">Inv No</th>
                                                                 <th className="px-5 py-4 min-w-[120px] text-amber-600/60 text-right">GST</th>
                                                                 <th className="px-5 py-4 min-w-[80px] text-amber-600/60 text-center">LR</th>
+                                                                <th className="px-5 py-4 min-w-[80px] text-amber-600/60 text-center">HISAB</th>
+                                                                <th className="px-5 py-4 min-w-[80px] text-emerald-600/60 text-center">SENT</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-50">
@@ -662,7 +672,14 @@ export default function BifurcationPage() {
                                                                                 <td className="px-5 py-4 text-slate-500 max-w-[250px] truncate font-normal text-[11px]" title={item.product}>
                                                                                     {item.product}
                                                                                 </td>
-                                                                                <td className="px-5 py-4 text-right text-emerald-600 font-normal">{item.totalCbm.toFixed(3)}</td>
+                                                                                <td className={`px-5 py-4 text-right transition-all font-sans ${parseFloat(item.totalCbm) < cbmVeryHighThreshold
+                                                                                    ? 'text-red-600 font-black bg-red-50/50 rounded-lg'
+                                                                                    : parseFloat(item.totalCbm) < cbmHighThreshold
+                                                                                        ? 'text-amber-600 font-black bg-amber-50/50 rounded-lg'
+                                                                                        : 'text-emerald-600 font-normal'
+                                                                                    }`}>
+                                                                                    {item.totalCbm.toFixed(3)}
+                                                                                </td>
                                                                                 <td className={`px-5 py-4 text-right transition-all font-sans ${parseFloat(item.totalWt) < weightVeryHighThreshold
                                                                                     ? 'text-red-600 font-black bg-red-50/50 rounded-lg'
                                                                                     : parseFloat(item.totalWt) < weightHighThreshold
@@ -678,7 +695,7 @@ export default function BifurcationPage() {
                                                                                         suggestions={locationSuggestions.froms}
                                                                                         placeholder="From..."
                                                                                         onSave={(val) => handleUpdate(item.id, 'from', val)}
-                                                                                        tabIndex={(gIdx * 100) + (iIdx * 5) + 1}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 1}
                                                                                     />
                                                                                 </td>
                                                                                 <td className="px-2 py-2">
@@ -687,7 +704,7 @@ export default function BifurcationPage() {
                                                                                         suggestions={locationSuggestions.tos}
                                                                                         placeholder="To..."
                                                                                         onSave={(val) => handleUpdate(item.id, 'to', val)}
-                                                                                        tabIndex={(gIdx * 100) + (iIdx * 5) + 2}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 2}
                                                                                     />
                                                                                 </td>
 
@@ -696,7 +713,7 @@ export default function BifurcationPage() {
                                                                                         value={item.deliveryDate}
                                                                                         type="date"
                                                                                         onSave={(val) => handleUpdate(item.id, 'deliveryDate', val)}
-                                                                                        tabIndex={(gIdx * 100) + (iIdx * 5) + 3}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 3}
                                                                                         className="text-amber-700 font-normal"
                                                                                     />
                                                                                 </td>
@@ -704,7 +721,7 @@ export default function BifurcationPage() {
                                                                                     <EditableCell
                                                                                         value={item.invoiceNo}
                                                                                         onSave={(val) => handleUpdate(item.id, 'invoiceNo', val)}
-                                                                                        tabIndex={(gIdx * 100) + (iIdx * 5) + 4}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 4}
                                                                                         className="text-amber-700 font-normal"
                                                                                     />
                                                                                 </td>
@@ -715,7 +732,7 @@ export default function BifurcationPage() {
                                                                                             value={item.gstAmount || 0}
                                                                                             type="number"
                                                                                             onSave={(val) => handleUpdate(item.id, 'gstAmount', val)}
-                                                                                            tabIndex={(gIdx * 100) + (iIdx * 5) + 5}
+                                                                                            tabIndex={(gIdx * 1000) + (iIdx * 10) + 5}
                                                                                             className="text-amber-700 font-normal text-right"
                                                                                         />
                                                                                     </div>
@@ -726,7 +743,25 @@ export default function BifurcationPage() {
                                                                                         className="w-4 h-4 rounded-md border-slate-300 text-blue-600 focus:ring-4 focus:ring-blue-500/10 cursor-pointer transition-all"
                                                                                         checked={item.lrNo}
                                                                                         onChange={(e) => handleUpdate(item.id, 'lrNo', e.target.checked)}
-                                                                                        tabIndex={(gIdx * 100) + (iIdx * 5) + 6}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 6}
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="px-2 py-2 text-center">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        className="w-4 h-4 rounded-md border-slate-300 text-amber-600 focus:ring-4 focus:ring-amber-500/10 cursor-pointer transition-all"
+                                                                                        checked={item.hisab}
+                                                                                        onChange={(e) => handleUpdate(item.id, 'hisab', e.target.checked)}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 7}
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="px-2 py-2 text-center">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        className="w-4 h-4 rounded-md border-slate-300 text-emerald-600 focus:ring-4 focus:ring-emerald-500/10 cursor-pointer transition-all"
+                                                                                        checked={item.sent}
+                                                                                        onChange={(e) => handleUpdate(item.id, 'sent', e.target.checked)}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 8}
                                                                                     />
                                                                                 </td>
                                                                             </tr>
@@ -805,78 +840,163 @@ export default function BifurcationPage() {
 
             {/* Settings Modal */}
             {showSettings && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl shadow-xl p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-slate-800">Report Settings</h3>
-                            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors">
-                                <ChevronDown className="w-4 h-4 rotate-90 text-slate-400" />
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[1.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Compact Header */}
+                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-blue-600" />
+                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Report Configuration</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                className="p-1.5 hover:bg-slate-200/50 rounded-lg transition-colors text-slate-400"
+                            >
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
-                        <div className="space-y-4">
-                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+
+                        <div className="p-6 space-y-6">
+                            {/* Product Layout Limit - Integrated */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
                                     Product Layout Limit
+                                    <span className="text-[9px] font-normal lowercase">(marks count)</span>
                                 </label>
                                 <input
                                     type="number"
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700"
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all font-bold text-slate-700 text-sm"
                                     value={mixLimit}
                                     onChange={(e) => setMixLimit(e.target.value)}
                                 />
-                                <p className="text-[10px] text-slate-400 mt-3 font-medium leading-relaxed">
-                                    Collapses descriptions to "MIX ITEM" for marks exceeding this limit.
-                                </p>
+                                <p className="text-[9px] text-slate-400 font-medium italic">Collapses product list into "MIX ITEM" if marks exceed this limit.</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-red-50/50 p-3 rounded-2xl border border-red-100">
-                                    <label className="block text-[9px] font-bold text-red-500 uppercase tracking-widest mb-2">
-                                        Very High <span className="text-[8px] opacity-70">(Red)</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2 bg-white border border-red-200 rounded-xl outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-400 transition-all font-bold text-red-700"
-                                        value={weightVeryHighThreshold}
-                                        onChange={(e) => setWeightVeryHighThreshold(e.target.value)}
-                                    />
-                                    <p className="text-[8px] text-red-400 mt-2 font-medium">Highlight if Weight &lt; limit</p>
+                            {/* Efficiency Threshold Grid */}
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="h-px flex-1 bg-slate-100"></div>
+                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Efficiency Thresholds</span>
+                                    <div className="h-px flex-1 bg-slate-100"></div>
                                 </div>
 
-                                <div className="bg-amber-50/50 p-3 rounded-2xl border border-amber-100">
-                                    <label className="block text-[9px] font-bold text-amber-500 uppercase tracking-widest mb-2">
-                                        High <span className="text-[8px] opacity-70">(Yellow)</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-400 transition-all font-bold text-amber-700"
-                                        value={weightHighThreshold}
-                                        onChange={(e) => setWeightHighThreshold(e.target.value)}
-                                    />
-                                    <p className="text-[8px] text-amber-400 mt-2 font-medium">Highlight if Weight &lt; limit</p>
+                                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                                    {/* Weight Settings */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                                            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">Weight (KG)</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-red-400 focus:bg-white transition-all text-xs font-bold text-red-600"
+                                                    value={weightVeryHighThreshold}
+                                                    onChange={(e) => setWeightVeryHighThreshold(e.target.value)}
+                                                />
+                                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm"></div>
+                                            </div>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-400 focus:bg-white transition-all text-xs font-bold text-amber-600"
+                                                    value={weightHighThreshold}
+                                                    onChange={(e) => setWeightHighThreshold(e.target.value)}
+                                                />
+                                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow-sm"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* CBM Settings */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">Volume (CBM)</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-red-400 focus:bg-white transition-all text-xs font-bold text-red-600"
+                                                    value={cbmVeryHighThreshold}
+                                                    onChange={(e) => setCbmVeryHighThreshold(e.target.value)}
+                                                />
+                                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm"></div>
+                                            </div>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-400 focus:bg-white transition-all text-xs font-bold text-amber-600"
+                                                    value={cbmHighThreshold}
+                                                    onChange={(e) => setCbmHighThreshold(e.target.value)}
+                                                />
+                                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow-sm"></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100">
-                                <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-widest">Normal Stage</p>
-                                <p className="text-[9px] text-emerald-400 mt-1 font-medium italic">Weight &ge; {weightHighThreshold} kg will remain normal.</p>
+                            {/* Enhanced Visual Legend */}
+                            <div className="bg-slate-900 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Efficiency Guide</span>
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-3 rounded-full bg-red-500"></div>
+                                        <div className="w-1.5 h-3 rounded-full bg-amber-400"></div>
+                                        <div className="w-1.5 h-3 rounded-full bg-emerald-500"></div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-2">
+                                    <div className="flex items-center gap-3 bg-white/5 p-2 rounded-lg border border-white/5">
+                                        <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                                        <p className="text-[10px] text-slate-300 font-medium">
+                                            Value <span className="text-red-400 font-bold">&lt; {cbmVeryHighThreshold} CBM</span> or <span className="text-red-400 font-bold">&lt; {weightVeryHighThreshold} KG</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white/5 p-2 rounded-lg border border-white/5">
+                                        <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]"></div>
+                                        <p className="text-[10px] text-slate-300 font-medium">
+                                            Value <span className="text-amber-400 font-bold">&lt; {cbmHighThreshold} CBM</span> or <span className="text-amber-400 font-bold">&lt; {weightHighThreshold} KG</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white/5 p-2 rounded-lg border border-white/5">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                                        <p className="text-[10px] text-slate-300 font-medium italic">
+                                            Everything else remains normal/white.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex flex-col gap-2 mt-8">
-                            <button
-                                onClick={handleUpdateSetting}
-                                disabled={savingSettings}
-                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-50 flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
-                                Save Changes
-                            </button>
-                            <button
-                                onClick={() => setShowSettings(false)}
-                                className="w-full py-2 text-slate-400 font-semibold text-xs hover:text-slate-600 transition-colors"
-                            >
-                                Cancel
-                            </button>
+
+                            {/* Compact Actions */}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowSettings(false)}
+                                    className="px-4 py-3 text-[10px] font-bold text-slate-500 hover:text-slate-700 transition-colors uppercase tracking-widest"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleUpdateSetting}
+                                    disabled={savingSettings}
+                                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {savingSettings ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Check className="w-3.5 h-3.5" />
+                                            Update Report
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -47,55 +47,55 @@ const settingsService = {
     const weightHigh = await prisma.systemSetting.findUnique({
       where: { key: "BIFURCATION_WT_HIGH" },
     });
+    const cbmVeryHigh = await prisma.systemSetting.findUnique({
+      where: { key: "BIFURCATION_CBM_VERY_HIGH" },
+    });
+    const cbmHigh = await prisma.systemSetting.findUnique({
+      where: { key: "BIFURCATION_CBM_HIGH" },
+    });
+
     return {
       mixLimit: mixLimit ? parseInt(mixLimit.value) : 5,
-      weightVeryHighThreshold: weightVeryHigh ? parseFloat(weightVeryHigh.value) : 69,
-      weightHighThreshold: weightHigh ? parseFloat(weightHigh.value) : 75,
+      weightVeryHighThreshold: weightVeryHigh ? parseFloat(weightVeryHigh.value) : 20,
+      weightHighThreshold: weightHigh ? parseFloat(weightHigh.value) : 50,
+      cbmVeryHighThreshold: cbmVeryHigh ? parseFloat(cbmVeryHigh.value) : 68,
+      cbmHighThreshold: cbmHigh ? parseFloat(cbmHigh.value) : 69,
     };
   },
 
   // Update bifurcation settings
-  updateBifurcationSettings: async ({ mixLimit, weightVeryHighThreshold, weightHighThreshold }) => {
-    if (mixLimit) {
-      await prisma.systemSetting.upsert({
-        where: { key: "BIFURCATION_ITEM_LIMIT" },
-        update: { value: mixLimit.toString() },
-        create: {
-          key: "BIFURCATION_ITEM_LIMIT",
-          value: mixLimit.toString(),
-          description: "Product layout limit for bifurcation reports."
-        },
-      });
-    }
+  updateBifurcationSettings: async ({ mixLimit, weightVeryHighThreshold, weightHighThreshold, cbmVeryHighThreshold, cbmHighThreshold }) => {
+    const settings = [
+      { key: "BIFURCATION_ITEM_LIMIT", value: mixLimit, desc: "Product layout limit for bifurcation reports." },
+      { key: "BIFURCATION_WT_VERY_HIGH", value: weightVeryHighThreshold, desc: "Weight threshold for Red highlighting." },
+      { key: "BIFURCATION_WT_HIGH", value: weightHighThreshold, desc: "Weight threshold for Yellow highlighting." },
+      { key: "BIFURCATION_CBM_VERY_HIGH", value: cbmVeryHighThreshold, desc: "CBM threshold for Red highlighting." },
+      { key: "BIFURCATION_CBM_HIGH", value: cbmHighThreshold, desc: "CBM threshold for Yellow highlighting." },
+    ];
 
-    if (weightVeryHighThreshold) {
-      await prisma.systemSetting.upsert({
-        where: { key: "BIFURCATION_WT_VERY_HIGH" },
-        update: { value: weightVeryHighThreshold.toString() },
-        create: {
-          key: "BIFURCATION_WT_VERY_HIGH",
-          value: weightVeryHighThreshold.toString(),
-          description: "Weight threshold for Red highlighting (Very High Risk)."
-        },
-      });
-    }
-
-    if (weightHighThreshold) {
-      await prisma.systemSetting.upsert({
-        where: { key: "BIFURCATION_WT_HIGH" },
-        update: { value: weightHighThreshold.toString() },
-        create: {
-          key: "BIFURCATION_WT_HIGH",
-          value: weightHighThreshold.toString(),
-          description: "Weight threshold for Yellow highlighting (High Risk)."
-        },
-      });
+    for (const s of settings) {
+      if (s.value !== undefined && s.value !== null) {
+        await prisma.systemSetting.upsert({
+          where: { key: s.key },
+          update: { value: s.value.toString() },
+          create: {
+            key: s.key,
+            value: s.value.toString(),
+            description: s.desc
+          },
+        });
+      }
     }
 
     return {
-      mixLimit: mixLimit ? parseInt(mixLimit) : undefined,
-      weightVeryHighThreshold: weightVeryHighThreshold ? parseFloat(weightVeryHighThreshold) : undefined,
-      weightHighThreshold: weightHighThreshold ? parseFloat(weightHighThreshold) : undefined,
+      success: true,
+      settings: {
+        mixLimit,
+        weightVeryHighThreshold,
+        weightHighThreshold,
+        cbmVeryHighThreshold,
+        cbmHighThreshold
+      }
     };
   },
 

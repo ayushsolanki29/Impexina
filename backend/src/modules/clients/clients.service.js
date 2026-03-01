@@ -126,11 +126,21 @@ const clientsService = {
   deleteClient: async (clientId, user) => {
     const client = await prisma.client.findUnique({ where: { id: clientId } });
 
-    // Log Activity before deletion (optional since cascaded)
     if (user && client) {
-      // Since it cascades, the activity would be deleted. 
-      // We can keep it if we want to log it to a different table, 
-      // but following existing pattern for now.
+      await prisma.clientActivity.create({
+        data: {
+          clientId: clientId,
+          userId: parseInt(user.id),
+          userName: user.name,
+          type: 'DELETED',
+          description: `Deleted client: ${client.name}`,
+          metadata: {
+            deletedAt: new Date().toISOString(),
+            clientName: client.name,
+            companyName: client.companyName
+          }
+        }
+      });
     }
 
     return prisma.client.delete({

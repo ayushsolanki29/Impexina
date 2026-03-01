@@ -133,11 +133,11 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         
         pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`loading-sheet-${sheet.shippingMark}.pdf`);
+        pdf.save(`${filename}.pdf`);
         toast.success("PDF generated successfully");
       } else {
         const link = document.createElement("a");
-        link.download = `preview-${sheet.shippingMark}.png`;
+        link.download = `${filename}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
         toast.success("Image downloaded");
@@ -152,7 +152,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
     }
   };
 
-  const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark}`;
+  const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark || 'export'}`;
 
   const handleDownloadPDF = () => performExport('pdf');
   const handleDownloadImage = () => performExport('image');
@@ -160,7 +160,12 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
   const handleDownloadExcel = async () => {
     try {
       setLoading(true);
-      const response = await API.get(`/loading-sheets/${sheet.id}/export/excel`, {
+      
+      const endpoint = isCombined 
+        ? `/loading-sheets/container/${container.id}/export/excel`
+        : `/loading-sheets/${sheet.id}/export/excel`;
+
+      const response = await API.get(endpoint, {
         responseType: "blob",
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -180,20 +185,20 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
 
   const handleWhatsAppCopy = async () => {
     try {
-      const response = await API.get(`/loading-sheets/${sheet.id}/whatsapp`);
-      if (response.data.success) {
-        let text = response.data.data;
-        text = text.replace(/Status: .*/i, '').trim();
-        await navigator.clipboard.writeText(text);
-        toast.success("Summary copied");
-      }
+      const summaryText = `*${isCombined ? "GLOBAL SUMMARY" : firstSheet.shippingMark}* CONFIRMATION
+CTN: ${globalTotals.ctn} | PCS: ${globalTotals.tPcs}
+CBM: ${globalTotals.tCbm.toFixed(3)} | WT: ${globalTotals.tWt.toFixed(2)} KG
+CONTAINER: ${container.containerCode}`;
+      
+      await navigator.clipboard.writeText(summaryText);
+      toast.success("Summary copied");
     } catch (error) {
       toast.error("Failed to copy summary");
     }
   };
 
   const handleStatusChange = async (newStatus) => {
-    if (isCombined) return;
+    if (isCombined || !sheet) return;
     try {
       setStatusLoading(true);
       const response = await API.patch(`/loading-sheets/${sheet.id}/status`, {
@@ -430,18 +435,22 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
               <div style={{ marginTop: '40px', borderTop: `4px double ${colors.slate900}`, paddingTop: '20px' }}>
                 <div style={{ fontSize: '14px', fontWeight: '900', color: colors.slate900, marginBottom: '15px' }}>CONTAINER GLOBAL TOTALS</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                  <tr style={{ backgroundColor: colors.slate900, color: colors.white }}>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CTN</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL PCS</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CBM</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL WT</th>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.ctn}</td>
-                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.tPcs}</td>
-                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.blueText }}>{globalTotals.tCbm.toFixed(3)}</td>
-                    <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.orangeText }}>{globalTotals.tWt.toFixed(2)}</td>
-                  </tr>
+                  <thead>
+                    <tr style={{ backgroundColor: colors.slate900, color: colors.white }}>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CTN</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL PCS</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL CBM</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>TOTAL WT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.ctn}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}` }}>{globalTotals.tPcs}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.blueText }}>{globalTotals.tCbm.toFixed(3)}</td>
+                      <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', border: `1px solid ${colors.slate200}`, color: colors.orangeText }}>{globalTotals.tWt.toFixed(2)}</td>
+                    </tr>
+                  </tbody>
                 </table>
               </div>
             )}

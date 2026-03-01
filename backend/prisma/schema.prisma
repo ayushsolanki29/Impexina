@@ -38,9 +38,6 @@ model User {
 
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime                    @updatedAt
-  packingListActivities       PackingListActivity[]
-  commercialInvoiceActivities CommercialInvoiceActivity[]
-  summaryActivities           SummaryActivity[]
 
   // Legacy Task relations (for backward compatibility)
   legacyAssignedTasks Task[] @relation("legacyAssignedTasks")
@@ -57,13 +54,16 @@ model User {
   createdOrders OrderTracker[] @relation("createdOrders")
   updatedOrders OrderTracker[] @relation("updatedOrders")
 
-  loadingActivities      LoadingActivity[]
-  orderTrackerActivities OrderTrackerActivity[]
-  bifurcationActivities BifurcationActivity[]
-  containerActivities   ContainerActivity[]
-  invoiceActivities     InvoiceActivity[]
-  warehouseActivities   WarehouseActivity[]
-  clientActivities      ClientActivity[]
+  loadingActivities       LoadingActivity[]
+  orderTrackerActivities  OrderTrackerActivity[]
+  bifurcationActivities   BifurcationActivity[]
+  containerActivities     ContainerActivity[]
+  invoiceActivities       InvoiceActivity[]
+  packingListActivities   PackingListActivity[]
+  warehouseActivities     WarehouseActivity[]
+  clientActivities        ClientActivity[]
+  summaryActivities       SummaryActivity[]
+  commercialInvoiceActivities CommercialInvoiceActivity[]
 
   uploadedContainerImages ContainerImage[] @relation("uploadedImages")
   deletedContainerImages  ContainerImage[] @relation("deletedImages")
@@ -167,6 +167,8 @@ model Bifurcation {
   from         String?
   to           String?
   lrNo         Boolean   @default(false)
+  hisab        Boolean   @default(false)
+  sent         Boolean   @default(false)
 
   loadingSheetId String       @unique
   loadingSheet   LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
