@@ -332,7 +332,10 @@ export default function ContainerDashboard() {
         container.bl?.toLowerCase().includes(searchLower) ||
         container.containerNoField?.toLowerCase().includes(searchLower) ||
         container.shippingLine?.toLowerCase().includes(searchLower) ||
-        container.month?.toLowerCase().includes(searchLower);
+        container.month?.toLowerCase().includes(searchLower) ||
+        container.invoiceNo?.toLowerCase().includes(searchLower) ||
+        container.shipper?.toLowerCase().includes(searchLower) ||
+        container.location?.toLowerCase().includes(searchLower);
 
       const matchesStatus = !filters.status || container.status === filters.status;
       const matchesMonth = !filters.month || container.month === filters.month;
@@ -712,8 +715,8 @@ export default function ContainerDashboard() {
                 <button
                   onClick={() => setViewMode("grid")}
                   className={`p-2 rounded-lg transition-all ${viewMode === "grid"
-                      ? "bg-blue-100 text-blue-600"
-                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                     }`}
                 >
                   <Grid className="w-4 h-4" />
@@ -721,8 +724,8 @@ export default function ContainerDashboard() {
                 <button
                   onClick={() => setViewMode("table")}
                   className={`p-2 rounded-lg transition-all ${viewMode === "table"
-                      ? "bg-blue-100 text-blue-600"
-                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                     }`}
                 >
                   <List className="w-4 h-4" />
@@ -890,6 +893,10 @@ export default function ContainerDashboard() {
                       { key: "dollar", label: "Dollar" },
                       { key: "finalAmount", label: "Final Amount" },
                       { key: "origin", label: "Origin" },
+                      { key: "location", label: "Location" },
+                      { key: "shipper", label: "Shipper" },
+                      { key: "invoiceNo", label: "Invoice No" },
+                      { key: "workflowStatus", label: "Workflow" },
                       { key: "actions", label: "" },
                     ].map((col) => (
                       <th key={col.key} className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -968,6 +975,22 @@ export default function ContainerDashboard() {
                           <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
                             {container.origin || "N/A"}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                          {container.location || "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium truncate max-w-[150px]">
+                          {container.shipper || "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold uppercase">
+                          {container.invoiceNo || "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {container.workflowStatus ? (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] rounded font-bold uppercase">
+                              {container.workflowStatus}
+                            </span>
+                          ) : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1">
@@ -1141,8 +1164,8 @@ export default function ContainerDashboard() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`w-2 h-2 rounded-full ${container.status === "Loaded" ? "bg-emerald-500" :
-                            container.status === "Insea" ? "bg-sky-500" :
-                              "bg-violet-500"
+                          container.status === "Insea" ? "bg-sky-500" :
+                            "bg-violet-500"
                           }`}></div>
                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                           {getStatusText(container.status)}

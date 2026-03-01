@@ -51,7 +51,15 @@ const EMPTY_CONTAINER = {
     shippingLine: "",
     bl: "",
     containerNo: "",
+    origin: "",
+    location: "",
+    shipper: "",
+    invoiceNo: "",
+    invoiceDate: "",
+    deliveryDate: "",
+    workflowStatus: "",
     sims: "",
+    pims: "",
 };
 
 export default function ContainerSummaryForm({
@@ -189,6 +197,17 @@ export default function ContainerSummaryForm({
         setContainers(next);
     };
 
+    const moveContainer = (index, direction) => {
+        const next = [...containers];
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= next.length) return;
+
+        const [movedItem] = next.splice(index, 1);
+        next.splice(targetIndex, 0, movedItem);
+        setContainers(next);
+        toast.success(`Container moved ${direction}`);
+    };
+
     const exportSummaryExcel = async () => {
         if (!initialData?.id) return;
         try {
@@ -227,8 +246,15 @@ export default function ContainerSummaryForm({
                     gst: c.gst != null && c.gst !== "" ? Number(c.gst) : undefined,
                     doCharge: Number(c.doCharge) || 0,
                     cfs: Number(c.cfs) || 0,
-                    sims: c.simsComplete ? "DONE" : c.simsNotComplete ? "FAIL" : c.simsStatus ? "PENDING" : "",
-                    pims: c.pimsComplete ? "DONE" : c.pimsNotComplete ? "FAIL" : c.pimsStatus ? "PENDING" : "",
+                    origin: String(c.origin || ""),
+                    location: String(c.location || ""),
+                    shipper: String(c.shipper || ""),
+                    invoiceNo: String(c.invoiceNo || ""),
+                    invoiceDate: c.invoiceDate || null,
+                    deliveryDate: c.deliveryDate || null,
+                    workflowStatus: String(c.workflowStatus || ""),
+                    sims: String(c.sims || ""),
+                    pims: String(c.pims || ""),
                 }))
             };
 
@@ -445,6 +471,7 @@ export default function ContainerSummaryForm({
                         <table className="w-full border-collapse text-[11px]">
                             <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
                                 <tr className="border-b border-slate-200">
+                                    <th className="w-10 text-center border-r border-slate-200 bg-slate-100/30"></th>
                                     <th className="px-5 py-4 w-12 text-center border-r border-slate-200 text-slate-400 font-bold uppercase tracking-wider bg-slate-50">#</th>
                                     {[
                                         { label: 'Container Code', field: 'containerCode', width: 'min-w-[150px]' },
@@ -464,6 +491,13 @@ export default function ContainerSummaryForm({
                                         { label: 'Line', field: 'shippingLine', width: 'min-w-[120px]' },
                                         { label: 'BL Doc', field: 'bl', width: 'min-w-[120px]' },
                                         { label: 'Unit No.', field: 'containerNo', width: 'min-w-[120px]' },
+                                        { label: 'Origin Port', field: 'origin', width: 'min-w-[130px] text-blue-600 font-bold' },
+                                        { label: 'Location', field: 'location', width: 'min-w-[130px]' },
+                                        { label: 'Shipper', field: 'shipper', width: 'min-w-[150px]' },
+                                        { label: 'Inv No', field: 'invoiceNo', width: 'min-w-[130px]' },
+                                        { label: 'Inv Date', field: 'invoiceDate', width: 'min-w-[120px]' },
+                                        { label: 'Delivery', field: 'deliveryDate', width: 'min-w-[120px]' },
+                                        { label: 'Work Status', field: 'workflowStatus', width: 'min-w-[150px]' },
                                     ].map((h, i) => (
                                         <th
                                             key={i}
@@ -481,6 +515,13 @@ export default function ContainerSummaryForm({
                                     >
                                         SIMS
                                     </th>
+                                    <th
+                                        onContextMenu={(e) => handleContextMenu(e, 'pims')}
+                                        className="px-5 py-4 text-purple-600 border-r border-slate-200 min-w-[130px] font-bold text-left uppercase tracking-widest cursor-default select-none"
+                                        style={getStyleForField('pims')}
+                                    >
+                                        PIMS
+                                    </th>
                                     {(isEdit || isCreate) && <th className="px-2 py-4 w-12 text-center bg-slate-50"></th>}
                                 </tr>
                             </thead>
@@ -489,6 +530,24 @@ export default function ContainerSummaryForm({
                                     const calc = calculateFields(c);
                                     return (
                                         <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="w-10 border-r border-slate-100 bg-slate-50/20">
+                                                <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={() => moveContainer(idx, 'up')}
+                                                        disabled={idx === 0}
+                                                        className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                                                    >
+                                                        <ChevronUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => moveContainer(idx, 'down')}
+                                                        disabled={idx === containers.length - 1}
+                                                        className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                                                    >
+                                                        <ChevronDown className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
                                             <td className="px-5 py-3 text-center text-slate-300 font-bold border-r border-slate-100" style={getStyleForField('no')}>{idx + 1}</td>
 
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerCode')} style={getStyleForField('containerCode')}>
@@ -575,13 +634,44 @@ export default function ContainerSummaryForm({
                                                 <input className="w-full h-10 px-5 bg-transparent outline-none text-slate-400 font-medium" value={c.containerNo || ""} placeholder="UNIT ID" onChange={e => handleContainerChange(idx, 'containerNo', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            {/* SIMS — simple text input */}
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'origin')} style={getStyleForField('origin')}>
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase" value={c.origin || ""} placeholder="ORIGIN" onChange={e => handleContainerChange(idx, 'origin', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'location')} style={getStyleForField('location')}>
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.location || ""} placeholder="PORT" onChange={e => handleContainerChange(idx, 'location', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shipper')} style={getStyleForField('shipper')}>
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.shipper || ""} placeholder="SHIPPER" onChange={e => handleContainerChange(idx, 'shipper', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceNo')} style={getStyleForField('invoiceNo')}>
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.invoiceNo || ""} placeholder="INV#" onChange={e => handleContainerChange(idx, 'invoiceNo', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceDate')} style={getStyleForField('invoiceDate')}>
+                                                <input type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.invoiceDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'invoiceDate', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'deliveryDate')} style={getStyleForField('deliveryDate')}>
+                                                <input type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.deliveryDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'deliveryDate', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'workflowStatus')} style={getStyleForField('workflowStatus')}>
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600 uppercase" value={c.workflowStatus || ""} placeholder="STATUS" onChange={e => handleContainerChange(idx, 'workflowStatus', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            </td>
+
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'sims')} style={getStyleForField('sims')}>
                                                 <input
                                                     className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase placeholder:text-slate-200"
                                                     value={c.sims || ""}
                                                     placeholder="SIMS"
                                                     onChange={e => handleContainerChange(idx, 'sims', e.target.value)}
+                                                    disabled={!isEdit && !isCreate}
+                                                />
+                                            </td>
+
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'pims')} style={getStyleForField('pims')}>
+                                                <input
+                                                    className="w-full h-10 px-5 bg-transparent outline-none font-bold text-purple-600 uppercase placeholder:text-slate-200"
+                                                    value={c.pims || ""}
+                                                    placeholder="PIMS"
+                                                    onChange={e => handleContainerChange(idx, 'pims', e.target.value)}
                                                     disabled={!isEdit && !isCreate}
                                                 />
                                             </td>

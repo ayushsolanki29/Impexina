@@ -121,15 +121,36 @@ app.use("/uploads", async (req, res, next) => {
 /* ===============================
    ROUTES
 ================================ */
-// Health Check (ALWAYS FIRST)
+// Health / status API – no auth, for "backend is up" and logic screen
+const pkg = require("../package.json");
+const serverStartedAt = new Date().toISOString();
+
 app.get("/api/health", (req, res) => {
   res.status(200).json({
-    status: "OK",
-    service: "Impexina Software Backend",
+    success: true,
+    status: "up",
+    message: "Backend is running",
+    service: pkg.name || "Impexina Backend",
+    version: pkg.version || "1.0.0",
+    lastUpdated: serverStartedAt,
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    uptimeFormatted: formatUptime(process.uptime()),
   });
 });
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  parts.push(`${s}s`);
+  return parts.join(" ");
+}
 
 // Module Routes
 const moduleRoutes = require("./modules");

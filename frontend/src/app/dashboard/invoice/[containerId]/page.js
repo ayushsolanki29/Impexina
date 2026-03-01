@@ -1161,6 +1161,10 @@ export default function InvoiceEntryPage() {
             <div className="p-4 bg-slate-50/50 flex justify-end items-center border-t border-slate-200">
               <div className="flex gap-10">
                 <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total CTN</span>
+                  <div className="text-xl font-bold text-slate-800">{items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0)}</div>
+                </div>
+                <div className="text-right">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total QTY</span>
                   <div className="text-xl font-bold text-slate-800">{items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0)}</div>
                 </div>

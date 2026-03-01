@@ -12,7 +12,7 @@ export default function ContainerSummaryPage() {
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -45,27 +45,9 @@ export default function ContainerSummaryPage() {
       <div className="max-w-[1600px] mx-auto h-[calc(100vh-4rem)]">
         <ContainerSummaryForm
           initialData={summary}
-          isEdit={isEditing}
-          onCancel={() => {
-            if (isEditing) {
-              setIsEditing(false);
-              fetchData();
-            } else {
-              router.push("/dashboard/container-summary");
-            }
-          }}
+          isEdit={true}
+          onCancel={() => router.push("/dashboard/container-summary")}
         />
-
-        {!isEditing && (
-          <div className="fixed bottom-12 right-12 flex gap-4 z-[200]">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-10 py-4 bg-indigo-600 text-white rounded-full font-black shadow-[0_20px_50px_rgba(79,70,229,0.3)] hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95 flex items-center gap-3 uppercase tracking-widest text-xs"
-            >
-              UNLOCK & EDIT EXCEL
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

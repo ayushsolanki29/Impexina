@@ -29,6 +29,16 @@ const containerSummaryValidation = {
           bl: Joi.string().max(100).allow("").optional(),
           containerNo: Joi.string().max(50).allow("").optional(),
           sims: Joi.string().max(100).allow("").optional(),
+          pims: Joi.string().max(100).allow("").optional(),
+          origin: Joi.string().max(100).allow("").optional(),
+          location: Joi.string().max(100).allow("").optional(),
+          shipper: Joi.string().max(150).allow("").optional(),
+          invoiceNo: Joi.string().max(100).allow("").optional(),
+          invoiceDate: Joi.date().allow("", null).optional(),
+          deliveryDate: Joi.date().allow("", null).optional(),
+          workflowStatus: Joi.string().max(150).allow("").optional(),
+          duty: Joi.number().allow(null).optional(),
+          gst: Joi.number().allow(null).optional(),
         })
       )
       .min(1)
@@ -60,6 +70,16 @@ const containerSummaryValidation = {
           bl: Joi.string().max(100).allow("").optional(),
           containerNo: Joi.string().max(50).allow("").optional(),
           sims: Joi.string().max(100).allow("").optional(),
+          pims: Joi.string().max(100).allow("").optional(),
+          origin: Joi.string().max(100).allow("").optional(),
+          location: Joi.string().max(100).allow("").optional(),
+          shipper: Joi.string().max(150).allow("").optional(),
+          invoiceNo: Joi.string().max(100).allow("").optional(),
+          invoiceDate: Joi.date().allow("", null).optional(),
+          deliveryDate: Joi.date().allow("", null).optional(),
+          workflowStatus: Joi.string().max(150).allow("").optional(),
+          duty: Joi.number().allow(null).optional(),
+          gst: Joi.number().allow(null).optional(),
         })
       )
       .min(1)

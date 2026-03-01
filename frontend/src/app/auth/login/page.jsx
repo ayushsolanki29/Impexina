@@ -6,6 +6,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import authService from "@/services/auth.service";
 import { APP_VERSION } from "@/lib/constants";
+import API from "@/lib/api";
 import {
   Loader2,
   ArrowRight,
@@ -18,6 +19,8 @@ import {
   HelpCircle,
   X,
   Users,
+  Server,
+  Clock,
 } from "lucide-react";
 
 // Separate component that uses useSearchParams
@@ -31,6 +34,32 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [backendHealth, setBackendHealth] = useState(null);
+
+  // Fetch backend health for status display
+  useEffect(() => {
+    let cancelled = false;
+    const fetchHealth = async () => {
+      try {
+        const res = await API.get("/health");
+        if (!cancelled && res?.data) {
+          setBackendHealth({
+            up: res.data.status === "up",
+            message: res.data.message || "Backend is running",
+            lastUpdated: res.data.lastUpdated,
+            version: res.data.version,
+            uptimeFormatted: res.data.uptimeFormatted,
+          });
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setBackendHealth({ up: false, message: "Backend unreachable" });
+        }
+      }
+    };
+    fetchHealth();
+    return () => { cancelled = true; };
+  }, []);
 
   // Check for redirect messages
   useEffect(() => {
@@ -257,6 +286,40 @@ function LoginForm() {
             <span>Secure connection</span>
           </div>
         </div>
+
+        {/* Backend status */}
+        {backendHealth !== null && (
+          <div className={`w-full flex-shrink-0 mt-3 px-4 py-2.5 rounded-xl border text-center text-[11px] ${backendHealth.up ? "bg-emerald-50/80 border-emerald-200 text-emerald-800" : "bg-amber-50/80 border-amber-200 text-amber-800"}`}>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className={`w-1.5 h-1.5 rounded-full ${backendHealth.up ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+                <Server className="w-3 h-3 opacity-70" />
+                {backendHealth.up ? backendHealth.message : backendHealth.message}
+              </span>
+              {backendHealth.up && backendHealth.lastUpdated && (
+                <>
+                  <span className="text-slate-400">•</span>
+                  <span className="inline-flex items-center gap-1 text-slate-600">
+                    <Clock className="w-3 h-3 opacity-70" />
+                    Last updated: {new Date(backendHealth.lastUpdated).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </>
+              )}
+              {backendHealth.up && backendHealth.version && (
+                <>
+                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-600">API v{backendHealth.version}</span>
+                </>
+              )}
+              {backendHealth.up && backendHealth.uptimeFormatted && (
+                <>
+                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-600">Uptime: {backendHealth.uptimeFormatted}</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Help + Footer - compact inline */}
         <div className="w-full flex-shrink-0 mt-3 flex items-center justify-center gap-4 text-[11px] text-slate-400">
