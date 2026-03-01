@@ -73,7 +73,8 @@ export default function InvoiceEntryPage() {
     stampText: 'Authorized Signatory',
     showHsnColumn: true,
     from: '',
-    to: ''
+    to: '',
+    status: 'DRAFT'
   });
 
   const [openSections, setOpenSections] = useState(() => {
@@ -259,7 +260,8 @@ export default function InvoiceEntryPage() {
             stampText: inv.stampText || 'Authorized Signatory',
             showHsnColumn: inv.showHsnColumn ?? true,
             from: inv.from || response.data.data.container.origin || '',
-            to: inv.to || response.data.data.container.destination || ''
+            to: inv.to || response.data.data.container.destination || '',
+            status: inv.status || 'DRAFT'
           });
           if (inv.items?.length > 0) {
             setItems(inv.items.map(i => ({ ...i, id: i.id || `item_${Math.random()}` })));
@@ -274,6 +276,7 @@ export default function InvoiceEntryPage() {
             invoiceNo: `16PLEY86`,
             from: response.data.data.container.origin || '',
             to: response.data.data.container.destination || DEFAULT_COMPANY_DETAILS.to,
+            status: 'DRAFT'
           }));
           handleAutoImport();
         }
@@ -397,15 +400,16 @@ export default function InvoiceEntryPage() {
     input.click();
   };
 
-  const handleSave = async () => {
+  const handleSave = async (overrideData = null) => {
     if (!formData.invNo) {
       toast.error("Invoice Number is required");
       return;
     }
     try {
       setSaving(true);
+      const dataToSave = overrideData || formData;
       const payload = {
-        ...formData,
+        ...dataToSave,
         items: items.filter(i => i.description || i.itemNumber)
       };
       const response = await API.post(`/invoice/container/${containerId}`, payload);
@@ -478,10 +482,24 @@ export default function InvoiceEntryPage() {
                 <h1 className="text-2xl font-bold text-slate-900 uppercase">
                   {container?.containerCode} - INVOICE
                 </h1>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors ${invoice ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-100 text-amber-800 border-amber-200'
-                  }`}>
-                  {invoice ? 'CONFIRMED' : 'DRAFT'}
-                </span>
+                <select
+                  value={formData.status}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    setFormData(prev => ({ ...prev, status: newStatus }));
+                    if (invoice) handleSave({ ...formData, status: newStatus });
+                  }}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors outline-none cursor-pointer ${formData.status === 'CONFIRMED' ? 'bg-green-100 text-green-800 border-green-200' :
+                    formData.status === 'PRINTED' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                      formData.status === 'CANCELLED' ? 'bg-red-100 text-red-800 border-red-200' :
+                        'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}
+                >
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="CONFIRMED">CONFIRMED</option>
+                  <option value="PRINTED">PRINTED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
               </div>
               <p className="text-sm text-slate-600">
                 {container?.origin} • {new Date(container?.loadingDate).toLocaleDateString()}
@@ -572,7 +590,24 @@ export default function InvoiceEntryPage() {
             }`}>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-widest opacity-75">Status:</span>
-              <span className="font-bold uppercase tracking-wide text-xs">{invoice ? 'CONFIRMED' : 'DRAFT'}</span>
+              <select
+                value={formData.status}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  setFormData(prev => ({ ...prev, status: newStatus }));
+                  if (invoice) handleSave({ ...formData, status: newStatus });
+                }}
+                className={`ml-2 font-bold uppercase tracking-wide text-[10px] px-2 py-0.5 rounded border ${formData.status === 'CONFIRMED' ? 'bg-green-100 border-green-200 text-green-700' :
+                  formData.status === 'PRINTED' ? 'bg-blue-100 border-blue-200 text-blue-700' :
+                    formData.status === 'CANCELLED' ? 'bg-red-100 border-red-200 text-red-700' :
+                      'bg-amber-100 border-amber-200 text-amber-700'
+                  }`}
+              >
+                <option value="DRAFT">DRAFT</option>
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="PRINTED">PRINTED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
             </div>
 
             <div className="flex items-center gap-4">

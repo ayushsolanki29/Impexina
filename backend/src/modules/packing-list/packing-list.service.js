@@ -7,7 +7,7 @@ const PACKING_LIST_FIELDS = [
   'sellerCompanyName', 'sellerAddress', 'sellerIecNo', 'sellerGst', 'sellerEmail',
   'bankName', 'beneficiaryName', 'swiftBic', 'bankAddress', 'accountNumber',
   'stampImage', 'stampPosition', 'stampSize', 'stampText',
-  'showMixColumn', 'showHsnColumn', 'from', 'to'
+  'showMixColumn', 'showHsnColumn', 'from', 'to', 'status'
 ];
 
 const packingListService = {
@@ -129,6 +129,7 @@ const packingListService = {
       invNo,
       invoiceNo,
       invoiceDate,
+      status,
       ...headerData
     } = data;
 
@@ -205,6 +206,7 @@ const packingListService = {
           invNo: invNo || packingList.invNo,
           invoiceNo: invoiceNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+          status: status || packingList.status,
           companyMasterId: masterRecord ? masterRecord.id : companyMasterId,
           updatedBy: String(userId),
           items: {
@@ -224,6 +226,7 @@ const packingListService = {
           invNo: invNo || `INV-${container.containerCode}`,
           invoiceNo: invoiceNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+          status: status || "DRAFT",
           companyMasterId: masterRecord ? masterRecord.id : companyMasterId,
           createdBy: String(userId),
           updatedBy: String(userId),
@@ -278,6 +281,36 @@ const packingListService = {
     return await prisma.packingList.delete({
       where: { id }
     });
+  },
+
+  // Update only the status
+  patchStatus: async (id, status, userId) => {
+    const packingList = await prisma.packingList.findUnique({
+      where: { id },
+      include: { container: true }
+    });
+
+    if (!packingList) throw new Error("Packing list not found");
+
+    const result = await prisma.packingList.update({
+      where: { id },
+      data: { status, updatedBy: String(userId) }
+    });
+
+    if (userId) {
+      await prisma.packingListActivity.create({
+        data: {
+          packingListId: id,
+          userId: parseInt(userId),
+          type: "STATUS_CHANGE",
+          note: `Status changed to ${status}`,
+          oldValue: JSON.stringify({ status: packingList.status }),
+          newValue: JSON.stringify({ status: result.status })
+        }
+      });
+    }
+
+    return result;
   }
 };
 

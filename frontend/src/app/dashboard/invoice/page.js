@@ -137,6 +137,19 @@ export default function InvoiceListPage() {
     }
   };
 
+  const handleStatusChange = async (e, invId, newStatus) => {
+    e.stopPropagation();
+    try {
+      const response = await API.patch(`/invoice/${invId}/status`, { status: newStatus });
+      if (response.data.success) {
+        toast.success("Status updated");
+        fetchContainers();
+      }
+    } catch (error) {
+      toast.error("Failed to update status");
+    }
+  };
+
   const handleExportAll = async () => {
     try {
       toast.info("Preparing Excel export...");
@@ -280,9 +293,17 @@ export default function InvoiceListPage() {
                       <FileText className="w-6 h-6" />
                     </div>
                     {container.invoice ? (
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadge(container.invoice.status)}`}>
-                        {container.invoice.status}
-                      </span>
+                      <select
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => handleStatusChange(e, container.invoice.id, e.target.value)}
+                        value={container.invoice.status}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border outline-none cursor-pointer transition-all ${getStatusBadge(container.invoice.status)}`}
+                      >
+                        <option value="DRAFT">DRAFT</option>
+                        <option value="CONFIRMED">CONFIRMED</option>
+                        <option value="PRINTED">PRINTED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                      </select>
                     ) : (
                       <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-slate-100 text-slate-500 border-slate-200">
                         PENDING
@@ -341,8 +362,8 @@ export default function InvoiceListPage() {
                 key={i}
                 onClick={() => setPagination(prev => ({ ...prev, page: i + 1 }))}
                 className={`w-10 h-10 rounded-xl font-bold transition-all ${pagination.page === i + 1
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
               >
                 {i + 1}

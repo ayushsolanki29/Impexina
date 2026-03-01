@@ -12,6 +12,7 @@ router.post("/container/:containerId", invoiceController.createOrUpdate);
 router.get("/container/:containerId/import", invoiceController.importLoadingItems);
 router.get("/export/all", invoiceController.exportAll);
 router.get("/:id/export/excel", invoiceController.exportExcel);
+router.patch("/:id/status", invoiceController.patchStatus);
 router.delete("/:id", invoiceController.delete);
 
 module.exports = router;

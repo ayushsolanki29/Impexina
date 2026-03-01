@@ -133,6 +133,18 @@ const packingListController = {
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
     }
+  },
+
+  patchStatus: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const userId = req.user.id;
+      const result = await packingListService.patchStatus(id, status, userId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
   }
 };
 

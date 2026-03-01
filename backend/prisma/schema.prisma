@@ -187,6 +187,9 @@ model Warehouse {
   id           String    @id @default(uuid())
   transporter  String?
 
+  dispatchDone Boolean?  @default(false)
+  holdCtn      Int?      @default(0)
+
   loadingSheetId String       @unique
   loadingSheet   LoadingSheet @relation(fields: [loadingSheetId], references: [id], onDelete: Cascade)
 
@@ -427,6 +430,7 @@ model PackingListItem {
   mix           String? // MIX value
   hsn           String? // HSN value
   photo         String? // Base64 or URL
+  sequence      Int     @default(0)
 
   packingList PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
   createdAt   DateTime    @default(now())
@@ -1749,6 +1753,7 @@ model InvoiceItem {
   amountUsd   Float   @default(0)
   hsn         String? // HSN code (optional in display)
   photo       String? // Base64 or URL
+  sequence    Int     @default(0)
 
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

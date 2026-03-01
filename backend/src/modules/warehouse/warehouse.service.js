@@ -123,7 +123,9 @@ const warehouseService = {
           lrNo: sheet.bifurcation?.lrNo ?? false,
 
           // Only transporter is from warehouse model
-          transporter: sheet.warehouse?.transporter || ''
+          transporter: sheet.warehouse?.transporter || '',
+          dispatchDone: sheet.warehouse?.dispatchDone ?? false,
+          holdCtn: sheet.warehouse?.holdCtn ?? 0
         });
       });
     });
@@ -144,9 +146,9 @@ const warehouseService = {
     };
   },
 
-  // Update or Create Warehouse details (Only Transporter)
+  // Update or Create Warehouse details (Transporter, Dispatch Done, Hold CTN)
   upsertWarehouse: async (loadingSheetId, data, userId) => {
-    const { transporter } = data;
+    const { transporter, dispatchDone, holdCtn } = data;
 
     // Get existing for activities
     const existing = await prisma.warehouse.findUnique({
@@ -160,35 +162,43 @@ const warehouseService = {
 
     if (!sheet) throw new Error("Loading Sheet not found");
 
+    const updatePayload = {};
+    if (transporter !== undefined) updatePayload.transporter = transporter;
+    if (dispatchDone !== undefined) updatePayload.dispatchDone = !!dispatchDone;
+    if (holdCtn !== undefined) updatePayload.holdCtn = holdCtn == null || holdCtn === '' ? 0 : parseInt(holdCtn, 10) || 0;
+
     const result = await prisma.warehouse.upsert({
       where: { loadingSheetId },
-      update: {
-        transporter
-      },
+      update: updatePayload,
       create: {
         loadingSheetId,
         containerId: sheet.containerId,
-        transporter
+        transporter: transporter ?? '',
+        dispatchDone: !!dispatchDone,
+        holdCtn: holdCtn == null || holdCtn === '' ? 0 : parseInt(holdCtn, 10) || 0
       }
     });
 
-    // Activities
+    // Activities: log changes for each field
     if (userId) {
-      const field = 'transporter';
-      let oldVal = existing ? existing[field] : null;
-      let newVal = result[field];
-
-      if (String(oldVal) !== String(newVal)) {
-        await prisma.warehouseActivity.create({
-          data: {
-            warehouseId: result.id,
-            userId,
-            type: existing ? 'UPDATE' : 'CREATE',
-            field,
-            oldValue: existing ? String(oldVal) : null,
-            newValue: String(newVal)
-          }
-        });
+      const fields = [
+        { key: 'transporter', oldVal: existing?.transporter, newVal: result.transporter },
+        { key: 'dispatchDone', oldVal: existing?.dispatchDone, newVal: result.dispatchDone },
+        { key: 'holdCtn', oldVal: existing?.holdCtn, newVal: result.holdCtn }
+      ];
+      for (const { key, oldVal, newVal } of fields) {
+        if (String(oldVal ?? '') !== String(newVal ?? '')) {
+          await prisma.warehouseActivity.create({
+            data: {
+              warehouseId: result.id,
+              userId,
+              type: existing ? 'UPDATE' : 'CREATE',
+              field: key,
+              oldValue: existing ? String(oldVal ?? '') : null,
+              newValue: String(newVal ?? '')
+            }
+          });
+        }
       }
     }
 
@@ -297,7 +307,8 @@ const warehouseService = {
 
     const headers = [
       "Container", "Mark", "CTN", "Product", "Transporter",
-      "CBM", "Weight", "Loading", "Delivery", "Inv #", "GST", "LR"
+      "CBM", "Weight", "Loading", "Delivery", "Inv #", "GST", "LR",
+      "DISPATCH DONE", "HOLD CTN"
     ];
 
     const rows = [];
@@ -323,7 +334,9 @@ const warehouseService = {
           sheet.bifurcation?.deliveryDate ? new Date(sheet.bifurcation.deliveryDate).toLocaleDateString('en-GB') : '-',
           sheet.bifurcation?.invoiceNo || '',
           sheet.bifurcation?.gstAmount ?? 0,
-          sheet.bifurcation?.lrNo ? "YES" : "NO"
+          sheet.bifurcation?.lrNo ? "YES" : "NO",
+          sheet.warehouse?.dispatchDone ? "YES" : "NO",
+          sheet.warehouse?.holdCtn ?? 0
         ]);
       });
       // Add a spacer row between containers

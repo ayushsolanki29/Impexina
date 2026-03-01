@@ -21,9 +21,12 @@ const containerSummaryService = {
       const totals = containers.reduce(
         (acc, container) => {
           const inr = container.dollar * container.dollarRate;
-          const duty = inr * 0.165; // 16.5%
+          const dutyCalc = inr * 0.165;
+          const totalCalc = inr + dutyCalc;
+          const gstCalc = totalCalc * 0.18;
+          const duty = container.duty != null ? Number(container.duty) : dutyCalc;
           const total = inr + duty;
-          const gst = total * 0.18; // 18%
+          const gst = container.gst != null ? Number(container.gst) : total * 0.18;
           const totalDuty = duty + gst;
           const finalAmount = totalDuty + container.doCharge + container.cfs;
 
@@ -58,9 +61,12 @@ const containerSummaryService = {
           containers: {
             create: containers.map((container, index) => {
               const inr = container.dollar * container.dollarRate;
-              const duty = inr * 0.165;
+              const dutyCalc = inr * 0.165;
+              const totalCalc = inr + dutyCalc;
+              const gstCalc = totalCalc * 0.18;
+              const duty = container.duty != null ? Number(container.duty) : dutyCalc;
               const total = inr + duty;
-              const gst = total * 0.18;
+              const gst = container.gst != null ? Number(container.gst) : total * 0.18;
               const totalDuty = duty + gst;
               const finalAmount =
                 totalDuty + container.doCharge + container.cfs;
@@ -316,9 +322,12 @@ const containerSummaryService = {
         totals = containers.reduce(
           (acc, container) => {
             const inr = container.dollar * container.dollarRate;
-            const duty = inr * 0.165;
+            const dutyCalc = inr * 0.165;
+            const totalCalc = inr + dutyCalc;
+            const gstCalc = totalCalc * 0.18;
+            const duty = container.duty != null ? Number(container.duty) : dutyCalc;
             const total = inr + duty;
-            const gst = total * 0.18;
+            const gst = container.gst != null ? Number(container.gst) : total * 0.18;
             const totalDuty = duty + gst;
             const finalAmount = totalDuty + container.doCharge + container.cfs;
 
@@ -367,9 +376,12 @@ const containerSummaryService = {
         await prisma.containerInSummary.createMany({
           data: containers.map((container, index) => {
             const inr = container.dollar * container.dollarRate;
-            const duty = inr * 0.165;
+            const dutyCalc = inr * 0.165;
+            const totalCalc = inr + dutyCalc;
+            const gstCalc = totalCalc * 0.18;
+            const duty = container.duty != null ? Number(container.duty) : dutyCalc;
             const total = inr + duty;
-            const gst = total * 0.18;
+            const gst = container.gst != null ? Number(container.gst) : total * 0.18;
             const totalDuty = duty + gst;
             const finalAmount = totalDuty + container.doCharge + container.cfs;
 

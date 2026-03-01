@@ -46,6 +46,8 @@ const EMPTY_CONTAINER = {
     dollarRate: 89.7,
     doCharge: 58000,
     cfs: 21830,
+    duty: undefined,  // optional override; when set, editable value is used
+    gst: undefined,
     shippingLine: "",
     bl: "",
     containerNo: "",
@@ -69,8 +71,10 @@ export default function ContainerSummaryForm({
                 ...EMPTY_CONTAINER,
                 ...c,
                 loadingDate: c.loadingDate?.split('T')[0] || EMPTY_CONTAINER.loadingDate,
-                eta: c.eta?.split('T')[0] || "",
+                eta: c.eta?.split('T')[0] || c.eta || "",
                 sims: c.sims || "",
+                duty: c.duty != null ? c.duty : undefined,
+                gst: c.gst != null ? c.gst : undefined,
             }))
             : [{ ...EMPTY_CONTAINER }]
     );
@@ -138,17 +142,23 @@ export default function ContainerSummaryForm({
         const dollar = Number(c.dollar) || 0;
         const rate = Number(c.dollarRate) || 89.7;
         const inr = dollar * rate;
-        const duty = inr * 0.165;
+        const dutyCalc = inr * 0.165;
+        const totalCalc = inr + dutyCalc;
+        const gstCalc = totalCalc * 0.18;
+        // Use editable duty/gst when set, else calculated
+        const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
         const total = inr + duty;
-        const gst = total * 0.18;
+        const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * 0.18;
         const totalDuty = duty + gst;
         const finalAmount = totalDuty + (Number(c.doCharge) || 0) + (Number(c.cfs) || 0);
 
         return {
             inr: inr.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
             duty: duty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
+            dutyRaw: duty,
             total: total.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
             gst: gst.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
+            gstRaw: gst,
             totalDuty: totalDuty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
             finalAmount: finalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })
         };
@@ -159,8 +169,13 @@ export default function ContainerSummaryForm({
             const dollar = Number(c.dollar) || 0;
             const rate = Number(c.dollarRate) || 89.7;
             const inr = dollar * rate;
-            const duty = inr * 0.165;
-            const final = duty + (inr + duty) * 0.18 + (Number(c.doCharge) || 58000) + (Number(c.cfs) || 21830);
+            const dutyCalc = inr * 0.165;
+            const totalCalc = inr + dutyCalc;
+            const gstCalc = totalCalc * 0.18;
+            const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
+            const total = inr + duty;
+            const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * 0.18;
+            const final = duty + gst + (Number(c.doCharge) || 58000) + (Number(c.cfs) || 21830);
             return {
                 ctn: acc.ctn + (Number(c.ctn) || 0),
                 final: acc.final + final
@@ -208,6 +223,8 @@ export default function ContainerSummaryForm({
                     ctn: Number(c.ctn) || 0,
                     dollar: Number(c.dollar) || 0,
                     dollarRate: Number(c.dollarRate) || 0,
+                    duty: c.duty != null && c.duty !== "" ? Number(c.duty) : undefined,
+                    gst: c.gst != null && c.gst !== "" ? Number(c.gst) : undefined,
                     doCharge: Number(c.doCharge) || 0,
                     cfs: Number(c.cfs) || 0,
                     sims: c.simsComplete ? "DONE" : c.simsNotComplete ? "FAIL" : c.simsStatus ? "PENDING" : "",
@@ -511,9 +528,31 @@ export default function ContainerSummaryForm({
                                             </td>
 
                                             <td className="px-4 text-right font-medium text-slate-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'inr')} style={getStyleForField('inr')}>₹{calc.inr}</td>
-                                            <td className="px-4 text-right font-bold text-slate-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'duty')} style={getStyleForField('duty')}>₹{calc.duty}</td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'duty')} style={getStyleForField('duty')}>
+                                                {(isEdit || isCreate) ? (
+                                                    <input
+                                                        type="number"
+                                                        className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-slate-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
+                                                        value={c.duty != null && c.duty !== "" ? c.duty : calc.dutyRaw}
+                                                        onChange={e => handleContainerChange(idx, 'duty', e.target.value)}
+                                                    />
+                                                ) : (
+                                                    <span className="block px-4 py-3 text-right font-bold text-slate-700 tabular-nums">₹{calc.duty}</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 text-right font-bold text-slate-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'total')} style={getStyleForField('total')}>₹{calc.total}</td>
-                                            <td className="px-4 text-right font-bold text-violet-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'gst')} style={getStyleForField('gst')}>₹{calc.gst}</td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'gst')} style={getStyleForField('gst')}>
+                                                {(isEdit || isCreate) ? (
+                                                    <input
+                                                        type="number"
+                                                        className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-violet-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
+                                                        value={c.gst != null && c.gst !== "" ? c.gst : calc.gstRaw}
+                                                        onChange={e => handleContainerChange(idx, 'gst', e.target.value)}
+                                                    />
+                                                ) : (
+                                                    <span className="block px-4 py-3 text-right font-bold text-violet-700 tabular-nums">₹{calc.gst}</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 text-right font-bold text-slate-900 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'totalDuty')} style={getStyleForField('totalDuty')}>₹{calc.totalDuty}</td>
 
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'doCharge')} style={getStyleForField('doCharge')}>

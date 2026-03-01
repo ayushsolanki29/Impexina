@@ -115,6 +115,7 @@ const invoiceService = {
       invNo,
       invoiceNo,
       invoiceDate,
+      status,
       ...headerData
     } = data;
 
@@ -164,6 +165,7 @@ const invoiceService = {
           invNo: invNo || invoice.invNo,
           invoiceNo: invoiceNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+          status: status || (invoice ? invoice.status : "DRAFT"),
           totalCtn,
           totalQty,
           totalAmountUsd,
@@ -185,6 +187,7 @@ const invoiceService = {
           invNo: invNo || `INV-${container.containerCode}`,
           invoiceNo: invoiceNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+          status: status || (invoice ? invoice.status : "DRAFT"),
           totalCtn,
           totalQty,
           totalAmountUsd,
@@ -217,12 +220,40 @@ const invoiceService = {
     return result;
   },
 
-  // Delete invoice
   delete: async (id, userId) => {
-    // Activities are cascaded, so they will be deleted.
     return await prisma.invoice.delete({
       where: { id }
     });
+  },
+
+  // Update only the status
+  patchStatus: async (id, status, userId) => {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: { container: true }
+    });
+
+    if (!invoice) throw new Error("Invoice not found");
+
+    const result = await prisma.invoice.update({
+      where: { id },
+      data: { status, updatedBy: String(userId) }
+    });
+
+    if (userId) {
+      await prisma.invoiceActivity.create({
+        data: {
+          invoiceId: id,
+          userId: parseInt(userId),
+          type: "STATUS_CHANGE",
+          note: `Status changed to ${status}`,
+          oldValue: JSON.stringify({ status: invoice.status }),
+          newValue: JSON.stringify({ status: result.status })
+        }
+      });
+    }
+
+    return result;
   }
 };
 
