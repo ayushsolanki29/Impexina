@@ -36,8 +36,8 @@ export default function AccountClientsPage() {
       setLoading(false);
     }
   };
-  const filteredClients = selectedCity === "ALL" 
-    ? clients 
+  const filteredClients = selectedCity === "ALL"
+    ? clients
     : clients.filter(c => c.city === selectedCity);
 
   const cities = ["ALL", ...new Set(clients.map(c => c.city).filter(Boolean))];
@@ -49,7 +49,7 @@ export default function AccountClientsPage() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 onClick={() => router.push("/dashboard/accounts")}
                 className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
                 title="Back to Accounts"
@@ -81,7 +81,7 @@ export default function AccountClientsPage() {
           </div>
         </div>
       </div>
-      
+
       <div className="max-w-7xl mx-auto px-4 py-6">
 
         {/* Filter Chips */}
@@ -93,11 +93,10 @@ export default function AccountClientsPage() {
                   <button
                     key={city}
                     onClick={() => setSelectedCity(city)}
-                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
-                      selectedCity === city 
-                        ? "bg-blue-600 text-white border-blue-600" 
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${selectedCity === city
+                        ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
                     {city}
                   </button>
@@ -123,13 +122,13 @@ export default function AccountClientsPage() {
               No Clients Found
             </h3>
             <p className="text-slate-500 text-sm mb-4">
-              {search || selectedCity !== "ALL" 
-                ? "Try adjusting your filters" 
+              {search || selectedCity !== "ALL"
+                ? "Try adjusting your filters"
                 : "No clients available"}
             </p>
             {(search || selectedCity !== "ALL") && (
-              <button 
-                onClick={() => {setSearch(""); setSelectedCity("ALL")}} 
+              <button
+                onClick={() => { setSearch(""); setSelectedCity("ALL") }}
                 className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-widest"
               >
                 Reset Filters
@@ -139,7 +138,7 @@ export default function AccountClientsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredClients.map(client => (
-              <div 
+              <div
                 key={client.id}
                 onClick={() => router.push(`/dashboard/accounts/clients/${client.id}/containers`)}
                 className="group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md border-blue-200 cursor-pointer"
@@ -166,7 +165,28 @@ export default function AccountClientsPage() {
                     )}
                   </div>
                 </div>
-                
+
+                <div className="mb-4">
+                  {client.containerCodes && client.containerCodes.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 min-h-[22px]">
+                      {client.containerCodes.slice(0, 5).map(code => (
+                        <span key={code} className="text-[9px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-tighter shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-default">
+                          {code}
+                        </span>
+                      ))}
+                      {client.containerCodes.length > 5 && (
+                        <span className="text-[9px] font-black bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tighter">
+                          +{client.containerCodes.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-slate-50/50 py-1 px-2 rounded border border-dashed border-slate-100 italic">
+                      No Containers Linked
+                    </div>
+                  )}
+                </div>
+
                 <div className="border-t border-slate-100 pt-4">
                   <div className="flex items-center justify-between">
                     <div className="flex gap-4 text-[11px] font-medium text-slate-400 uppercase tracking-widest">

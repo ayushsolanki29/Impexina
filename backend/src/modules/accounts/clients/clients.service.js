@@ -1,176 +1,199 @@
 const { prisma } = require("../../../database/prisma");
 
 const AccountClientsService = {
-  // Get all clients (Fetch from CRM Clients)
-  getAllClients: async ({ page = 1, limit = 20, search = "", location = "" }) => {
-    const skip = (page - 1) * limit;
-    
-    // Build where clause for CRM Client
-    const where = {};
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { companyName: { contains: search, mode: "insensitive" } },
-        { location: { contains: search, mode: "insensitive" } },
-      ];
-    }
-    
-    // Fetch clients
-    const [clients, total] = await Promise.all([
-      prisma.client.findMany({
-        where,
-        skip,
-        take: parseInt(limit),
-        select: {
-            id: true,
-            name: true,
-            companyName: true,
-            city: true,
-            phone: true,
-            email: true,
-            // Calculate balance on the fly or fetched if stored on Client? 
-            // For now, we'll fetch transactions to sum them up or use a calculated field if we added one (we didn't add balance to Client yet, let's compute or assume 0 for list view optimization)
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.client.count({ where }),
-    ]);
+    // Get all clients (Fetch from CRM Clients)
+    getAllClients: async ({ page = 1, limit = 20, search = "", location = "" }) => {
+        const skip = (page - 1) * limit;
 
-    return {
-      clients,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  },
-
-  // Get single client ledger
-  getClientLedger: async (clientId, containerCode, sheetName) => {
-    const where = { clientId };
-    if (containerCode) where.containerCode = containerCode;
-    if (sheetName) where.sheetName = sheetName;
-
-    // TRF transactions filter
-    const trfWhere = { clientId };
-    if (sheetName) trfWhere.sheetName = sheetName;
-
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      include: {
-        transactions: {
-          where,
-          orderBy: { transactionDate: 'desc' }
-        },
-        trfTransactions: {
-          where: trfWhere,
-          orderBy: { transactionDate: 'desc' }
+        // Build where clause for CRM Client
+        const where = {};
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: "insensitive" } },
+                { companyName: { contains: search, mode: "insensitive" } },
+                { location: { contains: search, mode: "insensitive" } },
+            ];
         }
-      }
-    });
 
-    if (!client) return null;
+        // Fetch clients
+        const [clients, total] = await Promise.all([
+            prisma.client.findMany({
+                where,
+                skip,
+                take: parseInt(limit),
+                select: {
+                    id: true,
+                    name: true,
+                    companyName: true,
+                    city: true,
+                    phone: true,
+                    email: true,
+                    // Get linked containers from transactions and loading sheets
+                    transactions: {
+                        select: { containerCode: true },
+                    },
+                    loadingSheets: {
+                        select: { container: { select: { containerCode: true } } },
+                    }
+                },
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.client.count({ where }),
+        ]);
 
-    // Fetch all unique sheet names and container codes for the client
-    const allTxns = await prisma.clientTransaction.findMany({
-        where: { clientId },
-        select: { sheetName: true, containerCode: true },
-        distinct: ['sheetName', 'containerCode']
-    });
+        // Process clients to have a flat list of unique container codes
+        const processedClients = clients.map(client => {
+            const containerCodes = new Set();
+            client.transactions.forEach(t => {
+                if (t.containerCode) containerCodes.add(t.containerCode);
+            });
+            client.loadingSheets.forEach(ls => {
+                if (ls.container?.containerCode) containerCodes.add(ls.container.containerCode);
+            });
 
-    const sheets = new Set();
-    allTxns.forEach(t => {
-        if (t.sheetName) sheets.add(t.sheetName);
-        if (t.containerCode) sheets.add(t.containerCode);
-    });
+            return {
+                ...client,
+                transactions: undefined, // Remove from response
+                loadingSheets: undefined, // Remove from response
+                containerCodes: Array.from(containerCodes)
+            };
+        });
 
-    return {
-        ...client,
-        availableSheets: Array.from(sheets).sort()
-    };
-  },
+        return {
+            clients: processedClients,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    },
 
-  // Add transaction
-  addTransaction: async (clientId, data) => {
-    // Validate client exists
-    const client = await prisma.client.findUnique({
-      where: { id: clientId }
-    });
-    if (!client) throw new Error("Client not found");
+    // Get single client ledger
+    getClientLedger: async (clientId, containerCode, sheetName) => {
+        const where = { clientId };
+        if (containerCode) where.containerCode = containerCode;
+        if (sheetName) where.sheetName = sheetName;
 
-    // Clean data (remove isNew, id if temp)
-    const { isNew, id, ...cleanData } = data;
+        // TRF transactions filter
+        const trfWhere = { clientId };
+        if (sheetName) trfWhere.sheetName = sheetName;
 
-    return prisma.clientTransaction.create({
-      data: {
-        clientId,
-        ...cleanData,
-        // Ensure numeric fields are floats
-        amount: parseFloat(cleanData.amount || 0),
-        paid: parseFloat(cleanData.paid || 0),
-        balance: parseFloat(cleanData.amount || 0) - parseFloat(cleanData.paid || 0),
-        quantity: cleanData.quantity ? parseFloat(cleanData.quantity) : undefined,
-        weight: cleanData.weight ? parseFloat(cleanData.weight) : undefined,
-        rate: cleanData.rate ? parseFloat(cleanData.rate) : undefined,
-        transactionDate: new Date(cleanData.transactionDate),
-        deliveryDate: cleanData.deliveryDate ? new Date(cleanData.deliveryDate) : undefined,
-        paymentDate: cleanData.paymentDate ? new Date(cleanData.paymentDate) : undefined,
-        billingType: cleanData.billingType || 'FLAT', // Default billing type
-        sheetName: cleanData.sheetName ? cleanData.sheetName.toUpperCase() : undefined,
-        paymentMode: cleanData.paymentMode ? cleanData.paymentMode : undefined, // Handle empty string
-        containerCode: cleanData.containerCode ? cleanData.containerCode : undefined,
-        from: cleanData.from || undefined,
-        to: cleanData.to || undefined
-      }
-    });
-  },
+        const client = await prisma.client.findUnique({
+            where: { id: clientId },
+            include: {
+                transactions: {
+                    where,
+                    orderBy: { transactionDate: 'desc' }
+                },
+                trfTransactions: {
+                    where: trfWhere,
+                    orderBy: { transactionDate: 'desc' }
+                }
+            }
+        });
 
-  // Update transaction
-  updateTransaction: async (id, data) => {
-     // Prepare data
-     const { isNew, id: _id, ...updateData } = data; // Remove isNew and id from payload
-     
-     if (data.amount || data.paid) {
-         // Recalculate balance if amount/paid changes
-         // This is complex without current state, simplified:
-         // Ideally front-end sends full payload or we allow partials. 
-         // For Excel view, usually specific fields update.
-        if (data.amount) updateData.amount = parseFloat(data.amount);
-        if (data.paid) updateData.paid = parseFloat(data.paid);
-        if (data.quantity) updateData.quantity = parseFloat(data.quantity);
-        if (data.weight !== undefined) updateData.weight = data.weight ? parseFloat(data.weight) : null;
-        if (data.rate) updateData.rate = parseFloat(data.rate);
-         if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
-         if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
-         if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
-     }
-     
-     // Clean up enums/optional fields
-     if (updateData.paymentMode === "") updateData.paymentMode = null;
-     if (updateData.containerCode === "") updateData.containerCode = null;
-     if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
-     if (updateData.from === "") updateData.from = null;
-     if (updateData.to === "") updateData.to = null;
+        if (!client) return null;
 
-     return prisma.clientTransaction.update({
-        where: { id },
-        data: updateData
-     });
-  },
+        // Fetch all unique sheet names and container codes for the client
+        const allTxns = await prisma.clientTransaction.findMany({
+            where: { clientId },
+            select: { sheetName: true, containerCode: true },
+            distinct: ['sheetName', 'containerCode']
+        });
 
-  // Delete transaction
-  deleteTransaction: async (id) => {
-    return prisma.clientTransaction.delete({
-      where: { id }
-    });
-  },
+        const sheets = new Set();
+        allTxns.forEach(t => {
+            if (t.sheetName) sheets.add(t.sheetName);
+            if (t.containerCode) sheets.add(t.containerCode);
+        });
+
+        return {
+            ...client,
+            availableSheets: Array.from(sheets).sort()
+        };
+    },
+
+    // Add transaction
+    addTransaction: async (clientId, data) => {
+        // Validate client exists
+        const client = await prisma.client.findUnique({
+            where: { id: clientId }
+        });
+        if (!client) throw new Error("Client not found");
+
+        // Clean data (remove isNew, id if temp)
+        const { isNew, id, ...cleanData } = data;
+
+        return prisma.clientTransaction.create({
+            data: {
+                clientId,
+                ...cleanData,
+                // Ensure numeric fields are floats
+                amount: parseFloat(cleanData.amount || 0),
+                paid: parseFloat(cleanData.paid || 0),
+                balance: parseFloat(cleanData.amount || 0) - parseFloat(cleanData.paid || 0),
+                quantity: cleanData.quantity ? parseFloat(cleanData.quantity) : undefined,
+                weight: cleanData.weight ? parseFloat(cleanData.weight) : undefined,
+                rate: cleanData.rate ? parseFloat(cleanData.rate) : undefined,
+                transactionDate: new Date(cleanData.transactionDate),
+                deliveryDate: cleanData.deliveryDate ? new Date(cleanData.deliveryDate) : undefined,
+                paymentDate: cleanData.paymentDate ? new Date(cleanData.paymentDate) : undefined,
+                billingType: cleanData.billingType || 'FLAT', // Default billing type
+                sheetName: cleanData.sheetName ? cleanData.sheetName.toUpperCase() : undefined,
+                paymentMode: cleanData.paymentMode ? cleanData.paymentMode : undefined, // Handle empty string
+                containerCode: cleanData.containerCode ? cleanData.containerCode : undefined,
+                from: cleanData.from || undefined,
+                to: cleanData.to || undefined
+            }
+        });
+    },
+
+    // Update transaction
+    updateTransaction: async (id, data) => {
+        // Prepare data
+        const { isNew, id: _id, ...updateData } = data; // Remove isNew and id from payload
+
+        if (data.amount || data.paid) {
+            // Recalculate balance if amount/paid changes
+            // This is complex without current state, simplified:
+            // Ideally front-end sends full payload or we allow partials. 
+            // For Excel view, usually specific fields update.
+            if (data.amount) updateData.amount = parseFloat(data.amount);
+            if (data.paid) updateData.paid = parseFloat(data.paid);
+            if (data.quantity) updateData.quantity = parseFloat(data.quantity);
+            if (data.weight !== undefined) updateData.weight = data.weight ? parseFloat(data.weight) : null;
+            if (data.rate) updateData.rate = parseFloat(data.rate);
+            if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
+            if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
+            if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
+        }
+
+        // Clean up enums/optional fields
+        if (updateData.paymentMode === "") updateData.paymentMode = null;
+        if (updateData.containerCode === "") updateData.containerCode = null;
+        if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
+        if (updateData.from === "") updateData.from = null;
+        if (updateData.to === "") updateData.to = null;
+
+        return prisma.clientTransaction.update({
+            where: { id },
+            data: updateData
+        });
+    },
+
+    // Delete transaction
+    deleteTransaction: async (id) => {
+        return prisma.clientTransaction.delete({
+            where: { id }
+        });
+    },
 
     // Get Suggestion for Containers
     getContainerSuggestions: async (query) => {
         if (!query) return [];
-        
+
         const suggestions = await prisma.clientTransaction.findMany({
             where: {
                 containerCode: {
@@ -186,12 +209,39 @@ const AccountClientsService = {
         return suggestions.map(s => s.containerCode).filter(Boolean);
     },
 
-    // Get All Containers (for Selection)
+    // Get All Containers (linked with client)
     getClientContainers: async (clientId, filters = {}) => {
         const { origin, dateFrom, dateTo } = filters;
-        
-        // Build where for Master Container
-        const containerWhere = {};
+
+        // 1. Fetch all transactions for this client to find linked container codes and sheet names
+        const transactions = await prisma.clientTransaction.findMany({
+            where: { clientId },
+            select: {
+                containerCode: true,
+                sheetName: true
+            }
+        });
+
+        // Map containerCode to sheetName and collect linked codes
+        const containerToSheet = {};
+        const linkedCodesFromTxns = new Set();
+        transactions.forEach(t => {
+            if (t.containerCode) {
+                linkedCodesFromTxns.add(t.containerCode);
+                if (t.sheetName && !containerToSheet[t.containerCode]) {
+                    containerToSheet[t.containerCode] = t.sheetName;
+                }
+            }
+        });
+
+        // 2. Build where for Master Container - only those linked to this client
+        const containerWhere = {
+            OR: [
+                { loadingSheets: { some: { clientId } } },
+                { containerCode: { in: Array.from(linkedCodesFromTxns) } }
+            ]
+        };
+
         if (origin) {
             containerWhere.origin = { contains: origin, mode: 'insensitive' };
         }
@@ -201,7 +251,7 @@ const AccountClientsService = {
             if (dateTo) containerWhere.loadingDate.lte = new Date(dateTo);
         }
 
-        // Fetch from Master Container table
+        // Fetch linked master containers
         const containers = await prisma.container.findMany({
             where: containerWhere,
             orderBy: { createdAt: 'desc' },
@@ -211,23 +261,6 @@ const AccountClientsService = {
                 origin: true,
                 loadingDate: true,
                 createdAt: true
-            }
-        });
-
-        // Fetch all transactions for this client to find linked sheet names
-        const transactions = await prisma.clientTransaction.findMany({
-            where: { clientId },
-            select: {
-                containerCode: true,
-                sheetName: true
-            }
-        });
-
-        // Map containerCode to sheetName
-        const containerToSheet = {};
-        transactions.forEach(t => {
-            if (t.containerCode && t.sheetName && !containerToSheet[t.containerCode]) {
-                containerToSheet[t.containerCode] = t.sheetName;
             }
         });
 
@@ -256,7 +289,7 @@ const AccountClientsService = {
                 }
             });
         }
-        
+
         return {
             containers: containers.map(c => ({
                 ...c,
@@ -273,7 +306,7 @@ const AccountClientsService = {
     // Rename sheet
     renameSheet: async (clientId, oldSheetName, newSheetName) => {
         if (!newSheetName) throw new Error("New sheet name is required");
-        
+
         return prisma.clientTransaction.updateMany({
             where: {
                 clientId,
@@ -334,7 +367,7 @@ const AccountClientsService = {
             const booking = parseFloat(data.booking || 0);
             const rate = parseFloat(data.rate || 0);
             const paid = parseFloat(data.paid || 0);
-            
+
             updateData.amount = amount;
             updateData.booking = booking;
             updateData.rate = rate;
