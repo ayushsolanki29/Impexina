@@ -63,6 +63,7 @@ model User {
   containerActivities   ContainerActivity[]
   invoiceActivities     InvoiceActivity[]
   warehouseActivities   WarehouseActivity[]
+  clientActivities      ClientActivity[]
 
   uploadedContainerImages ContainerImage[] @relation("uploadedImages")
   deletedContainerImages  ContainerImage[] @relation("deletedImages")
@@ -1209,8 +1210,9 @@ model ClientActivity {
   client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   type        ActivityType
   description String
-  userId      String?
-  userName    String?
+  userId      Int
+  user        User         @relation(fields: [userId], references: [id])
+  userName    String? // Keep for redundancy if needed, but relation is better
 
   metadata  Json?
   createdAt DateTime @default(now())

@@ -73,7 +73,7 @@ const clientsService = {
       await prisma.clientActivity.create({
         data: {
           clientId: client.id,
-          userId: String(user.id),
+          userId: user.id,
           userName: user.name,
           type: 'CREATE',
           description: `Created client: ${client.name}`,
@@ -110,7 +110,7 @@ const clientsService = {
       await prisma.clientActivity.create({
         data: {
           clientId,
-          userId: String(user.id),
+          userId: user.id,
           userName: user.name,
           type: 'UPDATE',
           description: `Updated client: ${client.name}`,

@@ -294,7 +294,7 @@ const containerService = {
       prisma.containerActivity.findMany({
         where,
         include: {
-          user: { select: { name: true, username: true } },
+          user: { select: { name: true, username: true, role: true } },
           container: { select: { containerCode: true } }
         },
         orderBy: { createdAt: 'desc' },

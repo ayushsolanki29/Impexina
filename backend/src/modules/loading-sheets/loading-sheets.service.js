@@ -69,14 +69,14 @@ const loadingSheetService = {
 
     // 2. If no ID, or not found, try to find by Container + Mark (Legacy/Duplicate check)
     if (!loadingSheet && shippingMark) {
-        loadingSheet = await prisma.loadingSheet.findFirst({
-            where: {
-            containerId,
-            shippingMark: shippingMark,
-            },
-            include: { items: true }
-        });
-        if (loadingSheet) oldSheet = JSON.parse(JSON.stringify(loadingSheet));
+      loadingSheet = await prisma.loadingSheet.findFirst({
+        where: {
+          containerId,
+          shippingMark: shippingMark,
+        },
+        include: { items: true }
+      });
+      if (loadingSheet) oldSheet = JSON.parse(JSON.stringify(loadingSheet));
     }
 
     const changes = [];
@@ -84,12 +84,12 @@ const loadingSheetService = {
     if (loadingSheet) {
       // Update existing
       if (shippingMark !== loadingSheet.shippingMark) {
-          changes.push({ field: 'shippingMark', old: loadingSheet.shippingMark, new: shippingMark });
+        changes.push({ field: 'shippingMark', old: loadingSheet.shippingMark, new: shippingMark });
       }
       if (clientName !== loadingSheet.clientName) {
-          changes.push({ field: 'clientName', old: loadingSheet.clientName, new: clientName });
+        changes.push({ field: 'clientName', old: loadingSheet.clientName, new: clientName });
       }
-      
+
       loadingSheet = await prisma.loadingSheet.update({
         where: { id: loadingSheet.id },
         data: {
@@ -104,7 +104,7 @@ const loadingSheetService = {
       const oldItemCount = oldSheet?.items?.length || 0;
       const newItemCount = items?.length || 0;
       if (oldItemCount !== newItemCount) {
-          changes.push({ field: 'itemsCount', old: oldItemCount, new: newItemCount });
+        changes.push({ field: 'itemsCount', old: oldItemCount, new: newItemCount });
       }
 
       // Delete existing items to replace with new ones
@@ -149,29 +149,29 @@ const loadingSheetService = {
 
     // Log activities
     if (userId) {
-        if (changes.length > 0) {
-            await Promise.all(changes.map(change => 
-                prisma.loadingActivity.create({
-                    data: {
-                        loadingSheetId: loadingSheet.id,
-                        userId,
-                        type: "UPDATE",
-                        field: change.field,
-                        oldValue: change.old ? String(change.old) : null,
-                        newValue: change.new ? String(change.new) : null
-                    }
-                })
-            ));
-        } else if (!oldSheet) {
-            await prisma.loadingActivity.create({
-                data: {
-                    loadingSheetId: loadingSheet.id,
-                    userId,
-                    type: "CREATE",
-                    newValue: shippingMark || 'General'
-                }
-            });
-        }
+      if (changes.length > 0) {
+        await Promise.all(changes.map(change =>
+          prisma.loadingActivity.create({
+            data: {
+              loadingSheetId: loadingSheet.id,
+              userId,
+              type: "UPDATE",
+              field: change.field,
+              oldValue: change.old ? String(change.old) : null,
+              newValue: change.new ? String(change.new) : null
+            }
+          })
+        ));
+      } else if (!oldSheet) {
+        await prisma.loadingActivity.create({
+          data: {
+            loadingSheetId: loadingSheet.id,
+            userId,
+            type: "CREATE",
+            newValue: shippingMark || 'General'
+          }
+        });
+      }
     }
 
     // Recalculate totals
@@ -200,10 +200,10 @@ const loadingSheetService = {
     const { loadingSheetId, containerId, search, page = 1, limit = 20 } = filters;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const where = {};
-    
+
     if (loadingSheetId) where.loadingSheetId = loadingSheetId;
     if (containerId) {
-        where.loadingSheet = { containerId };
+      where.loadingSheet = { containerId };
     }
 
     if (search) {
@@ -221,11 +221,11 @@ const loadingSheetService = {
       prisma.loadingActivity.findMany({
         where,
         include: {
-          user: { select: { name: true, username: true } },
+          user: { select: { name: true, username: true, role: true } },
           loadingSheet: {
-              include: {
-                  container: { select: { containerCode: true } }
-              }
+            include: {
+              container: { select: { containerCode: true } }
+            }
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -335,14 +335,14 @@ const loadingSheetService = {
     }
 
     if (userId) {
-        await prisma.loadingActivity.create({
-            data: {
-                loadingSheetId: id,
-                userId,
-                type: "DELETE",
-                newValue: sheet.shippingMark || 'General'
-            }
-        });
+      await prisma.loadingActivity.create({
+        data: {
+          loadingSheetId: id,
+          userId,
+          type: "DELETE",
+          newValue: sheet.shippingMark || 'General'
+        }
+      });
     }
 
     await prisma.loadingSheet.delete({
@@ -351,7 +351,7 @@ const loadingSheetService = {
 
     // Recalculate totals if container exists
     if (sheet.containerId) {
-       await containerService.recalculateContainerTotals(sheet.containerId);
+      await containerService.recalculateContainerTotals(sheet.containerId);
     }
 
     return { message: "Loading sheet deleted successfully" };
@@ -434,16 +434,16 @@ const loadingSheetService = {
     });
 
     if (userId) {
-        await prisma.loadingActivity.create({
-            data: {
-                loadingSheetId: id,
-                userId,
-                type: "STATUS_CHANGE",
-                field: "status",
-                oldValue: sheet.status,
-                newValue: status
-            },
-        });
+      await prisma.loadingActivity.create({
+        data: {
+          loadingSheetId: id,
+          userId,
+          type: "STATUS_CHANGE",
+          field: "status",
+          oldValue: sheet.status,
+          newValue: status
+        },
+      });
     }
 
     return updated;
