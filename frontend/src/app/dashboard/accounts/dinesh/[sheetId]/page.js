@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Printer, FileDown, Eye, PlusCircle, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { dineshbhaiAPI } from "@/services/dineshbhai.service";
 import DineshPreviewModal from "./_components/DineshPreviewModal";
 
@@ -99,7 +100,7 @@ export default function DineshSheetPage() {
         if (isPreviewOpen) {
           setIsPreviewOpen(false);
         } else {
-          router.push("/dashboard/accounts/dinesh");
+          router.push("/dashboard/accounts");
         }
         return;
       }
@@ -254,13 +255,13 @@ export default function DineshSheetPage() {
       {/* Top bar: back + title + actions */}
       <div className="border-b border-slate-200 bg-white">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button
-            onClick={() => router.push("/dashboard/accounts/dinesh")}
+          <Link
+            href="/dashboard/accounts"
             className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
-          </button>
+          </Link>
           <div className="flex items-center gap-3">
             <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider hidden sm:inline">
               Ctrl+S Save · Esc Back

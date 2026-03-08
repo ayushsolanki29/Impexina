@@ -79,7 +79,7 @@ const AccountClientsService = {
             (dateType === "paymentDate") ? "paymentDate" : "transactionDate";
 
         const where = { clientId };
-        if (containerCode) where.containerCode = containerCode;
+        if (containerCode) where.containerCode = { startsWith: containerCode, mode: 'insensitive' };
         if (sheetName) where.sheetName = sheetName;
 
         if (dateFrom || dateTo) {
@@ -188,30 +188,34 @@ const AccountClientsService = {
 
     // Update transaction
     updateTransaction: async (id, data) => {
-        // Prepare data
-        const { isNew, id: _id, ...updateData } = data; // Remove isNew and id from payload
+        // Build update payload with only the fields that are updatable
+        // This prevents sending auto-managed fields like createdAt, updatedAt, clientId, etc.
+        const updateData = {};
 
-        if (data.amount || data.paid) {
-            // Recalculate balance if amount/paid changes
-            // This is complex without current state, simplified:
-            // Ideally front-end sends full payload or we allow partials. 
-            // For Excel view, usually specific fields update.
-            if (data.amount) updateData.amount = parseFloat(data.amount);
-            if (data.paid) updateData.paid = parseFloat(data.paid);
-            if (data.quantity) updateData.quantity = parseFloat(data.quantity);
-            if (data.weight !== undefined) updateData.weight = data.weight ? parseFloat(data.weight) : null;
-            if (data.rate) updateData.rate = parseFloat(data.rate);
-            if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
-            if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
-            if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
-        }
+        // String fields
+        if (data.containerCode !== undefined) updateData.containerCode = data.containerCode || null;
+        if (data.containerMark !== undefined) updateData.containerMark = data.containerMark || null;
+        if (data.particulars !== undefined) updateData.particulars = data.particulars;
+        if (data.billingType !== undefined) updateData.billingType = data.billingType || 'FLAT';
+        if (data.sheetName !== undefined) updateData.sheetName = data.sheetName ? data.sheetName.toUpperCase() : null;
+        if (data.paymentMode !== undefined) updateData.paymentMode = data.paymentMode || null;
+        if (data.paymentRef !== undefined) updateData.paymentRef = data.paymentRef || null;
+        if (data.from !== undefined) updateData.from = data.from || null;
+        if (data.to !== undefined) updateData.to = data.to || null;
+        if (data.notes !== undefined) updateData.notes = data.notes || null;
 
-        // Clean up enums/optional fields
-        if (updateData.paymentMode === "") updateData.paymentMode = null;
-        if (updateData.containerCode === "") updateData.containerCode = null;
-        if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
-        if (updateData.from === "") updateData.from = null;
-        if (updateData.to === "") updateData.to = null;
+        // Numeric fields - always parse to avoid string type errors
+        if (data.amount !== undefined) updateData.amount = parseFloat(data.amount) || 0;
+        if (data.paid !== undefined) updateData.paid = parseFloat(data.paid) || 0;
+        if (data.balance !== undefined) updateData.balance = parseFloat(data.balance) || 0;
+        if (data.quantity !== undefined) updateData.quantity = data.quantity ? parseFloat(data.quantity) : null;
+        if (data.weight !== undefined) updateData.weight = data.weight ? parseFloat(data.weight) : null;
+        if (data.rate !== undefined) updateData.rate = data.rate ? parseFloat(data.rate) : null;
+
+        // Date fields
+        if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
+        if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate);
+        if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
 
         return prisma.clientTransaction.update({
             where: { id },
@@ -254,18 +258,38 @@ const AccountClientsService = {
             where: { clientId },
             select: {
                 containerCode: true,
-                sheetName: true
+                sheetName: true,
+                amount: true,
+                paid: true,
+                rate: true,
+                balance: true
             }
         });
 
         // Map containerCode to sheetName and collect linked codes
         const containerToSheet = {};
         const linkedCodesFromTxns = new Set();
+        // Also compute auto-status per container/sheet
+        const workspaceStats = {}; // key -> { totalRows, filledRows, totalAmount, totalPaid }
         transactions.forEach(t => {
             if (t.containerCode) {
                 linkedCodesFromTxns.add(t.containerCode);
                 if (t.sheetName && !containerToSheet[t.containerCode]) {
                     containerToSheet[t.containerCode] = t.sheetName;
+                }
+            }
+            // Compute stats per workspace key
+            const key = t.containerCode || t.sheetName;
+            if (key) {
+                if (!workspaceStats[key]) {
+                    workspaceStats[key] = { totalRows: 0, filledRows: 0, totalAmount: 0, totalPaid: 0 };
+                }
+                workspaceStats[key].totalRows++;
+                workspaceStats[key].totalAmount += (parseFloat(t.amount) || 0);
+                workspaceStats[key].totalPaid += (parseFloat(t.paid) || 0);
+                // A row is "filled" if it has amount and rate
+                if (t.amount && t.rate) {
+                    workspaceStats[key].filledRows++;
                 }
             }
         });
@@ -326,15 +350,47 @@ const AccountClientsService = {
             });
         }
 
+        // Fetch manual statuses for all workspaces
+        const manualStatuses = await prisma.clientSheetStatus.findMany({
+            where: { clientId }
+        });
+        const statusMap = {};
+        manualStatuses.forEach(s => {
+            statusMap[s.sheetKey] = { completed: s.completed, completedAt: s.completedAt, completedBy: s.completedBy };
+        });
+
+        // Helper to compute status for a workspace
+        const computeStatus = (key) => {
+            const manual = statusMap[key];
+            if (manual && manual.completed) {
+                return { status: 'COMPLETED', manual: true, completedAt: manual.completedAt, completedBy: manual.completedBy };
+            }
+            const stats = workspaceStats[key];
+            if (!stats || stats.totalRows === 0) {
+                return { status: 'PENDING', manual: false };
+            }
+            // Auto-complete: all rows filled + balance is 0
+            const balance = stats.totalAmount - stats.totalPaid;
+            if (stats.filledRows === stats.totalRows && Math.abs(balance) < 0.01) {
+                return { status: 'COMPLETED', manual: false };
+            }
+            if (stats.filledRows > 0 || stats.totalPaid > 0) {
+                return { status: 'IN_PROGRESS', manual: false };
+            }
+            return { status: 'PENDING', manual: false };
+        };
+
         return {
             containers: containers.map(c => ({
                 ...c,
-                sheetName: containerToSheet[c.containerCode] || null
+                sheetName: containerToSheet[c.containerCode] || null,
+                accountStatus: computeStatus(c.containerCode)
             })),
             blankSheets: blankSheets.map(s => ({
                 id: s.sheetName,
                 sheetName: s.sheetName.toUpperCase(),
-                createdAt: s.createdAt
+                createdAt: s.createdAt,
+                accountStatus: computeStatus(s.sheetName?.toUpperCase())
             }))
         };
     },
@@ -395,9 +451,15 @@ const AccountClientsService = {
 
     // Update TRF transaction
     updateTrfTransaction: async (id, data) => {
-        const { isNew, id: _id, ...updateData } = data;
+        // Build update payload with only updatable fields (whitelist approach)
+        const updateData = {};
 
-        // Calculate total and balance if relevant fields changed
+        // String fields
+        if (data.particular !== undefined) updateData.particular = data.particular || "";
+        if (data.paymentMode !== undefined) updateData.paymentMode = data.paymentMode || null;
+        if (data.sheetName !== undefined) updateData.sheetName = data.sheetName ? data.sheetName.toUpperCase() : null;
+
+        // Numeric fields - always parse
         if (data.amount !== undefined || data.booking !== undefined || data.rate !== undefined || data.paid !== undefined) {
             const amount = parseFloat(data.amount || 0);
             const booking = parseFloat(data.booking || 0);
@@ -412,10 +474,9 @@ const AccountClientsService = {
             updateData.balance = updateData.total - paid;
         }
 
+        // Date fields
         if (data.transactionDate) updateData.transactionDate = new Date(data.transactionDate);
         if (data.paymentDate) updateData.paymentDate = new Date(data.paymentDate);
-        if (updateData.paymentMode === "") updateData.paymentMode = null;
-        if (updateData.sheetName) updateData.sheetName = updateData.sheetName.toUpperCase();
 
         return prisma.clientTrfTransaction.update({
             where: { id },
@@ -427,6 +488,35 @@ const AccountClientsService = {
     deleteTrfTransaction: async (id) => {
         return prisma.clientTrfTransaction.delete({
             where: { id }
+        });
+    },
+
+    // ===== Sheet Status Functions =====
+
+    // Get status for a workspace
+    getSheetStatus: async (clientId, sheetKey) => {
+        const status = await prisma.clientSheetStatus.findUnique({
+            where: { clientId_sheetKey: { clientId, sheetKey } }
+        });
+        return status;
+    },
+
+    // Toggle status for a workspace
+    updateSheetStatus: async (clientId, sheetKey, completed, userName) => {
+        return prisma.clientSheetStatus.upsert({
+            where: { clientId_sheetKey: { clientId, sheetKey } },
+            create: {
+                clientId,
+                sheetKey,
+                completed,
+                completedAt: completed ? new Date() : null,
+                completedBy: completed ? userName : null
+            },
+            update: {
+                completed,
+                completedAt: completed ? new Date() : null,
+                completedBy: completed ? userName : null
+            }
         });
     }
 };

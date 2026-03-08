@@ -311,16 +311,26 @@ export default function ClientContainersPage() {
                 const isContainer = item.type === 'CONTAINER';
                 const containerCode = item.containerCode;
                 const sheetName = item.sheetName;
+                const accountStatus = item.accountStatus || { status: 'PENDING', manual: false };
                 
                 const path = isContainer 
                   ? `/dashboard/accounts/clients/${id}?containerCode=${encodeURIComponent(containerCode)}`
                   : `/dashboard/accounts/clients/${id}?sheetName=${encodeURIComponent(sheetName)}`;
 
+                const statusConfig = {
+                  COMPLETED: { label: 'Completed', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', icon: <CheckCircle2 className="w-3 h-3" />, dot: 'bg-emerald-400' },
+                  IN_PROGRESS: { label: 'In Progress', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', icon: <Circle className="w-3 h-3" />, dot: 'bg-amber-400' },
+                  PENDING: { label: 'Pending', bg: 'bg-slate-50', text: 'text-slate-400', border: 'border-slate-100', icon: <Circle className="w-3 h-3" />, dot: 'bg-slate-300' }
+                };
+                const sc = statusConfig[accountStatus.status] || statusConfig.PENDING;
+
                 return (
                   <div 
                     key={idx}
                     onClick={() => router.push(path)}
-                    className="group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md cursor-pointer border-blue-200"
+                    className={`group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md cursor-pointer ${
+                      accountStatus.status === 'COMPLETED' ? 'border-emerald-200' : 'border-blue-200'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${
@@ -339,10 +349,24 @@ export default function ClientContainersPage() {
                     </h4>
                     
                     {isContainer && sheetName && sheetName !== containerCode && (
-                      <p className="text-xs text-slate-500 line-clamp-1 mb-4">
+                      <p className="text-xs text-slate-500 line-clamp-1 mb-3">
                         Sheet: {sheetName}
                       </p>
                     )}
+
+                    {/* Account Status Badge */}
+                    <div className="mb-4">
+                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${sc.bg} ${sc.text} border ${sc.border}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${accountStatus.status === 'IN_PROGRESS' ? 'animate-pulse' : ''}`} />
+                        {sc.label}
+                        {accountStatus.manual && <span className="text-[8px] opacity-60 normal-case tracking-normal ml-1">(manual)</span>}
+                      </div>
+                      {accountStatus.completedBy && (
+                        <p className="text-[9px] text-slate-400 mt-1 font-medium">
+                          by {accountStatus.completedBy}
+                        </p>
+                      )}
+                    </div>
 
                     <div className="border-t border-slate-100 pt-4">
                       <div className="flex items-center justify-between">

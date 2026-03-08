@@ -22,6 +22,10 @@ const server = http.createServer(app);
     console.log("Health check:", `${SERVER_URL}/health`);
     console.log("Started at:", new Date().toLocaleString());
     console.log("========================================\n");
+
+    // Initialize cron jobs
+    const { initBackupCron } = require("./crons/backup.cron");
+    initBackupCron();
   });
 })();
 

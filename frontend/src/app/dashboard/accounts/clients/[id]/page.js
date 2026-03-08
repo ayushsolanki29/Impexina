@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical, CheckCircle2, Circle } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
@@ -108,6 +108,8 @@ export default function ExcelLedgerPage() {
     const [dateRange, setDateRange] = useState({ from: "", to: "", type: "transactionDate" });
 
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+    const [accountStatus, setAccountStatus] = useState({ status: 'PENDING', manual: false });
+    const [statusLoading, setStatusLoading] = useState(false);
     const menuRef = useRef(null);
 
     // Click outside for menu
@@ -124,6 +126,99 @@ export default function ExcelLedgerPage() {
     useEffect(() => {
         fetchData();
     }, [id, containerCode, querySheetName, dateRange.from, dateRange.to]);
+
+    // Fetch account status
+    const manualStatusRef = useRef(false);
+
+    useEffect(() => {
+        if (containerCode || querySheetName) {
+            fetchAccountStatus();
+        }
+    }, [id, containerCode, querySheetName]);
+
+    // Auto-recompute status when transactions change (if not manually overridden)
+    useEffect(() => {
+        if (!manualStatusRef.current && (containerCode || querySheetName) && transactions.length > 0) {
+            computeAutoStatus();
+        }
+    }, [transactions]);
+
+    const fetchAccountStatus = async () => {
+        try {
+            const sheetKey = containerCode || querySheetName;
+            if (!sheetKey) return;
+            const res = await get(`/accounts/clts/${id}/sheet-status?sheetKey=${encodeURIComponent(sheetKey)}`);
+            if (res.success && res.data && res.data.completed) {
+                manualStatusRef.current = true;
+                setAccountStatus({
+                    status: 'COMPLETED',
+                    manual: true,
+                    completedAt: res.data.completedAt,
+                    completedBy: res.data.completedBy
+                });
+            } else {
+                manualStatusRef.current = false;
+                computeAutoStatus();
+            }
+        } catch (error) {
+            console.error('Failed to fetch account status', error);
+        }
+    };
+
+    const computeAutoStatus = () => {
+        if (transactions.length === 0) {
+            setAccountStatus({ status: 'PENDING', manual: false });
+            return;
+        }
+        // Check if key fields are filled for each row
+        const allFilled = transactions.every(t => {
+            const hasAmount = parseFloat(t.amount) > 0;
+            const hasPaid = parseFloat(t.paid) > 0;
+            const hasRate = parseFloat(t.rate) > 0;
+            return hasAmount && hasPaid && hasRate;
+        });
+        const totalAmt = transactions.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+        const totalPd = transactions.reduce((s, t) => s + (parseFloat(t.paid) || 0), 0);
+        const bal = totalAmt - totalPd;
+        
+        if (allFilled && Math.abs(bal) < 0.01) {
+            setAccountStatus({ status: 'COMPLETED', manual: false });
+        } else if (transactions.some(t => parseFloat(t.amount) > 0 || parseFloat(t.paid) > 0)) {
+            setAccountStatus({ status: 'IN_PROGRESS', manual: false });
+        } else {
+            setAccountStatus({ status: 'PENDING', manual: false });
+        }
+    };
+
+    const toggleAccountStatus = async () => {
+        const sheetKey = containerCode || querySheetName;
+        if (!sheetKey) {
+            toast.error('Cannot set status on entire ledger view');
+            return;
+        }
+        try {
+            setStatusLoading(true);
+            const newCompleted = accountStatus.status !== 'COMPLETED';
+            const res = await post(`/accounts/clts/${id}/sheet-status`, {
+                sheetKey,
+                completed: newCompleted
+            });
+            if (res.success) {
+                manualStatusRef.current = newCompleted;
+                setAccountStatus({
+                    status: newCompleted ? 'COMPLETED' : 'PENDING',
+                    manual: newCompleted,
+                    completedAt: res.data.completedAt,
+                    completedBy: res.data.completedBy
+                });
+                toast.success(newCompleted ? 'Marked as Completed' : 'Marked as Incomplete');
+            }
+        } catch (error) {
+            toast.error('Failed to update status');
+        } finally {
+            setStatusLoading(false);
+        }
+    };
 
     // Global Keyboard Shortcuts
     useEffect(() => {
@@ -721,6 +816,33 @@ export default function ExcelLedgerPage() {
                             </h1>
                         </div>
 
+                        {/* Account Status Badge */}
+                        {(containerCode || querySheetName) && (
+                            <button
+                                onClick={toggleAccountStatus}
+                                disabled={statusLoading}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all hover:shadow-sm ${
+                                    accountStatus.status === 'COMPLETED'
+                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                        : accountStatus.status === 'IN_PROGRESS'
+                                            ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                }`}
+                                title={accountStatus.status === 'COMPLETED' ? 'Click to mark incomplete' : 'Click to mark completed'}
+                            >
+                                {statusLoading ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : accountStatus.status === 'COMPLETED' ? (
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                ) : accountStatus.status === 'IN_PROGRESS' ? (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                ) : (
+                                    <Circle className="w-3.5 h-3.5" />
+                                )}
+                                {accountStatus.status === 'COMPLETED' ? 'Completed' : accountStatus.status === 'IN_PROGRESS' ? 'In Progress' : 'Pending'}
+                            </button>
+                        )}
+
                         <div className="hidden md:block h-8 w-px bg-slate-200" />
 
                         <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
@@ -1124,7 +1246,7 @@ export default function ExcelLedgerPage() {
                                             onChange={v => handleUpdateTrfRow(idx, 'particular', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'particular')}
                                             placeholder="Description"
-                                            className="text-slate-900 font-bold"
+                                            className="text-slate-900 font-bold min-w-full"
                                         />
                                     </div>
                                     <div className="px-2 py-1">
@@ -1144,7 +1266,7 @@ export default function ExcelLedgerPage() {
                                             type="number"
                                             onChange={v => handleUpdateTrfRow(idx, 'amount', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'amount')}
-                                            className="text-right text-slate-600 font-semibold"
+                                            className="text-right text-slate-600 font-semibold min-w-full"
                                         />
                                     </div>
                                     <div className="px-2 py-1">
@@ -1154,7 +1276,7 @@ export default function ExcelLedgerPage() {
                                             type="number"
                                             onChange={v => handleUpdateTrfRow(idx, 'booking', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'booking')}
-                                            className="text-right text-slate-500"
+                                            className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
                                     <div className="px-2 py-1">
@@ -1164,7 +1286,7 @@ export default function ExcelLedgerPage() {
                                             type="number"
                                             onChange={v => handleUpdateTrfRow(idx, 'rate', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'rate')}
-                                            className="text-right text-slate-500"
+                                            className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
 
@@ -1176,7 +1298,7 @@ export default function ExcelLedgerPage() {
                                             type="number"
                                             onChange={v => handleUpdateTrfRow(idx, 'total', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'total')}
-                                            className="text-right font-bold text-slate-900 bg-transparent"
+                                            className="text-right font-bold text-slate-900 bg-transparent min-w-full"
                                         />
                                     </div>
 
@@ -1187,7 +1309,7 @@ export default function ExcelLedgerPage() {
                                             type="number"
                                             onChange={v => handleUpdateTrfRow(idx, 'paid', v)}
                                             onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paid')}
-                                            className="text-right text-emerald-600 font-bold"
+                                            className="text-right text-emerald-600 font-bold min-w-full"
                                         />
                                     </div>
                                     <div className="px-2 py-1">

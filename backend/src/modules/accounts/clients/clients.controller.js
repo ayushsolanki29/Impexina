@@ -102,6 +102,30 @@ const renameSheet = async (req, res) => {
   }
 };
 
+// Get sheet status
+const getSheetStatus = async (req, res) => {
+  try {
+    const result = await clientsService.getSheetStatus(req.params.id, req.query.sheetKey);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Update sheet status
+const updateSheetStatus = async (req, res) => {
+  try {
+    const { sheetKey, completed } = req.body;
+    const userName = req.user?.name || 'Unknown';
+    const result = await clientsService.updateSheetStatus(req.params.id, sheetKey, completed, userName);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 // ===== TRF Transaction Functions =====
 
 // Add TRF transaction
@@ -148,5 +172,7 @@ module.exports = {
   renameSheet,
   addTrfTransaction,
   updateTrfTransaction,
-  deleteTrfTransaction
+  deleteTrfTransaction,
+  getSheetStatus,
+  updateSheetStatus
 };

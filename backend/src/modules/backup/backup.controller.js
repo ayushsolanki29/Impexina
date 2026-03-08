@@ -1,4 +1,5 @@
 const backupService = require("./backup.service");
+const { getBackupSettings, saveBackupSettings } = require("../../crons/backup.cron");
 
 class BackupController {
   // List Backups
@@ -22,7 +23,9 @@ class BackupController {
           return res.status(400).json({ success: false, message: "Invalid backup type" });
       }
 
-      const result = await backupService.createBackup(type);
+      // Pass the user info so we can log it
+      const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
+      const result = await backupService.createBackup(type, username);
       res.status(200).json({
         success: true,
         data: result,
@@ -40,11 +43,66 @@ class BackupController {
          return res.status(400).json({ success: false, message: "Filename and type required" });
       }
 
-      const result = await backupService.restoreBackup(filename, type);
+      const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
+      const result = await backupService.restoreBackup(filename, type, username);
       res.status(200).json({
         success: true,
         data: result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+  // Download Backup File
+  async downloadBackup(req, res, next) {
+    try {
+      const { type, filename } = req.params;
+      const user = req.user; // User object from auth middleware
+      
+      if (!['db', 'files'].includes(type)) {
+        return res.status(400).json({ success: false, message: "Invalid backup type" });
+      }
+
+      const { filePath } = await backupService.getDownloadPath(type, filename);
+      
+      // Log the download
+      const username = user ? (user.name || user.email || 'Unknown User') : 'Unknown User';
+      await backupService._log(`Downloaded → ${filename} (by ${username})`);
+      res.download(filePath, filename, (err) => {
+        if (err && !res.headersSent) {
+          res.status(500).json({ success: false, message: "Download failed" });
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get Backup Cron Settings
+  getSettings(req, res, next) {
+    try {
+      const settings = getBackupSettings();
+      res.status(200).json({ success: true, data: settings });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Update Backup Cron Settings
+  updateSettings(req, res, next) {
+    try {
+      const { schedule } = req.body;
+      const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
+      if (!['daily', 'weekly', 'fortnightly', 'monthly'].includes(schedule)) {
+        return res.status(400).json({ success: false, message: "Invalid schedule option" });
+      }
+
+      const success = saveBackupSettings({ schedule }, username);
+      if (success) {
+        res.status(200).json({ success: true, message: "Backup schedule updated successfully" });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to save backup schedule" });
+      }
     } catch (error) {
       next(error);
     }
