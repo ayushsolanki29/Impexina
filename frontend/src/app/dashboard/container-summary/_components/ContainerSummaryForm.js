@@ -16,7 +16,8 @@ import {
     History,
     Download,
     FileSpreadsheet,
-    Eye
+    Eye,
+    Calendar
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -46,6 +47,8 @@ const EMPTY_CONTAINER = {
     dollarRate: 89.7,
     doCharge: 58000,
     cfs: 21830,
+    dutyPercent: 16.5,
+    gstPercent: 18,
     duty: undefined,  // optional override; when set, editable value is used
     gst: undefined,
     shippingLine: "",
@@ -83,6 +86,8 @@ export default function ContainerSummaryForm({
                 sims: c.sims || "",
                 duty: c.duty != null ? c.duty : undefined,
                 gst: c.gst != null ? c.gst : undefined,
+                dutyPercent: c.dutyPercent ?? 16.5,
+                gstPercent: c.gstPercent ?? 18.0,
             }))
             : [{ ...EMPTY_CONTAINER }]
     );
@@ -93,6 +98,11 @@ export default function ContainerSummaryForm({
     const [showPreview, setShowPreview] = useState(false);
     const [activities, setActivities] = useState([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
+    const [dateFilter, setDateFilter] = useState({ 
+        from: "", 
+        to: "", 
+        type: "createdAt" 
+    });
 
     // Fetch global themes on mount
     useEffect(() => {
@@ -150,13 +160,18 @@ export default function ContainerSummaryForm({
         const dollar = Number(c.dollar) || 0;
         const rate = Number(c.dollarRate) || 89.7;
         const inr = dollar * rate;
-        const dutyCalc = inr * 0.165;
+        
+        const dutyPct = Number(c.dutyPercent) ?? 16.5;
+        const gstPct = Number(c.gstPercent) ?? 18;
+
+        const dutyCalc = inr * (dutyPct / 100);
         const totalCalc = inr + dutyCalc;
-        const gstCalc = totalCalc * 0.18;
+        const gstCalc = totalCalc * (gstPct / 100);
+        
         // Use editable duty/gst when set, else calculated
         const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
         const total = inr + duty;
-        const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * 0.18;
+        const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * (gstPct / 100);
         const totalDuty = duty + gst;
         const finalAmount = totalDuty + (Number(c.doCharge) || 0) + (Number(c.cfs) || 0);
 
@@ -172,24 +187,51 @@ export default function ContainerSummaryForm({
         };
     };
 
+    const filteredContainers = useMemo(() => {
+        const withIndices = containers.map((c, i) => ({ ...c, originalIndex: i }));
+        if (!dateFilter.from && !dateFilter.to) return withIndices;
+        return withIndices.filter(c => {
+            let val = c[dateFilter.type];
+            if (!val) return false;
+            val = new Date(val);
+            if (isNaN(val.getTime())) return false;
+            if (dateFilter.from) {
+                const from = new Date(dateFilter.from);
+                from.setHours(0, 0, 0, 0);
+                if (val < from) return false;
+            }
+            if (dateFilter.to) {
+                const to = new Date(dateFilter.to);
+                to.setHours(23, 59, 59, 999);
+                if (val > to) return false;
+            }
+            return true;
+        });
+    }, [containers, dateFilter]);
+
+    const isFiltered = !!(dateFilter.from || dateFilter.to);
+
     const totals = useMemo(() => {
-        return containers.reduce((acc, c) => {
+        return filteredContainers.reduce((acc, c) => {
             const dollar = Number(c.dollar) || 0;
             const rate = Number(c.dollarRate) || 89.7;
             const inr = dollar * rate;
-            const dutyCalc = inr * 0.165;
+            const dutyPct = Number(c.dutyPercent) ?? 16.5;
+            const gstPct = Number(c.gstPercent) ?? 18;
+            const dutyCalc = inr * (dutyPct / 100);
             const totalCalc = inr + dutyCalc;
-            const gstCalc = totalCalc * 0.18;
+            const gstCalc = totalCalc * (gstPct / 100);
             const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
             const total = inr + duty;
-            const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * 0.18;
+            const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * (gstPct / 100);
             const final = duty + gst + (Number(c.doCharge) || 58000) + (Number(c.cfs) || 21830);
             return {
                 ctn: acc.ctn + (Number(c.ctn) || 0),
+                dollar: acc.dollar + dollar,
                 final: acc.final + final
             };
-        }, { ctn: 0, final: 0 });
-    }, [containers]);
+        }, { ctn: 0, dollar: 0, final: 0 });
+    }, [filteredContainers]);
 
     const handleContainerChange = (index, field, value) => {
         const next = [...containers];
@@ -242,6 +284,8 @@ export default function ContainerSummaryForm({
                     ctn: Number(c.ctn) || 0,
                     dollar: Number(c.dollar) || 0,
                     dollarRate: Number(c.dollarRate) || 0,
+                    dutyPercent: Number(c.dutyPercent) || 16.5,
+                    gstPercent: Number(c.gstPercent) || 18.0,
                     duty: c.duty != null && c.duty !== "" ? Number(c.duty) : undefined,
                     gst: c.gst != null && c.gst !== "" ? Number(c.gst) : undefined,
                     doCharge: Number(c.doCharge) || 0,
@@ -286,7 +330,7 @@ export default function ContainerSummaryForm({
         return rule ? { backgroundColor: rule.color } : {};
     };
 
-    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, field: null });
+    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, field: '', containerIdx: -1 });
 
     const handleContextMenu = (e, field) => {
         if (!field) return;
@@ -377,6 +421,16 @@ export default function ContainerSummaryForm({
                         {availableColors.length === 0 && (
                             <div className="py-2 text-[10px] text-slate-400 italic text-center">No colors available</div>
                         )}
+                        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 mt-1">
+                            <div className="flex items-center gap-3 px-1">
+                                <input 
+                                    type="color" 
+                                    className="w-8 h-8 cursor-pointer rounded bg-transparent border-0 outline-none p-0" 
+                                    onChange={(e) => assignColor(contextMenu.field, e.target.value)} 
+                                />
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Custom Color</span>
+                            </div>
+                        </div>
                         <button
                             onClick={() => {
                                 updateColorRules(colorRules.filter(r => r.field !== contextMenu.field));
@@ -464,6 +518,59 @@ export default function ContainerSummaryForm({
                     </div>
                 </header>
 
+                {/* Filter Bar */}
+                <div className="px-6 py-3 border-b bg-slate-50/50 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <select
+                                value={dateFilter.type}
+                                onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
+                                className="bg-transparent text-[10px] font-black text-slate-500 uppercase tracking-widest outline-none border-none cursor-pointer hover:text-blue-600"
+                            >
+                                <option value="createdAt">By Creation Date</option>
+                                <option value="loadingDate">By Loading Date</option>
+                                <option value="eta">By ETA Date</option>
+                                <option value="invoiceDate">By Invoice Date</option>
+                                <option value="deliveryDate">By Delivery Date</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                            <input
+                                type="date"
+                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
+                                value={dateFilter.from}
+                                onChange={(e) => setDateFilter(prev => ({ ...prev, from: e.target.value }))}
+                            />
+                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">to</span>
+                            <input
+                                type="date"
+                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
+                                value={dateFilter.to}
+                                onChange={(e) => setDateFilter(prev => ({ ...prev, to: e.target.value }))}
+                            />
+                            {(dateFilter.from || dateFilter.to) && (
+                                <button
+                                    onClick={() => setDateFilter(prev => ({ ...prev, from: "", to: "" }))}
+                                    className="ml-1 p-0.5 text-slate-300 hover:text-red-500 transition-colors"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        {filteredContainers.length < containers.length && (
+                            <div className="flex items-center gap-2 py-1 px-3 bg-blue-50 text-blue-600 rounded-full border border-blue-100 animate-in fade-in slide-in-from-right-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]" />
+                                Showing {filteredContainers.length} of {containers.length} Rows
+                            </div>
+                        )}
+                        <div className="hidden sm:block">Filter View Only — Saving preserves all {containers.length} rows</div>
+                    </div>
+                </div>
+
 
                 {/* Workspace */}
                 <main className="flex-1 overflow-auto bg-slate-50/20">
@@ -481,16 +588,16 @@ export default function ContainerSummaryForm({
                                         { label: 'Dollar ($)', field: 'dollar', width: 'min-w-[100px] text-right' },
                                         { label: 'Rate', field: 'dollarRate', width: 'min-w-[80px] text-right' },
                                         { label: 'INR', field: 'inr', width: 'min-w-[110px] text-right text-slate-600' },
-                                        { label: 'Duty 16.5%', field: 'duty', width: 'min-w-[110px] text-right text-slate-700' },
+                                        { label: 'Duty', field: 'duty', width: 'min-w-[130px] text-right text-slate-700' },
                                         { label: 'Total', field: 'total', width: 'min-w-[110px] text-right text-slate-700' },
-                                        { label: 'GST 18%', field: 'gst', width: 'min-w-[110px] text-right text-violet-700' },
+                                        { label: 'GST', field: 'gst', width: 'min-w-[130px] text-right text-violet-700' },
                                         { label: 'Total Duty', field: 'totalDuty', width: 'min-w-[120px] text-right font-bold text-slate-900' },
                                         { label: 'DO Charge', field: 'doCharge', width: 'min-w-[100px] text-right' },
                                         { label: 'CFS', field: 'cfs', width: 'min-w-[90px] text-right' },
                                         { label: 'Final Amt', field: 'finalAmount', width: 'min-w-[140px] text-right font-bold text-blue-600' },
                                         { label: 'Line', field: 'shippingLine', width: 'min-w-[120px]' },
                                         { label: 'BL Doc', field: 'bl', width: 'min-w-[120px]' },
-                                        { label: 'Unit No.', field: 'containerNo', width: 'min-w-[120px]' },
+                                        { label: 'Container No.', field: 'containerNo', width: 'min-w-[120px]' },
                                         { label: 'Origin Port', field: 'origin', width: 'min-w-[130px] text-blue-600 font-bold' },
                                         { label: 'Location', field: 'location', width: 'min-w-[130px]' },
                                         { label: 'Shipper', field: 'shipper', width: 'min-w-[150px]' },
@@ -526,29 +633,32 @@ export default function ContainerSummaryForm({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
-                                {containers.map((c, idx) => {
+                                {filteredContainers.map((c, visibleIdx) => {
                                     const calc = calculateFields(c);
+                                    const idx = c.originalIndex;
                                     return (
                                         <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="w-10 border-r border-slate-100 bg-slate-50/20">
-                                                <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
-                                                    <button
-                                                        onClick={() => moveContainer(idx, 'up')}
-                                                        disabled={idx === 0}
-                                                        className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
-                                                    >
-                                                        <ChevronUp className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => moveContainer(idx, 'down')}
-                                                        disabled={idx === containers.length - 1}
-                                                        className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
-                                                    >
-                                                        <ChevronDown className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
+                                                {!isFiltered && (
+                                                    <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <button
+                                                            onClick={() => moveContainer(idx, 'up')}
+                                                            disabled={idx === 0}
+                                                            className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                                                        >
+                                                            <ChevronUp className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => moveContainer(idx, 'down')}
+                                                            disabled={idx === containers.length - 1}
+                                                            className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                                                        >
+                                                            <ChevronDown className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
-                                            <td className="px-5 py-3 text-center text-slate-300 font-bold border-r border-slate-100" style={getStyleForField('no')}>{idx + 1}</td>
+                                            <td className="px-5 py-3 text-center text-slate-300 font-bold border-r border-slate-100" style={getStyleForField('no')}>{visibleIdx + 1}</td>
 
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerCode')} style={getStyleForField('containerCode')}>
                                                 <input
@@ -589,27 +699,57 @@ export default function ContainerSummaryForm({
                                             <td className="px-4 text-right font-medium text-slate-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'inr')} style={getStyleForField('inr')}>₹{calc.inr}</td>
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'duty')} style={getStyleForField('duty')}>
                                                 {(isEdit || isCreate) ? (
-                                                    <input
-                                                        type="number"
-                                                        className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-slate-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
-                                                        value={c.duty != null && c.duty !== "" ? c.duty : calc.dutyRaw}
-                                                        onChange={e => handleContainerChange(idx, 'duty', e.target.value)}
-                                                    />
+                                                    <div className="flex flex-col group/cell">
+                                                        <div className="flex items-center justify-end gap-1 pr-3 pt-1 border-b border-slate-50/50 bg-slate-50/30">
+                                                            <input
+                                                                type="number"
+                                                                step="0.1"
+                                                                className="w-12 text-[9px] text-right font-black text-slate-400 bg-transparent outline-none focus:text-blue-600 transition-colors"
+                                                                value={c.dutyPercent ?? 16.5}
+                                                                onChange={e => handleContainerChange(idx, 'dutyPercent', e.target.value)}
+                                                            />
+                                                            <span className="text-[9px] font-black text-slate-300">%</span>
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-slate-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
+                                                            value={c.duty != null && c.duty !== "" ? c.duty : calc.dutyRaw}
+                                                            onChange={e => handleContainerChange(idx, 'duty', e.target.value)}
+                                                        />
+                                                    </div>
                                                 ) : (
-                                                    <span className="block px-4 py-3 text-right font-bold text-slate-700 tabular-nums">₹{calc.duty}</span>
+                                                    <div className="flex flex-col py-2 px-4 gap-0.5">
+                                                        <span className="text-[9px] font-black text-slate-300 text-right uppercase tracking-wider">{c.dutyPercent}% Tax</span>
+                                                        <span className="block text-right font-bold text-slate-700 tabular-nums">₹{calc.duty}</span>
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-4 text-right font-bold text-slate-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'total')} style={getStyleForField('total')}>₹{calc.total}</td>
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'gst')} style={getStyleForField('gst')}>
                                                 {(isEdit || isCreate) ? (
-                                                    <input
-                                                        type="number"
-                                                        className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-violet-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
-                                                        value={c.gst != null && c.gst !== "" ? c.gst : calc.gstRaw}
-                                                        onChange={e => handleContainerChange(idx, 'gst', e.target.value)}
-                                                    />
+                                                    <div className="flex flex-col group/cell">
+                                                        <div className="flex items-center justify-end gap-1 pr-3 pt-1 border-b border-slate-50/50 bg-slate-50/30">
+                                                            <input
+                                                                type="number"
+                                                                step="0.1"
+                                                                className="w-12 text-[9px] text-right font-black text-slate-400 bg-transparent outline-none focus:text-violet-600 transition-colors"
+                                                                value={c.gstPercent ?? 18}
+                                                                onChange={e => handleContainerChange(idx, 'gstPercent', e.target.value)}
+                                                            />
+                                                            <span className="text-[9px] font-black text-slate-300">%</span>
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            className="w-full h-10 px-3 bg-transparent outline-none text-right font-bold text-violet-700 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 tabular-nums"
+                                                            value={c.gst != null && c.gst !== "" ? c.gst : calc.gstRaw}
+                                                            onChange={e => handleContainerChange(idx, 'gst', e.target.value)}
+                                                        />
+                                                    </div>
                                                 ) : (
-                                                    <span className="block px-4 py-3 text-right font-bold text-violet-700 tabular-nums">₹{calc.gst}</span>
+                                                    <div className="flex flex-col py-2 px-4 gap-0.5">
+                                                        <span className="text-[9px] font-black text-slate-300 text-right uppercase tracking-wider">{c.gstPercent}% Tax</span>
+                                                        <span className="block text-right font-bold text-violet-700 tabular-nums">₹{calc.gst}</span>
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-4 text-right font-bold text-slate-900 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'totalDuty')} style={getStyleForField('totalDuty')}>₹{calc.totalDuty}</td>
@@ -631,7 +771,7 @@ export default function ContainerSummaryForm({
                                                 <input className="w-full h-10 px-5 bg-transparent outline-none font-bold text-slate-400" value={c.bl || ""} placeholder="BL #" onChange={e => handleContainerChange(idx, 'bl', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerNo')} style={getStyleForField('containerNo')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none text-slate-400 font-medium" value={c.containerNo || ""} placeholder="UNIT ID" onChange={e => handleContainerChange(idx, 'containerNo', e.target.value)} disabled={!isEdit && !isCreate} />
+                                                <input className="w-full h-10 px-5 bg-transparent outline-none text-slate-400 font-medium" value={c.containerNo || ""} placeholder="CONTAINER NO." onChange={e => handleContainerChange(idx, 'containerNo', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'origin')} style={getStyleForField('origin')}>
@@ -698,6 +838,12 @@ export default function ContainerSummaryForm({
                                     <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                     Add Row <span className="ml-2 text-[8px] opacity-40 px-1.5 py-0.5 border border-slate-200 rounded">ALT + N</span>
                                 </button>
+                                {isFiltered && (
+                                    <div className="mt-4 flex items-center gap-2 py-2 px-4 bg-amber-50 rounded-lg border border-amber-100 text-[10px] font-bold text-amber-600 uppercase tracking-widest animate-in fade-in slide-in-from-bottom-2">
+                                        <History className="w-3.5 h-3.5" />
+                                        Sorting is disabled while filter is active
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -784,6 +930,14 @@ export default function ContainerSummaryForm({
                                                             <button key={c} onClick={() => { const nr = [...colorRules]; nr[idx].color = c; updateColorRules(nr); }} className={`w-6 h-6 rounded-full border transition-all ${rule.color === c ? 'border-blue-500 ring-2 ring-blue-50' : 'border-white'}`} style={{ backgroundColor: c }} />
                                                         );
                                                     })}
+                                                    <div className="flex items-center justify-center w-6 h-6 rounded-full border border-slate-200 relative overflow-hidden">
+                                                        <input 
+                                                            type="color" 
+                                                            className="absolute inset-[-10px] w-[200%] h-[200%] cursor-pointer border-0 p-0" 
+                                                            value={rule.color}
+                                                            onChange={(e) => { const nr = [...colorRules]; nr[idx].color = e.target.value; updateColorRules(nr); }} 
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Color Role</label>
@@ -888,7 +1042,7 @@ export default function ContainerSummaryForm({
                 showPreview && (
                     <ContainerSummaryPreview
                         summary={formData}
-                        containers={containers}
+                        containers={filteredContainers}
                         onClose={() => setShowPreview(false)}
                     />
                 )

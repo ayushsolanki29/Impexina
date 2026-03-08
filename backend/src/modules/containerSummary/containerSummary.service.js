@@ -21,12 +21,14 @@ const containerSummaryService = {
       const totals = containers.reduce(
         (acc, container) => {
           const inr = container.dollar * container.dollarRate;
-          const dutyCalc = inr * 0.165;
+          const dutyPercent = container.dutyPercent ?? 16.5;
+          const gstPercent = container.gstPercent ?? 18.0;
+          const dutyCalc = inr * (dutyPercent / 100);
           const totalCalc = inr + dutyCalc;
-          const gstCalc = totalCalc * 0.18;
+          const gstCalc = totalCalc * (gstPercent / 100);
           const duty = container.duty != null ? Number(container.duty) : dutyCalc;
           const total = inr + duty;
-          const gst = container.gst != null ? Number(container.gst) : total * 0.18;
+          const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
           const totalDuty = duty + gst;
           const finalAmount = totalDuty + container.doCharge + container.cfs;
 
@@ -61,12 +63,14 @@ const containerSummaryService = {
           containers: {
             create: containers.map((container, index) => {
               const inr = container.dollar * container.dollarRate;
-              const dutyCalc = inr * 0.165;
+              const dutyPercent = container.dutyPercent ?? 16.5;
+              const gstPercent = container.gstPercent ?? 18.0;
+              const dutyCalc = inr * (dutyPercent / 100);
               const totalCalc = inr + dutyCalc;
-              const gstCalc = totalCalc * 0.18;
+              const gstCalc = totalCalc * (gstPercent / 100);
               const duty = container.duty != null ? Number(container.duty) : dutyCalc;
               const total = inr + duty;
-              const gst = container.gst != null ? Number(container.gst) : total * 0.18;
+              const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
               const totalDuty = duty + gst;
               const finalAmount =
                 totalDuty + container.doCharge + container.cfs;
@@ -84,6 +88,8 @@ const containerSummaryService = {
                 dollarRate: container.dollarRate || 89.7,
                 doCharge: container.doCharge || 58000,
                 cfs: container.cfs || 21830,
+                dutyPercent: container.dutyPercent ?? 16.5,
+                gstPercent: container.gstPercent ?? 18.0,
                 inr: parseFloat(inr.toFixed(2)),
                 duty: parseFloat(duty.toFixed(2)),
                 total: parseFloat(total.toFixed(2)),
@@ -322,12 +328,14 @@ const containerSummaryService = {
         totals = containers.reduce(
           (acc, container) => {
             const inr = container.dollar * container.dollarRate;
-            const dutyCalc = inr * 0.165;
+            const dutyPercent = container.dutyPercent ?? 16.5;
+            const gstPercent = container.gstPercent ?? 18.0;
+            const dutyCalc = inr * (dutyPercent / 100);
             const totalCalc = inr + dutyCalc;
-            const gstCalc = totalCalc * 0.18;
+            const gstCalc = totalCalc * (gstPercent / 100);
             const duty = container.duty != null ? Number(container.duty) : dutyCalc;
             const total = inr + duty;
-            const gst = container.gst != null ? Number(container.gst) : total * 0.18;
+            const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
             const totalDuty = duty + gst;
             const finalAmount = totalDuty + container.doCharge + container.cfs;
 
@@ -399,6 +407,8 @@ const containerSummaryService = {
               dollarRate: container.dollarRate || 89.7,
               doCharge: container.doCharge || 58000,
               cfs: container.cfs || 21830,
+              dutyPercent: container.dutyPercent ?? 16.5,
+              gstPercent: container.gstPercent ?? 18.0,
               inr: parseFloat(inr.toFixed(2)),
               duty: parseFloat(duty.toFixed(2)),
               total: parseFloat(total.toFixed(2)),
@@ -582,9 +592,9 @@ const containerSummaryService = {
         "DOLLAR",
         "DOLLAR RATE",
         "INR",
-        "DUTY 16.5%",
+        "DUTY",
         "TOTAL",
-        "GST 18%",
+        "GST",
         "TOTAL DUTY",
         "DO CHARGE",
         "CFS",
@@ -703,8 +713,8 @@ const containerSummaryService = {
         "DOLLAR",
         "DOLLAR RATE",
         "INR",
-        "DUTY 16.5%",
-        "GST 18%",
+        "DUTY",
+        "GST",
         "TOTAL DUTY",
         "DO CHARGE",
         "CFS",

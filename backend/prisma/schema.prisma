@@ -606,6 +606,8 @@ model ContainerInSummary {
   dollarRate Float @default(89.7)
   doCharge   Float @default(58000)
   cfs        Float @default(21830)
+  dutyPercent Float @default(16.5)
+  gstPercent  Float @default(18.0)
 
   // Calculated Fields
   inr         Float @default(0)
