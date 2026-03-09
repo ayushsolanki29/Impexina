@@ -30,4 +30,8 @@ router.delete("/:id/trf-transactions/:txnId", clientsController.deleteTrfTransac
 // Rename Sheet
 router.post("/:id/rename-sheet", clientsController.renameSheet);
 
+// Sheet Status
+router.get("/:id/sheet-status", clientsController.getSheetStatus);
+router.post("/:id/sheet-status", clientsController.updateSheetStatus);
+
 module.exports = router;

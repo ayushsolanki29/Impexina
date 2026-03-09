@@ -32,10 +32,13 @@ function calc(c) {
     const rate = Number(c.dollarRate) || 89.7;
     const doCharge = Number(c.doCharge) || 0;
     const cfs = Number(c.cfs) || 0;
+    const dutyPct = Number(c.dutyPercent) ?? 16.5;
+    const gstPct = Number(c.gstPercent) ?? 18;
+    
     const inr = dollar * rate;
-    const duty = inr * 0.165;
+    const duty = inr * (dutyPct / 100);
     const total = inr + duty;
-    const gst = total * 0.18;
+    const gst = total * (gstPct / 100);
     const totalDuty = duty + gst;
     const finalAmount = totalDuty + doCharge + cfs;
     return { dollarRate: rate, inr, duty, total, gst, totalDuty, doCharge, cfs, finalAmount };
@@ -82,7 +85,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
         ...FINANCIAL_COLS,
         { key: "shippingLine", label: "LINE", always: true },
         { key: "bl", label: "BL", always: true },
-        { key: "containerNo", label: "UNIT#", always: true },
+        { key: "containerNo", label: "CONTAINER NO.", always: true },
         ...TRACKING_COLS,
         { key: "sims", label: "SIMS", always: true },
     ];

@@ -90,6 +90,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
 // Preview Modal Component
 const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
     const [showFinancials, setShowFinancials] = useState(true);
+    const previewRef = React.useRef(null);
     const { weightVeryHighThreshold = 69, weightHighThreshold = 75 } = settings;
 
     if (!isOpen) return null;
@@ -105,7 +106,8 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                 totalCbm: item.containerTotalCbm || 0,
                 totalWt: item.containerTotalWt || 0,
                 totalCtn: 0,
-                loadingDate: item.loadingDate
+                loadingDate: item.loadingDate,
+                containerCode: item.containerCode
             };
         }
         if (!groupedData[cCode].itemsByClient[client]) {
@@ -114,6 +116,46 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
         groupedData[cCode].itemsByClient[client].push(item);
         groupedData[cCode].totalCtn += item.ctn;
     });
+
+    const firstContainer = Object.values(groupedData)[0] || {};
+
+    const handlePrint = () => {
+        const content = previewRef.current;
+        if (!content) return;
+
+        const printWindow = window.open('', '_blank', 'width=1200,height=800');
+        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+            .map(s => s.outerHTML)
+            .join('');
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Warehouse Plan - ${firstContainer.containerCode || ''}</title>
+                    ${styles}
+                    <style>
+                        body { background: white !important; margin: 0; padding: 20px; }
+                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        @page { margin: 10mm; size: auto; }
+                    </style>
+                </head>
+                <body>
+                    <div class="bg-white p-8">
+                        ${content.innerHTML}
+                    </div>
+                    <script>
+                        window.onload = () => {
+                            setTimeout(() => {
+                                window.print();
+                                window.close();
+                            }, 500);
+                        };
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
@@ -133,7 +175,7 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                             {showFinancials ? 'Hide Financials' : 'Show Financials'}
                         </button>
                         <button
-                            onClick={() => window.print()}
+                            onClick={handlePrint}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-semibold text-xs shadow-sm"
                         >
                             <Printer className="w-4 h-4" />
@@ -150,7 +192,7 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-100 print:bg-white print:p-0">
-                    <div className="print-area space-y-8 max-w-[1100px] mx-auto bg-white p-12 shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-4 min-h-[1000px]">
+                    <div ref={previewRef} className="print-area space-y-8 max-w-[1100px] mx-auto bg-white p-12 shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-4 min-h-[1000px]">
 
                         {/* Document Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">

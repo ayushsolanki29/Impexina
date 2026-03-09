@@ -81,6 +81,7 @@ export default function ShippingSheetPage() {
           deliveryDate: "",
           freightUSD: 0,
           freightINR: 0,
+          usFreight: 0,
           cha: 0,
           fobTerms: 0,
           cfsDoYard: 0,
@@ -146,6 +147,7 @@ export default function ShippingSheetPage() {
           deliveryDate: entry.deliveryDate || null,
           freightUSD: parseFloat(entry.freightUSD) || 0,
           freightINR: parseFloat(entry.freightINR) || 0,
+          usFreight: parseFloat(entry.usFreight) || 0,
           cha: parseFloat(entry.cha) || 0,
           fobTerms: parseFloat(entry.fobTerms) || 0,
           cfsDoYard: parseFloat(entry.cfsDoYard) || 0,
@@ -197,6 +199,7 @@ export default function ShippingSheetPage() {
             deliveryDate: entry.deliveryDate || null,
             freightUSD: parseFloat(entry.freightUSD) || 0,
             freightINR: parseFloat(entry.freightINR) || 0,
+            usFreight: parseFloat(entry.usFreight) || 0,
             cha: parseFloat(entry.cha) || 0,
             fobTerms: parseFloat(entry.fobTerms) || 0,
             cfsDoYard: parseFloat(entry.cfsDoYard) || 0,
@@ -250,6 +253,7 @@ export default function ShippingSheetPage() {
       deliveryDate: "",
       freightUSD: 0,
       freightINR: 0,
+      usFreight: 0,
       cha: 0,
       fobTerms: 0,
       cfsDoYard: 0,
@@ -297,6 +301,7 @@ export default function ShippingSheetPage() {
       (acc, curr) => {
         const freightINR = parseFloat(curr.freightINR) || 0;
         const freightUSD = parseFloat(curr.freightUSD) || 0;
+        const usFreight = parseFloat(curr.usFreight) || 0;
         const cha = parseFloat(curr.cha) || 0;
         const fobTerms = parseFloat(curr.fobTerms) || 0;
         const cfsDoYard = parseFloat(curr.cfsDoYard) || 0;
@@ -314,6 +319,7 @@ export default function ShippingSheetPage() {
           totalCTN: acc.totalCTN + (parseInt(curr.ctn) || 0),
           totalFreightUSD: acc.totalFreightUSD + freightUSD,
           totalFreightINR: acc.totalFreightINR + freightINR,
+          totalUSFreight: acc.totalUSFreight + usFreight,
           totalCHA: acc.totalCHA + cha,
           totalFOBTerms: acc.totalFOBTerms + fobTerms,
           totalCFSDoYard: acc.totalCFSDoYard + cfsDoYard,
@@ -334,6 +340,7 @@ export default function ShippingSheetPage() {
         totalCTN: 0,
         totalFreightUSD: 0,
         totalFreightINR: 0,
+        totalUSFreight: 0,
         totalCHA: 0,
         totalFOBTerms: 0,
         totalCFSDoYard: 0,
@@ -380,6 +387,7 @@ export default function ShippingSheetPage() {
 
   const calculateEntryTotal = (entry) => {
     const freightINR = parseFloat(entry.freightINR) || 0;
+    const usFreight = parseFloat(entry.usFreight) || 0;
     const cha = parseFloat(entry.cha) || 0;
     const fobTerms = parseFloat(entry.fobTerms) || 0;
     const cfsDoYard = parseFloat(entry.cfsDoYard) || 0;
@@ -390,7 +398,7 @@ export default function ShippingSheetPage() {
     const trucking = parseFloat(entry.trucking) || 0;
     const loadingUnloading = parseFloat(entry.loadingUnloading) || 0;
 
-    return freightINR + cha + fobTerms + cfsDoYard + scanning + simsPims + duty + penalty + trucking + loadingUnloading;
+    return freightINR + usFreight + cha + fobTerms + cfsDoYard + scanning + simsPims + duty + penalty + trucking + loadingUnloading;
   };
 
   const CostBreakdownModal = ({ entry, onClose }) => {
@@ -400,6 +408,7 @@ export default function ShippingSheetPage() {
 
     const costItems = [
       { label: "Freight (INR)", value: entry.freightINR, color: "text-blue-600", icon: <Ship className="w-4 h-4" /> },
+      { label: "US Freight", value: entry.usFreight, color: "text-cyan-600", icon: <DollarSign className="w-4 h-4" /> },
       { label: "CHA", value: entry.cha, color: "text-indigo-600", icon: <FileDigit className="w-4 h-4" /> },
       { label: "FOB Terms", value: entry.fobTerms, color: "text-purple-600", icon: <Receipt className="w-4 h-4" /> },
       { label: "CFS/DO/Yard", value: entry.cfsDoYard, color: "text-amber-600", icon: <Package className="w-4 h-4" /> },
@@ -485,6 +494,7 @@ export default function ShippingSheetPage() {
       ctn: "",
       freightINR: "",
       freightUSD: "",
+      usFreight: "",
       cha: "",
       fobTerms: "",
       cfsDoYard: "",
@@ -507,6 +517,7 @@ export default function ShippingSheetPage() {
         deliveryDate: "",
         freightUSD: parseFloat(formData.freightUSD) || 0,
         freightINR: parseFloat(formData.freightINR) || 0,
+        usFreight: parseFloat(formData.usFreight) || 0,
         cha: parseFloat(formData.cha) || 0,
         fobTerms: parseFloat(formData.fobTerms) || 0,
         cfsDoYard: parseFloat(formData.cfsDoYard) || 0,
@@ -527,6 +538,7 @@ export default function ShippingSheetPage() {
         ctn: "",
         freightINR: "",
         freightUSD: "",
+        usFreight: "",
         cha: "",
         fobTerms: "",
         cfsDoYard: "",
@@ -724,6 +736,7 @@ export default function ShippingSheetPage() {
                 ctn: "",
                 freightINR: "",
                 freightUSD: "",
+                usFreight: "",
                 cha: "",
                 fobTerms: "",
                 cfsDoYard: "",
@@ -1031,6 +1044,7 @@ export default function ShippingSheetPage() {
                   <th className="p-4 text-left min-w-[180px]">Container Details</th>
                   <th className="p-4 text-left min-w-[120px]">Dates</th>
                   <th className="p-4 text-right min-w-[120px]">Freight (INR)</th>
+                  <th className="p-4 text-right min-w-[120px]">US Freight</th>
                   {showAllCharges && (
                     <>
                       <th className="p-4 text-right min-w-[100px]">CHA</th>
@@ -1144,6 +1158,17 @@ export default function ShippingSheetPage() {
                               {formatCurrencyUSD(entry.freightUSD || 0)}
                             </div>
                           </div>
+                        </td>
+
+                        <td className="p-4">
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="w-full px-3 py-2 text-right border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:bg-white bg-transparent outline-none font-mono font-bold text-cyan-700"
+                            placeholder="0"
+                            value={entry.usFreight || ""}
+                            onChange={(e) => updateRow(entry.id, "usFreight", e.target.value)}
+                          />
                         </td>
 
                         {showAllCharges && (

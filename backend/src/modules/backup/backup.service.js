@@ -4,133 +4,427 @@ const path = require("path");
 const util = require("util");
 const execPromise = util.promisify(exec);
 
-// Path configuration - Should ideally be in ENV
-const BACKUP_BASE_DIR = "/var/backups/impexina";
-// We will use the scripts provided in the user manual
-// Assume scripts are in /home/deploy in production, but for now we might trigger them or simulate
-const SCRIPT_DIR = "/home/deploy";
+// ============================================================
+// PATH CONFIGURATION
+// Production:  /root/apps/backup/db, /root/apps/backup/files
+// Dev/Windows: F:\Projects\Impexina\backup\db, backup\files
+// ============================================================
+
+const IS_WINDOWS = process.platform === "win32";
+
+// Auto-detect paths based on environment
+const APP_ROOT = IS_WINDOWS
+  ? path.resolve(__dirname, "../../../../") // F:\Projects\Impexina
+  : process.env.APP_ROOT || "/root/apps/impexina";
+
+const BACKUP_DIR = IS_WINDOWS
+  ? path.join(APP_ROOT, "backup")
+  : process.env.BACKUP_DIR || "/root/apps/backup";
+
+const FRONTEND_DIR = IS_WINDOWS
+  ? path.join(APP_ROOT, "frontend")
+  : process.env.FRONTEND_DIR || "/root/apps/impexina/frontend";
+
+const BACKEND_DIR = IS_WINDOWS
+  ? path.join(APP_ROOT, "backend")
+  : process.env.BACKEND_DIR || "/root/apps/impexina/backend";
+
+const DATABASE_URL = process.env.DATABASE_URL || "";
+
+// Sub-directories
+const DB_BACKUP_DIR = path.join(BACKUP_DIR, "db");
+const FILES_BACKUP_DIR = path.join(BACKUP_DIR, "files");
+const LOGS_DIR = path.join(BACKUP_DIR, "logs");
+const LOG_FILE = path.join(LOGS_DIR, "backup.log");
 
 class BackupService {
   /**
-   * List all backups
-   * @returns {object} { db: [], uploads: [] }
+   * Ensure backup directories exist
    */
-  async listBackups() {
-    // In Windows Dev environment, we might not have these paths.
-    // We'll return mock data if not on Linux or if directory doesn't exist, 
-    // to allow frontend development.
-    if (process.platform === "win32") {
-      return {
-        db: [
-          { name: "impexina_2024-05-20.sql.gz", size: "1.2MB", date: "2024-05-20" },
-          { name: "impexina_2024-05-21.sql.gz", size: "1.3MB", date: "2024-05-21" },
-        ],
-        uploads: [
-          { name: "uploads_2024-05-20.tar.gz", size: "150MB", date: "2024-05-20" },
-        ],
-        logs: [
-            "2024-05-20 ✅ Database backup successful",
-            "2024-05-20 ✅ Files backup successful"
-        ]
-      };
-    }
-
-    try {
-      // Create directories if they don't exist (recursive)
-      // Actually we are reading, so just try to read
-      const dbBackups = await this._listFiles(path.join(BACKUP_BASE_DIR, "db"));
-      const uploadBackups = await this._listFiles(path.join(BACKUP_BASE_DIR, "uploads"));
-      
-      let logs = [];
-      try {
-        const logContent = await fs.promises.readFile(path.join(BACKUP_BASE_DIR, "logs/backup.log"), 'utf-8');
-        logs = logContent.split('\n').filter(Boolean).slice(-20).reverse(); // Last 20 logs
-      } catch (e) {
-        logs = ["No logs found"];
-      }
-
-      return {
-        db: dbBackups,
-        uploads: uploadBackups,
-        logs
-      };
-    } catch (error) {
-      console.error("Error listing backups:", error);
-      // Return empty if directory not found
-      return { db: [], uploads: [], logs: [] };
+  async _ensureDirs() {
+    for (const dir of [DB_BACKUP_DIR, FILES_BACKUP_DIR, LOGS_DIR]) {
+      await fs.promises.mkdir(dir, { recursive: true });
     }
   }
 
+  /**
+   * Append timestamped log entry
+   */
+  async _log(message) {
+    try {
+      await this._ensureDirs();
+      const timestamp = new Date().toISOString().replace("T", " ").split(".")[0];
+      await fs.promises.appendFile(LOG_FILE, `${timestamp} ${message}\n`);
+    } catch (e) {
+      console.error("Failed to write backup log:", e.message);
+    }
+  }
+
+  /**
+   * Helper to retrieve only the last N lines safely (using a 64KB tail chunk)
+   */
+  async _readTailLines(filePath, numLines = 30) {
+    try {
+      const stats = await fs.promises.stat(filePath);
+      const chunkSize = 64 * 1024; // 64KB limit to prevent memory bloat
+      const start = Math.max(0, stats.size - chunkSize);
+      const length = stats.size - start;
+
+      const fd = await fs.promises.open(filePath, 'r');
+      const buffer = Buffer.alloc(length);
+      await fd.read(buffer, 0, length, start);
+      await fd.close();
+      
+      const content = buffer.toString('utf-8');
+      const lines = content.split('\n').filter(Boolean);
+      return lines.slice(-numLines).reverse();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Read real logs from backup.log safely
+   */
+  async _readLogs() {
+    const lines = await this._readTailLines(LOG_FILE, 30);
+    return lines.length > 0 ? lines : ["No backup logs yet. Create your first backup to see activity here."];
+  }
+
+  /**
+   * Read cron logs from cron.log safely
+   */
+  async _readCronLogs() {
+    const cronLogFile = path.join(LOGS_DIR, "cron.log");
+    const lines = await this._readTailLines(cronLogFile, 30);
+    return lines.length > 0 ? lines : ["No cron logs yet. Cron jobs will log here when they run."];
+  }
+
+  /**
+   * List files in a directory with stats
+   */
   async _listFiles(dirPath) {
     try {
-        const files = await fs.promises.readdir(dirPath);
-        const fileStats = await Promise.all(
-            files.map(async (file) => {
-                const stat = await fs.promises.stat(path.join(dirPath, file));
-                return {
-                    name: file,
-                    size: (stat.size / 1024 / 1024).toFixed(2) + " MB",
-                    date: stat.mtime.toISOString().split('T')[0]
-                };
-            })
-        );
-        return fileStats.sort((a, b) => b.name.localeCompare(a.name)); // Sort by name (date) desc
+      const files = await fs.promises.readdir(dirPath);
+      const fileStats = await Promise.all(
+        files
+          .filter((f) => !f.startsWith("."))
+          .map(async (file) => {
+            const stat = await fs.promises.stat(path.join(dirPath, file));
+            const sizeBytes = stat.size;
+            let size;
+            if (sizeBytes > 1024 * 1024 * 1024) {
+              size = (sizeBytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
+            } else if (sizeBytes > 1024 * 1024) {
+              size = (sizeBytes / 1024 / 1024).toFixed(2) + " MB";
+            } else {
+              size = (sizeBytes / 1024).toFixed(1) + " KB";
+            }
+            return {
+              name: file,
+              size,
+              sizeBytes,
+              date: stat.mtime.toISOString().split("T")[0],
+              time: stat.mtime.toISOString().split("T")[1].split(".")[0],
+              downloads: 0, // Placeholder, updated in listBackups
+            };
+          })
+      );
+      return fileStats.sort((a, b) => b.name.localeCompare(a.name));
     } catch (e) {
-        return [];
+      return [];
     }
+  }
+
+  /**
+   * List all backups (REAL data — no mocks)
+   */
+  async listBackups() {
+    try {
+      await this._ensureDirs();
+
+      const dbBackups = await this._listFiles(DB_BACKUP_DIR);
+      const fileBackups = await this._listFiles(FILES_BACKUP_DIR);
+      const logs = await this._readLogs();
+      const cronLogs = await this._readCronLogs();
+
+      // Safely count downloads without loading entire file into memory
+      const downloadCounts = {};
+      try {
+        const readline = require('readline');
+        const rl = readline.createInterface({
+          input: fs.createReadStream(LOG_FILE),
+          crlfDelay: Infinity
+        });
+
+        for await (const line of rl) {
+          if (line.includes("Downloaded →")) {
+            const match = line.match(/Downloaded → (.+?) \(/);
+            if (match && match[1]) {
+              const fName = match[1].trim();
+              downloadCounts[fName] = (downloadCounts[fName] || 0) + 1;
+            }
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+
+      const mapDownloads = (files) => {
+        return files.map(f => {
+          f.downloads = downloadCounts[f.name] || 0;
+          return f;
+        });
+      };
+
+      return {
+        db: mapDownloads(dbBackups),
+        uploads: mapDownloads(fileBackups),
+        logs,
+        cronLogs,
+        paths: {
+          backupDir: BACKUP_DIR,
+          dbDir: DB_BACKUP_DIR,
+          filesDir: FILES_BACKUP_DIR,
+          frontendDir: FRONTEND_DIR,
+          backendDir: BACKEND_DIR,
+        },
+      };
+    } catch (error) {
+      console.error("Error listing backups:", error);
+      return {
+        db: [],
+        uploads: [],
+        logs: ["❌ Error: " + error.message],
+        paths: {},
+      };
+    }
+  }
+
+  /**
+   * Parse DATABASE_URL to get pg connection details
+   */
+  _parseDbUrl() {
+    try {
+      const url = new URL(DATABASE_URL);
+      return {
+        host: url.hostname,
+        port: url.port || "5432",
+        user: url.username,
+        password: url.password,
+        database: url.pathname.replace("/", "").split("?")[0],
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Find pg_dump executable path
+   */
+  async _findPgDump() {
+    if (!IS_WINDOWS) return "pg_dump";
+
+    // Check if pg_dump is in PATH
+    try {
+      await execPromise("where pg_dump", { shell: "cmd.exe" });
+      return "pg_dump";
+    } catch (e) {
+      // Not in PATH, search common locations
+    }
+
+    // Common PostgreSQL install paths on Windows
+    const pgBasePath = "C:\\Program Files\\PostgreSQL";
+    try {
+      const versions = await fs.promises.readdir(pgBasePath);
+      // Sort descending to try newest version first
+      const sorted = versions.sort((a, b) => parseInt(b) - parseInt(a));
+      for (const ver of sorted) {
+        const pgDumpPath = path.join(pgBasePath, ver, "bin", "pg_dump.exe");
+        try {
+          await fs.promises.access(pgDumpPath);
+          return `"${pgDumpPath}"`;
+        } catch (e) {
+          continue;
+        }
+      }
+    } catch (e) {
+      // PostgreSQL directory not found
+    }
+
+    return null;
+  }
+
+  /**
+   * Create database backup using pg_dump
+   */
+  async _backupDatabase() {
+    const db = this._parseDbUrl();
+    if (!db) {
+      throw new Error("Cannot parse DATABASE_URL — check your .env file");
+    }
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const filename = `db_${dateTime}.sql`;
+
+    const pgDump = await this._findPgDump();
+
+    if (!pgDump) {
+      // Fallback: use Prisma to export data as JSON
+      await this._log("⚠️ pg_dump not found, using Prisma JSON export fallback");
+      const { prisma } = require("../../../database/prisma");
+      const jsonFilename = `db_${dateTime}.json`;
+      const backupFile = path.join(DB_BACKUP_DIR, jsonFilename);
+
+      // Export all table counts and basic metadata
+      const tables = Object.keys(prisma).filter(
+        (k) => !k.startsWith("_") && !k.startsWith("$") && typeof prisma[k].findMany === "function"
+      );
+      const data = {};
+      for (const table of tables) {
+        try {
+          data[table] = await prisma[table].findMany();
+        } catch (e) {
+          data[table] = { error: e.message };
+        }
+      }
+      await fs.promises.writeFile(backupFile, JSON.stringify(data, null, 2), "utf-8");
+      return jsonFilename;
+    }
+
+    if (IS_WINDOWS) {
+      const backupFile = path.join(DB_BACKUP_DIR, filename);
+      const cmd = `set PGPASSWORD=${db.password}&& ${pgDump} -h ${db.host} -p ${db.port} -U ${db.user} ${db.database} > "${backupFile}"`;
+      await execPromise(cmd, { shell: "cmd.exe" });
+      return filename;
+    } else {
+      const gzFilename = filename + ".gz";
+      const backupFile = path.join(DB_BACKUP_DIR, gzFilename);
+      const cmd = `PGPASSWORD="${db.password}" ${pgDump} -h ${db.host} -p ${db.port} -U ${db.user} ${db.database} | gzip > "${backupFile}"`;
+      await execPromise(cmd);
+      return gzFilename;
+    }
+  }
+
+  /**
+   * Create file system backup (uploads folder only)
+   */
+  async _backupFiles() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const results = [];
+
+    // Backup uploads folder from backend
+    const uploadsDir = path.join(BACKEND_DIR, "uploads");
+    const uploadsExist = await fs.promises.access(uploadsDir).then(() => true).catch(() => false);
+
+    if (uploadsExist) {
+      const filename = `uploads_${dateTime}`;
+      if (IS_WINDOWS) {
+        const backupFile = path.join(FILES_BACKUP_DIR, filename + ".zip");
+        const cmd = `powershell -Command "Compress-Archive -Path '${uploadsDir}\\*' -DestinationPath '${backupFile}' -Force"`;
+        await execPromise(cmd);
+        results.push(`Uploads → ${filename}.zip`);
+      } else {
+        const backupFile = path.join(FILES_BACKUP_DIR, filename + ".tar.gz");
+        const cmd = `tar -czf "${backupFile}" -C "${path.dirname(uploadsDir)}" "${path.basename(uploadsDir)}"`;
+        await execPromise(cmd);
+        results.push(`Uploads → ${filename}.tar.gz`);
+      }
+    } else {
+      results.push("⚠️ No uploads directory found, nothing to backup");
+    }
+
+    return results;
   }
 
   /**
    * Create Backup
    * @param {string} type 'db' | 'files' | 'all'
+   * @param {string} username Name of the user triggering the backup (optional)
    */
-  async createBackup(type) {
-    if (process.platform === "win32") {
-      // Mock delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      return { success: true, message: `[DEV] Mock backup of ${type} created successfully` };
-    }
-
+  async createBackup(type, username = 'System') {
     try {
-      if (type === 'db' || type === 'all') {
-        await execPromise(`${SCRIPT_DIR}/db_backup.sh`);
+      await this._ensureDirs();
+      const messages = [];
+
+      if (type === "db" || type === "all") {
+        try {
+          const filename = await this._backupDatabase();
+          await this._log(`Database backup successful → ${filename} (by ${username})`);
+          messages.push(`Database backup: ${filename}`);
+        } catch (err) {
+          await this._log(`Database backup failed: ${err.message} (by ${username})`);
+          if (type === "db") throw err;
+          messages.push(`Database backup failed: ${err.message}`);
+        }
       }
-      if (type === 'files' || type === 'all') {
-        await execPromise(`${SCRIPT_DIR}/files_backup.sh`);
+
+      if (type === "files" || type === "all") {
+        try {
+          const results = await this._backupFiles();
+          for (const r of results) {
+            await this._log(`Files backup successful → ${r} (by ${username})`);
+          }
+          messages.push(...results.map((r) => `File backup: ${r}`));
+        } catch (err) {
+          await this._log(`Files backup failed: ${err.message} (by ${username})`);
+          if (type === "files") throw err;
+          messages.push(`Files backup failed: ${err.message}`);
+        }
       }
-      return { success: true, message: "Backup process started successfully" };
+
+      return {
+        success: true,
+        message: messages.join(" | ") || "Backup completed",
+      };
     } catch (error) {
       console.error("Backup failed:", error);
-      throw { status: 500, message: "Backup script execution failed" };
+      await this._log(`Backup failed: ${error.message}`);
+      throw { status: 500, message: `Backup failed: ${error.message}` };
     }
   }
 
   /**
    * Restore Backup
-   * @param {string} filename 
-   * @param {string} type 'db' | 'files'
    */
   async restoreBackup(filename, type) {
-     if (process.platform === "win32") {
-       await new Promise(resolve => setTimeout(resolve, 3000));
-       return { success: true, message: `[DEV] Mock restore of ${filename} completed` };
-     }
-     
-     // Security check on filename to prevent injection
-     if (!filename || filename.includes("/") || filename.includes("..")) {
-         throw { status: 400, message: "Invalid filename" };
-     }
+    if (!filename || filename.includes("/") || filename.includes("..") || filename.includes("\\")) {
+      throw { status: 400, message: "Invalid filename" };
+    }
 
-     try {
-         // This is DANGEROUS and should be handled carefully in production.
-         // We assume the user has manual control or this is a restricted internal app.
-         // For now, let's just log implementation TODO
-         // In a real scenario, we might have a restore script.
-         // For now we will throw not implemented for safety unless we have a restore script
-         throw { status: 501, message: "Automatic restore via UI is disabled for safety. Please use CLI." };
-     } catch (error) {
-         throw error;
-     }
+    throw {
+      status: 501,
+      message: "Automatic restore via UI is disabled for safety. Please use CLI.",
+    };
+  }
+
+  /**
+   * Get file path for download
+   * @param {string} type 'db' | 'files'
+   * @param {string} filename
+   * @returns {object} { filePath, filename }
+   */
+  async getDownloadPath(type, filename) {
+    // Security: prevent path traversal
+    if (!filename || filename.includes("/") || filename.includes("..") || filename.includes("\\")) {
+      throw { status: 400, message: "Invalid filename" };
+    }
+
+    const dir = type === "db" ? DB_BACKUP_DIR : FILES_BACKUP_DIR;
+    const filePath = path.join(dir, filename);
+
+    // Verify file exists
+    try {
+      await fs.promises.access(filePath, fs.constants.R_OK);
+    } catch (e) {
+      throw { status: 404, message: "Backup file not found" };
+    }
+
+    return { filePath, filename };
   }
 }
 

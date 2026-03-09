@@ -606,6 +606,8 @@ model ContainerInSummary {
   dollarRate Float @default(89.7)
   doCharge   Float @default(58000)
   cfs        Float @default(21830)
+  dutyPercent Float @default(16.5)
+  gstPercent  Float @default(18.0)
 
   // Calculated Fields
   inr         Float @default(0)
@@ -789,6 +791,25 @@ model ClientContainerLink {
   @@unique([clientId, containerCode, mark])
   @@index([containerCode])
   @@index([mark])
+}
+
+// Account workspace status tracking (manual completion toggle)
+model ClientSheetStatus {
+  id        String  @id @default(uuid())
+  clientId  String
+  sheetKey  String  // containerCode or sheetName - identifies the workspace
+  completed Boolean @default(false)
+
+  completedAt DateTime?
+  completedBy String?   // User name who marked it
+
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, sheetKey])
+  @@index([clientId])
 }
 
 // Add these enums to your existing enums section
@@ -1097,6 +1118,7 @@ model ShippingEntry {
   // Freight amounts
   freightUSD Float @default(0)
   freightINR Float @default(0)
+  usFreight  Float @default(0)
 
   // Local charges (India side)
   cha              Float @default(0)
@@ -1177,6 +1199,7 @@ model Client {
   transactions     ClientTransaction[]
   trfTransactions  ClientTrfTransaction[]
   containers       ClientContainerLink[]
+  sheetStatuses    ClientSheetStatus[]
   upiBankLimit     String?
 
   @@index([email])

@@ -6,14 +6,20 @@ const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    let token;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    } else if (req.query.token) {
+      // Support ?token= query param for downloads opening in new tabs
+      token = req.query.token;
+    }
+
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: "Authentication token missing",
       });
     }
-
-    const token = authHeader.split(" ")[1];
     const decoded = verifyToken(token);
 
     const user = await prisma.user.findUnique({

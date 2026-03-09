@@ -37,6 +37,8 @@ const containerSummaryValidation = {
           invoiceDate: Joi.date().allow("", null).optional(),
           deliveryDate: Joi.date().allow("", null).optional(),
           workflowStatus: Joi.string().max(150).allow("").optional(),
+          dutyPercent: Joi.number().min(0).default(16.5),
+          gstPercent: Joi.number().min(0).default(18.0),
           duty: Joi.number().allow(null).optional(),
           gst: Joi.number().allow(null).optional(),
         })
@@ -78,6 +80,8 @@ const containerSummaryValidation = {
           invoiceDate: Joi.date().allow("", null).optional(),
           deliveryDate: Joi.date().allow("", null).optional(),
           workflowStatus: Joi.string().max(150).allow("").optional(),
+          dutyPercent: Joi.number().min(0).optional(),
+          gstPercent: Joi.number().min(0).optional(),
           duty: Joi.number().allow(null).optional(),
           gst: Joi.number().allow(null).optional(),
         })

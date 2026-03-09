@@ -106,7 +106,7 @@ const dineshbhaiService = {
         where: { id: sheetId },
         include: {
           entries: {
-            orderBy: { paymentDate: 'desc' },
+            orderBy: { createdAt: 'asc' },
           },
           _count: {
             select: { entries: true },
@@ -282,8 +282,7 @@ const dineshbhaiService = {
           skip,
           take: parseInt(limit),
           orderBy: [
-            { paymentDate: 'desc' },
-            { createdAt: 'desc' },
+            { createdAt: 'asc' },
           ],
         }),
         prisma.dineshSheetEntry.count({ where }),
@@ -585,7 +584,7 @@ const dineshbhaiService = {
         where: { id: sheetId },
         include: {
           entries: {
-            orderBy: { paymentDate: 'desc' },
+            orderBy: { createdAt: 'asc' },
           },
         },
       });
