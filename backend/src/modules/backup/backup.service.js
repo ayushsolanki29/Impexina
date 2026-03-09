@@ -12,22 +12,11 @@ const execPromise = util.promisify(exec);
 
 const IS_WINDOWS = process.platform === "win32";
 
-// Auto-detect paths based on environment
-const APP_ROOT = IS_WINDOWS
-  ? path.resolve(__dirname, "../../../../") // F:\Projects\Impexina
-  : process.env.APP_ROOT || "/root/apps/impexina";
-
-const BACKUP_DIR = IS_WINDOWS
-  ? path.join(APP_ROOT, "backup")
-  : process.env.BACKUP_DIR || "/root/apps/backup";
-
-const FRONTEND_DIR = IS_WINDOWS
-  ? path.join(APP_ROOT, "frontend")
-  : process.env.FRONTEND_DIR || "/root/apps/impexina/frontend";
-
-const BACKEND_DIR = IS_WINDOWS
-  ? path.join(APP_ROOT, "backend")
-  : process.env.BACKEND_DIR || "/root/apps/impexina/backend";
+// Auto-detect paths based on environment by dynamically resolving parent directories
+const APP_ROOT = process.env.APP_ROOT || path.resolve(__dirname, "../../../../");
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(APP_ROOT, "backup");
+const FRONTEND_DIR = process.env.FRONTEND_DIR || path.join(APP_ROOT, "frontend");
+const BACKEND_DIR = process.env.BACKEND_DIR || path.join(APP_ROOT, "backend");
 
 const DATABASE_URL = process.env.DATABASE_URL || "";
 

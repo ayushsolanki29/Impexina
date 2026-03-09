@@ -5,12 +5,8 @@ const backupService = require("../modules/backup/backup.service");
 
 // Cron log file — same backup directory
 const IS_WINDOWS = process.platform === "win32";
-const APP_ROOT = IS_WINDOWS
-  ? path.resolve(__dirname, "../../../")
-  : process.env.APP_ROOT || "/root/apps/impexina";
-const BACKUP_DIR = IS_WINDOWS
-  ? path.join(APP_ROOT, "backup")
-  : process.env.BACKUP_DIR || "/root/apps/backup";
+const APP_ROOT = process.env.APP_ROOT || path.resolve(__dirname, "../../../");
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(APP_ROOT, "backup");
 const LOGS_DIR = path.join(BACKUP_DIR, "logs");
 const CRON_LOG_FILE = path.join(LOGS_DIR, "cron.log");
 
