@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Search, Loader2, ArrowLeft, Users, Building2, MapPin, Mail, Phone, ChevronRight } from "lucide-react";
+import { Search, Loader2, ArrowLeft, Users, Building2, MapPin, Mail, Phone, ChevronRight, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { get } from "@/lib/api";
@@ -73,7 +73,10 @@ export default function AccountClientsPage() {
                   type="text"
                   placeholder="Search clients..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -201,6 +204,29 @@ export default function AccountClientsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && pagination?.totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-8">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors flex items-center gap-1 text-sm font-medium"
+            >
+              <ChevronLeft className="w-4 h-4" /> Previous
+            </button>
+            <span className="text-sm font-semibold text-slate-700">
+              Page {page} of {pagination.totalPages}
+            </span>
+            <button
+              disabled={page >= pagination.totalPages}
+              onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors flex items-center gap-1 text-sm font-medium"
+            >
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         )}
 

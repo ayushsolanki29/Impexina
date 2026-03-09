@@ -11,7 +11,7 @@ const AccountClientsService = {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },
                 { companyName: { contains: search, mode: "insensitive" } },
-                { location: { contains: search, mode: "insensitive" } },
+                { city: { contains: search, mode: "insensitive" } },
             ];
         }
 
