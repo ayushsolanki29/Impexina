@@ -1522,6 +1522,16 @@ export default function LoadingSheetPage() {
             <ImageIcon className="w-4 h-4" />
             Paste Here
           </button>
+          <button
+            onClick={() => {
+              updateItem(contextMenu.index, 'photo', null);
+              setContextMenu(prev => ({ ...prev, visible: false }));
+            }}
+            className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove Image
+          </button>
         </div>
       )}
       {/* Shortcuts Help */}

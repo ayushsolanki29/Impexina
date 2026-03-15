@@ -102,6 +102,7 @@ const containerSummaryService = {
                 containerNoField: container.containerNo || "",
                 sims: container.sims || "",
                 pims: container.pims || "",
+                cellStyles: container.cellStyles || {},
                 // New Fields
                 invoiceNo: container.invoiceNo || "",
                 invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
@@ -208,6 +209,7 @@ const containerSummaryService = {
                 dollar: true,
                 finalAmount: true,
                 status: true,
+                cellStyles: true,
               },
             },
             // This is correct - _count is at the summary level
@@ -421,6 +423,7 @@ const containerSummaryService = {
               containerNoField: container.containerNo || "",
               sims: container.sims || "",
               pims: container.pims || "",
+              cellStyles: container.cellStyles || {},
               // New Fields
               invoiceNo: container.invoiceNo || "",
               invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,

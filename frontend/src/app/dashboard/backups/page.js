@@ -82,7 +82,7 @@ export default function BackupsPage() {
         API.get("/auth/me").catch(() => null),
         API.get("/backups/settings").catch(() => null)
       ]);
-      
+
       if (res.data.success) {
         setBackups(res.data.data);
       }
@@ -145,8 +145,8 @@ export default function BackupsPage() {
   };
 
   if (loading) {
-     return (
-        <div className="flex items-center justify-center h-full min-h-[400px]">
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
       </div>
     );
@@ -176,8 +176,8 @@ export default function BackupsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-             <DatabaseBackup className="w-8 h-8 text-blue-600" />
-             System Backups & Recovery
+            <DatabaseBackup className="w-8 h-8 text-blue-600" />
+            System Backups & Recovery
           </h1>
           <p className="text-slate-500 mt-1">Manage database snapshots and file system archives.</p>
         </div>
@@ -193,120 +193,183 @@ export default function BackupsPage() {
               Settings
             </Button>
           )}
-          <Button 
-              variant="outline" 
-              onClick={fetchBackups} 
-              disabled={!!actionLoading}
-              className="gap-2"
+          <Button
+            variant="outline"
+            onClick={fetchBackups}
+            disabled={!!actionLoading}
+            className="gap-2"
           >
-              <RefreshCw className={`w-4 h-4 ${actionLoading === 'refresh' ? 'animate-spin' : ''}`} />
-              Refresh List
+            <RefreshCw className={`w-4 h-4 ${actionLoading === 'refresh' ? 'animate-spin' : ''}`} />
+            Refresh List
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-         <BackupListCard
-           title="Database Backups"
-           subtitle="PostgreSQL .sql / .json dumps"
-           icon={<Server className="w-5 h-5" />}
-           iconBg="bg-blue-100 text-blue-600"
-           emptyIcon={<DatabaseBackup className="w-10 h-10 mb-2 opacity-20" />}
-           emptyText="No database backups found"
-           files={backups.db}
-           type="db"
-           actionLabel="Backup DB"
-           actionIcon={<HardDrive className="w-4 h-4 mr-2" />}
-           actionClass="bg-blue-600 hover:bg-blue-700"
-           actionLoading={actionLoading}
-           onBackup={() => handleCreateBackup('db')}
-           onDownload={handleDownload}
-           onRestore={handleRestore}
-           disabled={isReadOnly}
-         />
+      {backups.storage && (
+        <div className="flex flex-wrap gap-6 items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 pr-6 border-r border-slate-200">
+            <div className="p-2.5 bg-indigo-100 rounded-lg"><HardDrive className="w-5 h-5 text-indigo-600" /></div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium mb-0.5">Software Take Space in System</p>
+              <p className="font-bold text-slate-800 text-lg">{backups.storage.totalFormatted}</p>
+            </div>
+          </div>
 
-         <BackupListCard
-           title="File Uploads Backups"
-           subtitle="User uploads archives"
-           icon={<HardDrive className="w-5 h-5" />}
-           iconBg="bg-amber-100 text-amber-600"
-           emptyIcon={<HardDrive className="w-10 h-10 mb-2 opacity-20" />}
-           emptyText="No file backups found"
-           files={backups.uploads}
-           type="files"
-           actionLabel="Backup Files"
-           actionIcon={<FolderArchive className="w-4 h-4 mr-2" />}
-           actionClass="border-amber-200 text-amber-700 hover:bg-amber-50"
-           actionVariant="outline"
-           actionLoading={actionLoading}
-           onBackup={() => handleCreateBackup('files')}
-           onDownload={handleDownload}
-           onRestore={handleRestore}
-           disabled={isReadOnly}
-         />
+          {/* Server Disk Stats */}
+          {(backups.storage.diskTotalFormatted !== 'Unknown' && backups.storage.diskTotalFormatted !== '0.0 KB') && (
+            <div className="flex flex-col gap-2 pr-6 border-r border-slate-200 min-w-[280px]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-50 rounded-lg"><Server className="w-5 h-5 text-emerald-500" /></div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-xs text-slate-500 font-medium">Server Disk Space</p>
+                    <p className="text-[10px] text-slate-400 font-medium flex items-center">Free / Total</p>
+                  </div>
+                  <p className="font-bold text-slate-800 text-sm">
+                    <span className="text-emerald-600 font-semibold">{backups.storage.diskFreeFormatted}</span> / {backups.storage.diskTotalFormatted}
+                  </p>
+                </div>
+              </div>
+              {(() => {
+                const total = backups.storage.diskTotal || 0;
+                const free = backups.storage.diskFree || 0;
+                const used = total - free;
+                const percent = total > 0 ? (used / total) * 100 : 0;
+                let color = "bg-green-500";
+                if (percent >= 95) color = "bg-red-700";
+                else if (percent >= 90) color = "bg-red-500";
+                else if (percent >= 60) color = "bg-amber-400";
+
+                return (
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-0.5">
+                    <div
+                      className={`h-full ${color} transition-all duration-500 ease-in-out`}
+                      style={{ width: `${Math.min(percent, 100)}%` }}
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2.5 pr-6 border-r border-slate-200">
+            <div className="p-2 bg-blue-50 rounded-lg"><Server className="w-4 h-4 text-blue-500" /></div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium mb-0.5">Database Backups</p>
+              <p className="font-semibold text-slate-700">{backups.storage.dbFormatted}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-50 rounded-lg"><FileArchive className="w-4 h-4 text-amber-500" /></div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium mb-0.5">File Uploads</p>
+              <p className="font-semibold text-slate-700">{backups.storage.filesFormatted}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <BackupListCard
+          title="Database Backups"
+          subtitle="PostgreSQL .sql / .json dumps"
+          icon={<Server className="w-5 h-5" />}
+          iconBg="bg-blue-100 text-blue-600"
+          emptyIcon={<DatabaseBackup className="w-10 h-10 mb-2 opacity-20" />}
+          emptyText="No database backups found"
+          files={backups.db}
+          type="db"
+          actionLabel="Backup DB"
+          actionIcon={<HardDrive className="w-4 h-4 mr-2" />}
+          actionClass="bg-blue-600 hover:bg-blue-700"
+          actionLoading={actionLoading}
+          onBackup={() => handleCreateBackup('db')}
+          onDownload={handleDownload}
+          onRestore={handleRestore}
+          disabled={isReadOnly}
+        />
+
+        <BackupListCard
+          title="File Uploads Backups"
+          subtitle="User uploads archives"
+          icon={<HardDrive className="w-5 h-5" />}
+          iconBg="bg-amber-100 text-amber-600"
+          emptyIcon={<HardDrive className="w-10 h-10 mb-2 opacity-20" />}
+          emptyText="No file backups found"
+          files={backups.uploads}
+          type="files"
+          actionLabel="Backup Files"
+          actionIcon={<FolderArchive className="w-4 h-4 mr-2" />}
+          actionClass="border-amber-200 text-amber-700 hover:bg-amber-50"
+          actionVariant="outline"
+          actionLoading={actionLoading}
+          onBackup={() => handleCreateBackup('files')}
+          onDownload={handleDownload}
+          onRestore={handleRestore}
+          disabled={isReadOnly}
+        />
       </div>
-      
+
       {/* Logs Section */}
       <div className="bg-slate-900 rounded-xl overflow-hidden text-slate-300 font-mono text-xs shadow-lg">
-          <div className="bg-slate-800 px-4 py-3 flex items-center justify-between border-b border-slate-700">
-             <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"/>
-                <div className="w-3 h-3 rounded-full bg-amber-500"/>
-                <div className={`w-3 h-3 rounded-full ${logPolling ? 'bg-green-500 animate-pulse' : 'bg-green-500'}`}/>
+        <div className="bg-slate-800 px-4 py-3 flex items-center justify-between border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-500" />
+            <div className="w-3 h-3 rounded-full bg-amber-500" />
+            <div className={`w-3 h-3 rounded-full ${logPolling ? 'bg-green-500 animate-pulse' : 'bg-green-500'}`} />
 
-                {/* Tabs */}
-                <div className="flex ml-3 bg-slate-700/50 rounded-lg p-0.5">
-                  <button
-                    onClick={() => setLogTab('backup')}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                      logTab === 'backup'
-                        ? 'bg-slate-600 text-white'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    backup.log
-                  </button>
-                  <button
-                    onClick={() => setLogTab('cron')}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                      logTab === 'cron'
-                        ? 'bg-slate-600 text-white'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    cron.log
-                  </button>
-                </div>
+            {/* Tabs */}
+            <div className="flex ml-3 bg-slate-700/50 rounded-lg p-0.5">
+              <button
+                onClick={() => setLogTab('backup')}
+                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${logTab === 'backup'
+                    ? 'bg-slate-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                backup.log
+              </button>
+              <button
+                onClick={() => setLogTab('cron')}
+                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${logTab === 'cron'
+                    ? 'bg-slate-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                cron.log
+              </button>
+            </div>
 
-                {logPolling && <span className="text-green-400 text-[10px] ml-2">● LIVE</span>}
-             </div>
-             <div className="flex items-center gap-3">
-                <div className="text-slate-500">
-                  {backups.paths?.backupDir || ''}/logs/{logTab === 'backup' ? 'backup' : 'cron'}.log
+            {logPolling && <span className="text-green-400 text-[10px] ml-2">● LIVE</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-slate-500">
+              {backups.paths?.backupDir || ''}/logs/{logTab === 'backup' ? 'backup' : 'cron'}.log
+            </div>
+            <button
+              onClick={fetchBackups}
+              className="text-slate-400 hover:text-white transition-colors"
+              title="Refresh logs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${actionLoading === 'refresh' ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <div ref={logsEndRef} className="p-4 h-56 overflow-y-auto space-y-1">
+          {(() => {
+            const currentLogs = logTab === 'backup' ? backups.logs : (backups.cronLogs || []);
+            return currentLogs.length > 0 ? (
+              currentLogs.map((log, i) => (
+                <div key={i} className={`border-b border-slate-800/50 pb-1 last:border-0 ${i === 0 && logPolling ? 'text-green-300' : ''}`}>
+                  {log}
                 </div>
-                <button
-                  onClick={fetchBackups}
-                  className="text-slate-400 hover:text-white transition-colors"
-                  title="Refresh logs"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${actionLoading === 'refresh' ? 'animate-spin' : ''}`} />
-                </button>
-             </div>
-          </div>
-          <div ref={logsEndRef} className="p-4 h-56 overflow-y-auto space-y-1">
-             {(() => {
-               const currentLogs = logTab === 'backup' ? backups.logs : (backups.cronLogs || []);
-               return currentLogs.length > 0 ? (
-                 currentLogs.map((log, i) => (
-                   <div key={i} className={`border-b border-slate-800/50 pb-1 last:border-0 ${i === 0 && logPolling ? 'text-green-300' : ''}`}>
-                     {log}
-                   </div>
-                 ))
-               ) : (
-                 <div className="text-slate-600 italic">No logs available...</div>
-               );
-             })()}
-          </div>
+              ))
+            ) : (
+              <div className="text-slate-600 italic">No logs available...</div>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Settings Modal */}
@@ -332,10 +395,10 @@ export default function BackupsPage() {
                     { id: 'monthly', label: 'Once in 30 Days (Every 1st 12:00 AM)' }
                   ].map((option) => (
                     <label key={option.id} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${schedule === option.id ? 'border-blue-600 bg-blue-50' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
-                      <input 
-                        type="radio" 
-                        name="schedule" 
-                        value={option.id} 
+                      <input
+                        type="radio"
+                        name="schedule"
+                        value={option.id}
                         checked={schedule === option.id}
                         onChange={(e) => setSchedule(e.target.value)}
                         className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-600"
@@ -444,7 +507,7 @@ function BackupListCard({
               className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
-          
+
           {(startDate || endDate) && (
             <button onClick={() => { setStartDate(''); setEndDate(''); }} className="text-xs text-slate-400 hover:text-slate-600 ml-1">
               Clear
@@ -542,6 +605,16 @@ function RestoreCommandsModal({ filename, type, backupDir, onClose }) {
   let title = '';
   let warning = '';
 
+  const isWindows = backupDir.includes(':\\') || backupDir.includes(':/');
+  const winTargetObj = '../../backend/';
+  const winTargetObjUploads = '../../backend/uploads';
+  const linuxTargetObj = '/root/apps/impexina/backend/';
+  const linuxTargetObjUploads = '/root/apps/impexina/backend/uploads';
+  const targetObj = isWindows ? winTargetObj : linuxTargetObj;
+  const targetObjUploads = isWindows ? winTargetObjUploads : linuxTargetObjUploads;
+
+  const getRestartCmd = () => isWindows ? `npm run dev` : `pm2 restart impexina-backend`;
+
   if (type === 'db') {
     title = 'Restore Database Backup';
     warning = '⚠️ This will OVERWRITE your current database. Make sure you have a recent backup before restoring.';
@@ -554,16 +627,16 @@ function RestoreCommandsModal({ filename, type, backupDir, onClose }) {
       ];
     } else if (isGz) {
       commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd ${backupDir}/db` },
+        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/db"` },
         { label: 'Step 2: Decompress the backup', cmd: `gunzip -k ${filename}` },
-        { label: 'Step 3: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db < ${filename.replace('.gz', '')}` },
-        { label: 'Step 4: Restart the backend', cmd: `pm2 restart impexina-backend` },
+        { label: 'Step 3: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db -f ${filename.replace('.gz', '')}` },
+        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
       ];
     } else if (isSql) {
       commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd ${backupDir}/db` },
-        { label: 'Step 2: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db < ${filename}` },
-        { label: 'Step 3: Restart the backend', cmd: `pm2 restart impexina-backend` },
+        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/db"` },
+        { label: 'Step 2: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db -f ${filename}` },
+        { label: 'Step 3: Restart the backend', cmd: getRestartCmd() },
       ];
     }
   } else {
@@ -573,17 +646,17 @@ function RestoreCommandsModal({ filename, type, backupDir, onClose }) {
     const isZip = filename.endsWith('.zip');
     if (isZip) {
       commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd ${backupDir}/files` },
-        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf /root/apps/impexina/backend/uploads` },
-        { label: 'Step 3: Extract the backup', cmd: `unzip ${filename} -d /root/apps/impexina/backend/` },
-        { label: 'Step 4: Restart the backend', cmd: `pm2 restart impexina-backend` },
+        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/files"` },
+        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf ${targetObjUploads}` },
+        { label: 'Step 3: Extract the backup', cmd: `unzip ${filename} -d ${targetObj}` },
+        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
       ];
     } else {
       commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd ${backupDir}/files` },
-        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf /root/apps/impexina/backend/uploads` },
-        { label: 'Step 3: Extract the backup', cmd: `tar -xzf ${filename} -C /root/apps/impexina/backend/` },
-        { label: 'Step 4: Restart the backend', cmd: `pm2 restart impexina-backend` },
+        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/files"` },
+        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf ${targetObjUploads}` },
+        { label: 'Step 3: Extract the backup', cmd: `tar -xzf ${filename} -C ${targetObj}` },
+        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
       ];
     }
   }

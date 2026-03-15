@@ -19,7 +19,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
 
   const totalCtn = items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0);
   const totalQty = items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0);
-  const totalAmount = items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0);
+  const totalAmount = Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0));
 
   const performExport = async () => {
     if (!previewRef.current) return;
@@ -157,12 +157,12 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
         item.unit || 'PCS',
         parseInt(item.tQty) || 0,
         parseFloat(item.unitPrice) || 0,
-        parseFloat(item.amountUsd) || 0
+        Math.round(parseFloat(item.amountUsd) || 0)
       ]);
     });
 
     wsData.push([]);
-    wsData.push(['TOTAL', '', '', totalCtn, '', '', totalQty, '', totalAmount.toFixed(2)]);
+    wsData.push(['TOTAL', '', '', totalCtn, '', '', totalQty, '', totalAmount]);
 
     if (data.paymentTerms) {
       wsData.push([]);
@@ -389,7 +389,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                       <td className="p-1 text-center align-top uppercase" style={{ borderRight: '1px solid #000000' }}>{item.unit || 'PCS'}</td>
                       <td className="p-1 text-center font-bold align-top" style={{ borderRight: '1px solid #000000' }}>{item.tQty}</td>
                       <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>{parseFloat(item.unitPrice || 0).toFixed(2)}</td>
-                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{parseFloat(item.amountUsd || 0).toFixed(2)}</td>
+                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{Math.round(parseFloat(item.amountUsd || 0)).toLocaleString()}</td>
                     </tr>
                   ))}
                   {/* Totals Row */}
@@ -400,7 +400,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                     <td className="p-1" style={{ borderRight: '1px solid #000000' }}></td>
                     <td className="p-1 text-center" style={{ borderRight: '1px solid #000000' }}>{totalQty}</td>
                     <td className="p-1" style={{ borderRight: '1px solid #000000' }}></td>
-                    <td className="p-1 text-center underline decoration-double">{totalAmount.toFixed(2)}</td>
+                    <td className="p-1 text-center underline decoration-double">{totalAmount.toLocaleString()}</td>
                   </tr>
                   {/* Payment Terms Row */}
                   {data.paymentTerms && (

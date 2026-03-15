@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const util = require("util");
 const execPromise = util.promisify(exec);
+const checkDiskSpace = require('check-disk-space').default || require('check-disk-space');
 
 // ============================================================
 // PATH CONFIGURATION
@@ -166,11 +167,45 @@ class BackupService {
         });
       };
 
+      const formatSize = (sizeBytes) => {
+        if (sizeBytes === 0) return "0.0 KB";
+        if (sizeBytes > 1024 * 1024 * 1024) {
+          return (sizeBytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
+        } else if (sizeBytes > 1024 * 1024) {
+          return (sizeBytes / 1024 / 1024).toFixed(2) + " MB";
+        } else {
+          return (sizeBytes / 1024).toFixed(1) + " KB";
+        }
+      };
+
+      const dbStorageBytes = dbBackups.reduce((acc, file) => acc + file.sizeBytes, 0);
+      const filesStorageBytes = fileBackups.reduce((acc, file) => acc + file.sizeBytes, 0);
+      const totalStorageBytes = dbStorageBytes + filesStorageBytes;
+
+      let diskSpace = null;
+      try {
+        diskSpace = await checkDiskSpace(BACKUP_DIR);
+      } catch (e) {
+        console.error("Could not check disk space:", e.message);
+      }
+
       return {
         db: mapDownloads(dbBackups),
         uploads: mapDownloads(fileBackups),
         logs,
         cronLogs,
+        storage: {
+          dbBytes: dbStorageBytes,
+          dbFormatted: formatSize(dbStorageBytes),
+          filesBytes: filesStorageBytes,
+          filesFormatted: formatSize(filesStorageBytes),
+          totalBytes: totalStorageBytes,
+          totalFormatted: formatSize(totalStorageBytes),
+          diskTotal: diskSpace ? diskSpace.size : 0,
+          diskTotalFormatted: diskSpace ? formatSize(diskSpace.size) : 'Unknown',
+          diskFree: diskSpace ? diskSpace.free : 0,
+          diskFreeFormatted: diskSpace ? formatSize(diskSpace.free) : 'Unknown',
+        },
         paths: {
           backupDir: BACKUP_DIR,
           dbDir: DB_BACKUP_DIR,
@@ -186,6 +221,7 @@ class BackupService {
         uploads: [],
         logs: ["❌ Error: " + error.message],
         paths: {},
+        storage: { dbFormatted: "0 KB", filesFormatted: "0 KB", totalFormatted: "0 KB" }
       };
     }
   }

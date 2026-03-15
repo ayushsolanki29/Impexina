@@ -63,6 +63,7 @@ const EMPTY_CONTAINER = {
     workflowStatus: "",
     sims: "",
     pims: "",
+    cellStyles: {},
 };
 
 export default function ContainerSummaryForm({
@@ -84,6 +85,7 @@ export default function ContainerSummaryForm({
                 loadingDate: c.loadingDate?.split('T')[0] || EMPTY_CONTAINER.loadingDate,
                 eta: c.eta?.split('T')[0] || c.eta || "",
                 sims: c.sims || "",
+                containerNo: c.containerNoField || "",
                 duty: c.duty != null ? c.duty : undefined,
                 gst: c.gst != null ? c.gst : undefined,
                 dutyPercent: c.dutyPercent ?? 16.5,
@@ -98,10 +100,10 @@ export default function ContainerSummaryForm({
     const [showPreview, setShowPreview] = useState(false);
     const [activities, setActivities] = useState([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
-    const [dateFilter, setDateFilter] = useState({ 
-        from: "", 
-        to: "", 
-        type: "createdAt" 
+    const [dateFilter, setDateFilter] = useState({
+        from: "",
+        to: "",
+        type: "createdAt"
     });
 
     // Fetch global themes on mount
@@ -160,14 +162,14 @@ export default function ContainerSummaryForm({
         const dollar = Number(c.dollar) || 0;
         const rate = Number(c.dollarRate) || 89.7;
         const inr = dollar * rate;
-        
+
         const dutyPct = Number(c.dutyPercent) ?? 16.5;
         const gstPct = Number(c.gstPercent) ?? 18;
 
         const dutyCalc = inr * (dutyPct / 100);
         const totalCalc = inr + dutyCalc;
         const gstCalc = totalCalc * (gstPct / 100);
-        
+
         // Use editable duty/gst when set, else calculated
         const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
         const total = inr + duty;
@@ -330,32 +332,52 @@ export default function ContainerSummaryForm({
         return rule ? { backgroundColor: rule.color } : {};
     };
 
-    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, field: '', containerIdx: -1 });
+    const getStyleForCell = (idx, fieldName) => {
+        const c = containers[idx];
+        if (c?.cellStyles && c.cellStyles[fieldName]) {
+            return { backgroundColor: c.cellStyles[fieldName] };
+        }
+        return getStyleForField(fieldName);
+    };
 
-    const handleContextMenu = (e, field) => {
+    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, field: '', containerIdx: null });
+
+    const handleContextMenu = (e, field, containerIdx = null) => {
         if (!field) return;
         e.preventDefault();
         setContextMenu({
             visible: true,
             x: e.clientX,
             y: e.clientY,
-            field
+            field,
+            containerIdx
         });
     };
 
     const assignColor = (field, color) => {
-        const next = [...colorRules];
-        const existingIdx = next.findIndex(r => r.field === field);
-
-        if (existingIdx > -1) {
-            next[existingIdx].color = color;
+        if (contextMenu.containerIdx !== null) {
+            const idx = contextMenu.containerIdx;
+            const next = [...containers];
+            const cellStyles = { ...(next[idx].cellStyles || {}) };
+            cellStyles[field] = color;
+            next[idx] = { ...next[idx], cellStyles };
+            setContainers(next);
+            setContextMenu({ ...contextMenu, visible: false });
+            toast.success(`Theme assigned to single cell`);
         } else {
-            next.push({ field, color, role: "Target" });
-        }
+            const next = [...colorRules];
+            const existingIdx = next.findIndex(r => r.field === field);
 
-        updateColorRules(next);
-        setContextMenu({ ...contextMenu, visible: false });
-        toast.success(`Color assigned to ${field}`);
+            if (existingIdx > -1) {
+                next[existingIdx].color = color;
+            } else {
+                next.push({ field, color, role: "Target" });
+            }
+
+            updateColorRules(next);
+            setContextMenu({ ...contextMenu, visible: false });
+            toast.success(`Theme assigned to ${field} column`);
+        }
     };
 
     // Keyboard Shortcuts & Close menu
@@ -423,17 +445,25 @@ export default function ContainerSummaryForm({
                         )}
                         <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 mt-1">
                             <div className="flex items-center gap-3 px-1">
-                                <input 
-                                    type="color" 
-                                    className="w-8 h-8 cursor-pointer rounded bg-transparent border-0 outline-none p-0" 
-                                    onChange={(e) => assignColor(contextMenu.field, e.target.value)} 
+                                <input
+                                    type="color"
+                                    className="w-8 h-8 cursor-pointer rounded bg-transparent border-0 outline-none p-0"
+                                    onChange={(e) => assignColor(contextMenu.field, e.target.value)}
                                 />
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Custom Color</span>
                             </div>
                         </div>
                         <button
                             onClick={() => {
-                                updateColorRules(colorRules.filter(r => r.field !== contextMenu.field));
+                                if (contextMenu.containerIdx !== null) {
+                                    const next = [...containers];
+                                    const cellStyles = { ...(next[contextMenu.containerIdx].cellStyles || {}) };
+                                    delete cellStyles[contextMenu.field];
+                                    next[contextMenu.containerIdx] = { ...next[contextMenu.containerIdx], cellStyles };
+                                    setContainers(next);
+                                } else {
+                                    updateColorRules(colorRules.filter(r => r.field !== contextMenu.field));
+                                }
                                 setContextMenu({ ...contextMenu, visible: false });
                             }}
                             className="w-full mt-2 py-1.5 text-[10px] font-bold text-red-500 hover:bg-red-50 rounded transition-colors text-left px-2 flex items-center gap-2"
@@ -579,7 +609,7 @@ export default function ContainerSummaryForm({
                             <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
                                 <tr className="border-b border-slate-200">
                                     <th className="w-10 text-center border-r border-slate-200 bg-slate-100/30"></th>
-                                    <th className="px-5 py-4 w-12 text-center border-r border-slate-200 text-slate-400 font-bold uppercase tracking-wider bg-slate-50">#</th>
+                                    <th className="px-5 py-4 w-12 text-center border-r border-slate-200 text-slate-400 font-bold uppercase tracking-wider bg-slate-50" onContextMenu={(e) => handleContextMenu(e, 'no')} style={getStyleForField('no')}>#</th>
                                     {[
                                         { label: 'Container Code', field: 'containerCode', width: 'min-w-[150px]' },
                                         { label: 'CTN', field: 'ctn', width: 'min-w-[80px] text-center' },
@@ -658,19 +688,21 @@ export default function ContainerSummaryForm({
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-5 py-3 text-center text-slate-300 font-bold border-r border-slate-100" style={getStyleForField('no')}>{visibleIdx + 1}</td>
+                                            <td className="px-5 py-3 text-center text-slate-300 font-bold border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'no', idx)} style={getStyleForCell(idx, 'no')}>{visibleIdx + 1}</td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerCode')} style={getStyleForField('containerCode')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerCode', idx)} style={getStyleForCell(idx, 'containerCode')}>
                                                 <input
+                                                    id={`cs-cell-${idx}-containerCode`}
                                                     className="w-full h-10 px-5 bg-transparent outline-none font-bold text-slate-800 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20 placeholder:text-slate-200"
                                                     value={c.containerCode || ""}
                                                     placeholder="CODE"
                                                     onChange={e => handleContainerChange(idx, 'containerCode', e.target.value)}
+                                                    onKeyDown={e => handleInputKeyDown(e, idx, 'containerCode')}
                                                     disabled={!isEdit && !isCreate}
                                                 />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'ctn')} style={getStyleForField('ctn')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'ctn', idx)} style={getStyleForCell(idx, 'ctn')}>
                                                 <input
                                                     type="number"
                                                     className="w-full h-10 px-2 bg-transparent outline-none text-center font-bold text-slate-800 border-0 focus:ring-1 focus:ring-inset focus:ring-blue-500/20"
@@ -680,33 +712,35 @@ export default function ContainerSummaryForm({
                                                 />
                                             </td>
 
-                                            <td className="px-5 whitespace-nowrap border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'loadingDate')} style={getStyleForField('loadingDate')}>
+                                            <td className="px-5 whitespace-nowrap border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'loadingDate', idx)} style={getStyleForCell(idx, 'loadingDate')}>
                                                 <input type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.loadingDate || ""} onChange={e => handleContainerChange(idx, 'loadingDate', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="px-5 whitespace-nowrap border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'eta')} style={getStyleForField('eta')}>
+                                            <td className="px-5 whitespace-nowrap border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'eta', idx)} style={getStyleForCell(idx, 'eta')}>
                                                 <input type="date" className="bg-transparent outline-none font-bold text-amber-600" value={c.eta || ""} onChange={e => handleContainerChange(idx, 'eta', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'dollar')} style={getStyleForField('dollar')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'dollar', idx)} style={getStyleForCell(idx, 'dollar')}>
                                                 <input type="number" className="w-full h-10 px-4 bg-transparent outline-none text-right font-medium text-slate-600" value={c.dollar || 0} onChange={e => handleContainerChange(idx, 'dollar', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'dollarRate')} style={getStyleForField('dollarRate')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'dollarRate', idx)} style={getStyleForCell(idx, 'dollarRate')}>
                                                 <input type="number" step="0.1" className="w-full h-10 px-3 bg-transparent outline-none text-right font-medium text-slate-600" value={c.dollarRate || 89.7} onChange={e => handleContainerChange(idx, 'dollarRate', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="px-4 text-right font-medium text-slate-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'inr')} style={getStyleForField('inr')}>₹{calc.inr}</td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'duty')} style={getStyleForField('duty')}>
+                                            <td className="px-4 text-right font-medium text-slate-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'inr', idx)} style={getStyleForCell(idx, 'inr')}>₹{calc.inr}</td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'duty', idx)} style={getStyleForCell(idx, 'duty')}>
                                                 {(isEdit || isCreate) ? (
                                                     <div className="flex flex-col group/cell">
                                                         <div className="flex items-center justify-end gap-1 pr-3 pt-1 border-b border-slate-50/50 bg-slate-50/30">
                                                             <input
+                                                                id={`cs-cell-${idx}-dutyPercent`}
                                                                 type="number"
                                                                 step="0.1"
                                                                 className="w-12 text-[9px] text-right font-black text-slate-400 bg-transparent outline-none focus:text-blue-600 transition-colors"
                                                                 value={c.dutyPercent ?? 16.5}
                                                                 onChange={e => handleContainerChange(idx, 'dutyPercent', e.target.value)}
+                                                                onKeyDown={e => handleInputKeyDown(e, idx, 'dutyPercent')}
                                                             />
                                                             <span className="text-[9px] font-black text-slate-300">%</span>
                                                         </div>
@@ -724,17 +758,19 @@ export default function ContainerSummaryForm({
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-4 text-right font-bold text-slate-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'total')} style={getStyleForField('total')}>₹{calc.total}</td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'gst')} style={getStyleForField('gst')}>
+                                            <td className="px-4 text-right font-bold text-slate-700 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'total', idx)} style={getStyleForCell(idx, 'total')}>₹{calc.total}</td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'gst', idx)} style={getStyleForCell(idx, 'gst')}>
                                                 {(isEdit || isCreate) ? (
                                                     <div className="flex flex-col group/cell">
                                                         <div className="flex items-center justify-end gap-1 pr-3 pt-1 border-b border-slate-50/50 bg-slate-50/30">
                                                             <input
+                                                                id={`cs-cell-${idx}-gstPercent`}
                                                                 type="number"
                                                                 step="0.1"
                                                                 className="w-12 text-[9px] text-right font-black text-slate-400 bg-transparent outline-none focus:text-violet-600 transition-colors"
                                                                 value={c.gstPercent ?? 18}
                                                                 onChange={e => handleContainerChange(idx, 'gstPercent', e.target.value)}
+                                                                onKeyDown={e => handleInputKeyDown(e, idx, 'gstPercent')}
                                                             />
                                                             <span className="text-[9px] font-black text-slate-300">%</span>
                                                         </div>
@@ -752,73 +788,77 @@ export default function ContainerSummaryForm({
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-4 text-right font-bold text-slate-900 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'totalDuty')} style={getStyleForField('totalDuty')}>₹{calc.totalDuty}</td>
+                                            <td className="px-4 text-right font-bold text-slate-900 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'totalDuty', idx)} style={getStyleForCell(idx, 'totalDuty')}>₹{calc.totalDuty}</td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'doCharge')} style={getStyleForField('doCharge')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'doCharge', idx)} style={getStyleForCell(idx, 'doCharge')}>
                                                 <input type="number" className="w-full h-10 px-3 bg-transparent outline-none text-right font-medium text-slate-600" value={c.doCharge ?? 58000} onChange={e => handleContainerChange(idx, 'doCharge', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'cfs')} style={getStyleForField('cfs')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'cfs', idx)} style={getStyleForCell(idx, 'cfs')}>
                                                 <input type="number" className="w-full h-10 px-3 bg-transparent outline-none text-right font-medium text-slate-600" value={c.cfs ?? 21830} onChange={e => handleContainerChange(idx, 'cfs', e.target.value)} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="px-4 text-right font-bold text-blue-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'finalAmount')} style={getStyleForField('finalAmount')}>₹{calc.finalAmount}</td>
+                                            <td className="px-4 text-right font-bold text-blue-600 border-r border-slate-100 tabular-nums" onContextMenu={(e) => handleContextMenu(e, 'finalAmount', idx)} style={getStyleForCell(idx, 'finalAmount')}>₹{calc.finalAmount}</td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shippingLine')} style={getStyleForField('shippingLine')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none uppercase font-bold text-slate-500" value={c.shippingLine || ""} placeholder="SHIPPING" onChange={e => handleContainerChange(idx, 'shippingLine', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shippingLine', idx)} style={getStyleForCell(idx, 'shippingLine')}>
+                                                <input id={`cs-cell-${idx}-shippingLine`} className="w-full h-10 px-5 bg-transparent outline-none uppercase font-bold text-slate-500" value={c.shippingLine || ""} placeholder="SHIPPING" onChange={e => handleContainerChange(idx, 'shippingLine', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'shippingLine')} disabled={!isEdit && !isCreate} />
                                             </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'bl')} style={getStyleForField('bl')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-bold text-slate-400" value={c.bl || ""} placeholder="BL #" onChange={e => handleContainerChange(idx, 'bl', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'bl', idx)} style={getStyleForCell(idx, 'bl')}>
+                                                <input id={`cs-cell-${idx}-bl`} className="w-full h-10 px-5 bg-transparent outline-none font-bold text-slate-400" value={c.bl || ""} placeholder="BL #" onChange={e => handleContainerChange(idx, 'bl', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'bl')} disabled={!isEdit && !isCreate} />
                                             </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerNo')} style={getStyleForField('containerNo')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none text-slate-400 font-medium" value={c.containerNo || ""} placeholder="CONTAINER NO." onChange={e => handleContainerChange(idx, 'containerNo', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'origin')} style={getStyleForField('origin')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase" value={c.origin || ""} placeholder="ORIGIN" onChange={e => handleContainerChange(idx, 'origin', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'location')} style={getStyleForField('location')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.location || ""} placeholder="PORT" onChange={e => handleContainerChange(idx, 'location', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shipper')} style={getStyleForField('shipper')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.shipper || ""} placeholder="SHIPPER" onChange={e => handleContainerChange(idx, 'shipper', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceNo')} style={getStyleForField('invoiceNo')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.invoiceNo || ""} placeholder="INV#" onChange={e => handleContainerChange(idx, 'invoiceNo', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceDate')} style={getStyleForField('invoiceDate')}>
-                                                <input type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.invoiceDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'invoiceDate', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'deliveryDate')} style={getStyleForField('deliveryDate')}>
-                                                <input type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.deliveryDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'deliveryDate', e.target.value)} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'workflowStatus')} style={getStyleForField('workflowStatus')}>
-                                                <input className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600 uppercase" value={c.workflowStatus || ""} placeholder="STATUS" onChange={e => handleContainerChange(idx, 'workflowStatus', e.target.value)} disabled={!isEdit && !isCreate} />
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'containerNo', idx)} style={getStyleForCell(idx, 'containerNo')}>
+                                                <input id={`cs-cell-${idx}-containerNo`} className="w-full h-10 px-5 bg-transparent outline-none text-slate-400 font-medium" value={c.containerNo || ""} placeholder="CONTAINER NO." onChange={e => handleContainerChange(idx, 'containerNo', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'containerNo')} disabled={!isEdit && !isCreate} />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'sims')} style={getStyleForField('sims')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'origin', idx)} style={getStyleForCell(idx, 'origin')}>
+                                                <input id={`cs-cell-${idx}-origin`} className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase" value={c.origin || ""} placeholder="ORIGIN" onChange={e => handleContainerChange(idx, 'origin', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'origin')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'location', idx)} style={getStyleForCell(idx, 'location')}>
+                                                <input id={`cs-cell-${idx}-location`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.location || ""} placeholder="PORT" onChange={e => handleContainerChange(idx, 'location', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'location')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shipper', idx)} style={getStyleForCell(idx, 'shipper')}>
+                                                <input id={`cs-cell-${idx}-shipper`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.shipper || ""} placeholder="SHIPPER" onChange={e => handleContainerChange(idx, 'shipper', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'shipper')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceNo', idx)} style={getStyleForCell(idx, 'invoiceNo')}>
+                                                <input id={`cs-cell-${idx}-invoiceNo`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.invoiceNo || ""} placeholder="INV#" onChange={e => handleContainerChange(idx, 'invoiceNo', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'invoiceNo')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceDate', idx)} style={getStyleForCell(idx, 'invoiceDate')}>
+                                                <input id={`cs-cell-${idx}-invoiceDate`} type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.invoiceDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'invoiceDate', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'invoiceDate')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'deliveryDate', idx)} style={getStyleForCell(idx, 'deliveryDate')}>
+                                                <input id={`cs-cell-${idx}-deliveryDate`} type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.deliveryDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'deliveryDate', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'deliveryDate')} disabled={!isEdit && !isCreate} />
+                                            </td>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'workflowStatus', idx)} style={getStyleForCell(idx, 'workflowStatus')}>
+                                                <input id={`cs-cell-${idx}-workflowStatus`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600 uppercase" value={c.workflowStatus || ""} placeholder="STATUS" onChange={e => handleContainerChange(idx, 'workflowStatus', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'workflowStatus')} disabled={!isEdit && !isCreate} />
+                                            </td>
+
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'sims', idx)} style={getStyleForCell(idx, 'sims')}>
                                                 <input
+                                                    id={`cs-cell-${idx}-sims`}
                                                     className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase placeholder:text-slate-200"
                                                     value={c.sims || ""}
                                                     placeholder="SIMS"
                                                     onChange={e => handleContainerChange(idx, 'sims', e.target.value)}
+                                                    onKeyDown={e => handleInputKeyDown(e, idx, 'sims')}
                                                     disabled={!isEdit && !isCreate}
                                                 />
                                             </td>
 
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'pims')} style={getStyleForField('pims')}>
+                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'pims', idx)} style={getStyleForCell(idx, 'pims')}>
                                                 <input
+                                                    id={`cs-cell-${idx}-pims`}
                                                     className="w-full h-10 px-5 bg-transparent outline-none font-bold text-purple-600 uppercase placeholder:text-slate-200"
                                                     value={c.pims || ""}
                                                     placeholder="PIMS"
                                                     onChange={e => handleContainerChange(idx, 'pims', e.target.value)}
+                                                    onKeyDown={e => handleInputKeyDown(e, idx, 'pims')}
                                                     disabled={!isEdit && !isCreate}
                                                 />
                                             </td>
 
                                             {(isEdit || isCreate) && (
                                                 <td className="px-2 text-center">
-                                                    <button onClick={() => setContainers(containers.filter((_, i) => i !== idx))} className="p-1.5 text-slate-200 hover:text-red-500 transition-colors">
+                                                    <button onClick={() => setContainers(containers.filter((_, i) => i !== idx))} className="p-1.5 text-slate-200 hover:text-red-500 transition-colors" tabIndex={-1}>
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </td>
@@ -931,11 +971,11 @@ export default function ContainerSummaryForm({
                                                         );
                                                     })}
                                                     <div className="flex items-center justify-center w-6 h-6 rounded-full border border-slate-200 relative overflow-hidden">
-                                                        <input 
-                                                            type="color" 
-                                                            className="absolute inset-[-10px] w-[200%] h-[200%] cursor-pointer border-0 p-0" 
+                                                        <input
+                                                            type="color"
+                                                            className="absolute inset-[-10px] w-[200%] h-[200%] cursor-pointer border-0 p-0"
                                                             value={rule.color}
-                                                            onChange={(e) => { const nr = [...colorRules]; nr[idx].color = e.target.value; updateColorRules(nr); }} 
+                                                            onChange={(e) => { const nr = [...colorRules]; nr[idx].color = e.target.value; updateColorRules(nr); }}
                                                         />
                                                     </div>
                                                 </div>

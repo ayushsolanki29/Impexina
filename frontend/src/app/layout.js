@@ -1,6 +1,6 @@
 // app/layout.js (server component)
 import './globals.css';
-import { ToasterProvider } from "@/components/ToasterProvider";
+import ToasterProvider from "@/components/ToasterProvider";
 export const metadata = {
   title: 'Bennet Tradding - Import Logistics & Sales Management System',
   description: 'Import Logistics & Sales Management System',
@@ -9,6 +9,11 @@ export const metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'Bennet Tradding - Import Logistics & Sales Management System',
+  },
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
   },
 
 

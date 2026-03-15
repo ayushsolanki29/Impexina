@@ -6,7 +6,7 @@ import {
   Plus, Save, Trash2, X, Loader2, ArrowLeft,
   Eye, Package, Building2, Landmark, History,
   Info, Box, Users, Upload, Image as ImageIcon, FileSpreadsheet,
-  ChevronUp, ChevronDown
+  ChevronUp, ChevronDown, Copy
 } from 'lucide-react';
 import API from '@/lib/api';
 import { DEFAULT_COMPANY_DETAILS } from '@/lib/constants';
@@ -342,6 +342,54 @@ export default function PackingListEntryPage() {
     newItems.splice(index, 1);
     newItems.splice(direction === 'up' ? index - 1 : index + 1, 0, item);
     setItems(newItems);
+  };
+
+  const duplicateRow = (index) => {
+    const itemToDuplicate = items[index];
+    const newItem = { ...itemToDuplicate, id: `temp_${Date.now()}_${Math.random()}` };
+    const newItems = [...items];
+    newItems.splice(index + 1, 0, newItem);
+    setItems(newItems);
+  };
+
+  const COLUMN_SEQUENCE = ['particular', 'itemNumber', 'ctn', 'qtyPerCtn', 'unit', 'kg', 'mix', 'hsn'];
+
+  const handleInputKeyDown = (e, index, field) => {
+    if (e.key === 'Tab') {
+      const colIdx = COLUMN_SEQUENCE.indexOf(field);
+      if (colIdx === -1) return;
+
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (colIdx > 0) {
+          e.preventDefault();
+          const prevField = COLUMN_SEQUENCE[colIdx - 1];
+          document.getElementById(`cell-${index}-${prevField}`)?.focus();
+        } else if (index > 0) {
+          e.preventDefault();
+          const lastField = COLUMN_SEQUENCE[COLUMN_SEQUENCE.length - 1];
+          document.getElementById(`cell-${index - 1}-${lastField}`)?.focus();
+        }
+      } else {
+        // Tab
+        if (colIdx < COLUMN_SEQUENCE.length - 1) {
+          e.preventDefault();
+          const nextField = COLUMN_SEQUENCE[colIdx + 1];
+          document.getElementById(`cell-${index}-${nextField}`)?.focus();
+        } else if (index < items.length - 1) {
+          e.preventDefault();
+          document.getElementById(`cell-${index + 1}-${COLUMN_SEQUENCE[0]}`)?.focus();
+        } else {
+          // Last row, last field -> Add Row
+          e.preventDefault();
+          addItem();
+          setTimeout(() => {
+            const nextIdx = index + 1;
+            document.getElementById(`cell-${nextIdx}-${COLUMN_SEQUENCE[0]}`)?.focus();
+          }, 100);
+        }
+      }
+    }
   };
 
   const updateItem = (id, field, value) => {
@@ -1029,8 +1077,10 @@ export default function PackingListEntryPage() {
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <textarea
+                            id={`cell-${idx}-particular`}
                             value={item.particular}
                             onChange={e => updateItem(item.id, 'particular', e.target.value.toUpperCase())}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'particular')}
                             className="w-full bg-transparent border-none px-3 py-1 text-sm font-semibold text-slate-700 outline-none resize-none h-10 flex items-center"
                             placeholder="Description"
                             onMouseEnter={() => setHoveredId(item.id)}
@@ -1050,40 +1100,50 @@ export default function PackingListEntryPage() {
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-itemNumber`}
                             value={item.itemNumber}
                             onChange={e => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'itemNumber')}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
                             placeholder="-"
                           />
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-ctn`}
                             type="number" value={item.ctn || ''}
                             onChange={e => updateItem(item.id, 'ctn', e.target.value)}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'ctn')}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-900 text-center outline-none"
                             placeholder="0"
                           />
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-qtyPerCtn`}
                             type="number" value={item.qtyPerCtn || ''}
                             onChange={e => updateItem(item.id, 'qtyPerCtn', e.target.value)}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'qtyPerCtn')}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                             placeholder="0"
                           />
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-unit`}
                             value={item.unit || 'PCS'}
                             onChange={e => updateItem(item.id, 'unit', e.target.value.toUpperCase())}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'unit')}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                           />
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-600 bg-blue-50/20">{item.tQty}</td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-kg`}
                             type="number" value={item.kg || ''}
                             onChange={e => updateItem(item.id, 'kg', e.target.value)}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'kg')}
                             className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                             placeholder="0"
                           />
@@ -1091,22 +1151,39 @@ export default function PackingListEntryPage() {
                         <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-orange-600 bg-orange-50/20">{(parseFloat(item.tKg) || 0).toFixed(2)}</td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-mix`}
                             value={item.mix || ''}
                             onChange={e => updateItem(item.id, 'mix', e.target.value.toUpperCase())}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'mix')}
                             className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
                             placeholder="-"
                           />
                         </td>
                         <td className="px-1 py-1 border-r border-slate-100">
                           <input
+                            id={`cell-${idx}-hsn`}
                             value={item.hsn || ''}
                             onChange={e => updateItem(item.id, 'hsn', e.target.value.toUpperCase())}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'hsn')}
                             className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
                             placeholder="-"
                           />
                         </td>
-                        <td className="px-1 py-2 text-center">
-                          <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                        <td className="px-1 py-2 text-center flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => duplicateRow(idx)}
+                            className="p-2 text-slate-300 hover:text-blue-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Duplicate Row"
+                            tabIndex={-1}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Delete Row"
+                            tabIndex={-1}
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
@@ -1197,6 +1274,16 @@ export default function PackingListEntryPage() {
           >
             <ImageIcon className="w-4 h-4" />
             Paste Here
+          </button>
+          <button
+            onClick={() => {
+              updateItem(contextMenu.itemId, 'photo', null);
+              setContextMenu(prev => ({ ...prev, visible: false }));
+            }}
+            className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove Image
           </button>
         </div>
       )}

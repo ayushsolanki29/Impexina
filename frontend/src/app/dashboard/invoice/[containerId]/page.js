@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Plus, Save, Trash2, Loader2, ArrowLeft,
   Eye, Package, DollarSign, History, Building2, Landmark, Users, Upload, Image as ImageIcon, FileSpreadsheet,
-  ChevronUp, ChevronDown, Info
+  ChevronUp, ChevronDown, Info, Copy
 } from 'lucide-react';
 import API from '@/lib/api';
 import { DEFAULT_COMPANY_DETAILS } from '@/lib/constants';
@@ -351,6 +351,54 @@ export default function InvoiceEntryPage() {
     setItems(newItems);
   };
 
+  const duplicateRow = (index) => {
+    const itemToDuplicate = items[index];
+    const newItem = { ...itemToDuplicate, id: `temp_${Date.now()}_${Math.random()}` };
+    const newItems = [...items];
+    newItems.splice(index + 1, 0, newItem);
+    setItems(newItems);
+  };
+
+  const COLUMN_SEQUENCE = ['itemNumber', 'description', 'ctn', 'qtyPerCtn', 'unit', 'unitPrice', 'hsn'];
+
+  const handleInputKeyDown = (e, index, field) => {
+    if (e.key === 'Tab') {
+      const colIdx = COLUMN_SEQUENCE.indexOf(field);
+      if (colIdx === -1) return;
+
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (colIdx > 0) {
+          e.preventDefault();
+          const prevField = COLUMN_SEQUENCE[colIdx - 1];
+          document.getElementById(`cell-${index}-${prevField}`)?.focus();
+        } else if (index > 0) {
+          e.preventDefault();
+          const lastField = COLUMN_SEQUENCE[COLUMN_SEQUENCE.length - 1];
+          document.getElementById(`cell-${index - 1}-${lastField}`)?.focus();
+        }
+      } else {
+        // Tab
+        if (colIdx < COLUMN_SEQUENCE.length - 1) {
+          e.preventDefault();
+          const nextField = COLUMN_SEQUENCE[colIdx + 1];
+          document.getElementById(`cell-${index}-${nextField}`)?.focus();
+        } else if (index < items.length - 1) {
+          e.preventDefault();
+          document.getElementById(`cell-${index + 1}-${COLUMN_SEQUENCE[0]}`)?.focus();
+        } else {
+          // Last row, last field -> Add Row
+          e.preventDefault();
+          addItem();
+          setTimeout(() => {
+            const nextIdx = index + 1;
+            document.getElementById(`cell-${nextIdx}-${COLUMN_SEQUENCE[0]}`)?.focus();
+          }, 100);
+        }
+      }
+    }
+  };
+
   const updateItem = (id, field, value) => {
     setItems(prevItems => prevItems.map(item => {
       if (item.id === id) {
@@ -363,12 +411,12 @@ export default function InvoiceEntryPage() {
 
         // Auto-calculate amountUsd
         if (field === 'tQty' || field === 'unitPrice') {
-          updated.amountUsd = (parseInt(updated.tQty) || 0) * (parseFloat(updated.unitPrice) || 0);
+          updated.amountUsd = Math.round((parseInt(updated.tQty) || 0) * (parseFloat(updated.unitPrice) || 0));
         }
 
         // Recalculate if ctn or qtyPerCtn changed
         if (field === 'ctn' || field === 'qtyPerCtn') {
-          updated.amountUsd = updated.tQty * (parseFloat(updated.unitPrice) || 0);
+          updated.amountUsd = Math.round(updated.tQty * (parseFloat(updated.unitPrice) || 0));
         }
 
         return updated;
@@ -465,7 +513,7 @@ export default function InvoiceEntryPage() {
     totalItems: items.length,
     totalCtn: items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0),
     totalQty: items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0),
-    totalAmount: items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0)
+    totalAmount: Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0))
   };
 
   if (loading && !container) {
@@ -590,7 +638,7 @@ export default function InvoiceEntryPage() {
             </div>
             <div>
               <div className="text-sm font-medium text-slate-500 uppercase tracking-widest">Total USD</div>
-              <div className="text-2xl font-bold text-emerald-700">${stats.totalAmount.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-emerald-700">${stats.totalAmount.toLocaleString()}</div>
             </div>
           </div>
         </div>
@@ -1023,9 +1071,11 @@ export default function InvoiceEntryPage() {
                     <td className="px-4 py-2 text-center text-xs font-medium text-slate-400 border-r border-slate-100">{idx + 1}</td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
+                        id={`cell-${idx}-itemNumber`}
                         type="text"
                         value={item.itemNumber}
                         onChange={(e) => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'itemNumber')}
                         className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
                         placeholder="-"
                       />
@@ -1084,8 +1134,10 @@ export default function InvoiceEntryPage() {
                     </td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <textarea
+                        id={`cell-${idx}-description`}
                         value={item.description}
                         onChange={(e) => updateItem(item.id, 'description', e.target.value.toUpperCase())}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'description')}
                         className="w-full bg-transparent border-none px-3 py-1 text-sm font-semibold text-slate-700 outline-none resize-none h-10"
                         placeholder="Description"
                         onMouseEnter={() => setHoveredId(item.id)}
@@ -1102,53 +1154,73 @@ export default function InvoiceEntryPage() {
                     </td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
+                        id={`cell-${idx}-ctn`}
                         type="number" value={item.ctn || ''}
                         onChange={(e) => updateItem(item.id, 'ctn', e.target.value)}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'ctn')}
                         className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-900 text-center outline-none"
                         placeholder="0"
                       />
                     </td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
+                        id={`cell-${idx}-qtyPerCtn`}
                         type="number" value={item.qtyPerCtn || ''}
                         onChange={(e) => updateItem(item.id, 'qtyPerCtn', e.target.value)}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'qtyPerCtn')}
                         className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                         placeholder="0"
                       />
                     </td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
+                        id={`cell-${idx}-unit`}
                         value={item.unit || 'PCS'}
                         onChange={(e) => updateItem(item.id, 'unit', e.target.value.toUpperCase())}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'unit')}
                         className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                       />
                     </td>
                     <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-600 bg-blue-50/20">{item.tQty}</td>
                     <td className="px-1 py-1 border-r border-slate-100">
                       <input
+                        id={`cell-${idx}-unitPrice`}
                         type="number"
                         step="0.01"
                         value={item.unitPrice || ''}
                         onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
+                        onKeyDown={(e) => handleInputKeyDown(e, idx, 'unitPrice')}
                         className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
                         placeholder="0.00"
                       />
                     </td>
-                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-emerald-700 bg-emerald-50/20">{(parseFloat(item.amountUsd) || 0).toFixed(2)}</td>
+                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-emerald-700 bg-emerald-50/20">{Math.round(parseFloat(item.amountUsd) || 0).toLocaleString()}</td>
                     {formData.showHsnColumn && (
                       <td className="px-1 py-1 border-r border-slate-100">
                         <input
+                          id={`cell-${idx}-hsn`}
                           value={item.hsn || ''}
                           onChange={(e) => updateItem(item.id, 'hsn', e.target.value.toUpperCase())}
+                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'hsn')}
                           className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
                           placeholder="-"
                         />
                       </td>
                     )}
-                    <td className="px-1 py-1 text-center">
+                    <td className="px-1 py-1 text-center flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => duplicateRow(idx)}
+                        className="p-2 text-slate-300 hover:text-blue-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Duplicate Row"
+                        tabIndex={-1}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => removeItem(item.id)}
                         className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Delete Row"
+                        tabIndex={-1}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1171,7 +1243,7 @@ export default function InvoiceEntryPage() {
                 <div className="text-right">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Amount</span>
                   <div className="text-xl font-bold text-slate-800">
-                    USD {(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0)).toFixed(2)}
+                    USD {Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0))}
                   </div>
                 </div>
               </div>
@@ -1255,6 +1327,16 @@ export default function InvoiceEntryPage() {
           >
             <ImageIcon className="w-4 h-4" />
             Paste Here
+          </button>
+          <button
+            onClick={() => {
+              updateItem(contextMenu.itemId, 'photo', null);
+              setContextMenu(prev => ({ ...prev, visible: false }));
+            }}
+            className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove Image
           </button>
         </div>
       )}

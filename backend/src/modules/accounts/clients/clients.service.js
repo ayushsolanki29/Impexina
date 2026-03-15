@@ -428,7 +428,7 @@ const AccountClientsService = {
         const booking = parseFloat(cleanData.booking || 0);
         const rate = parseFloat(cleanData.rate || 0);
         const paid = parseFloat(cleanData.paid || 0);
-        const total = rate > 0 ? (amount + booking) * rate : (amount + booking);
+        const total = rate > 0 ? booking * rate : booking;
         const balance = total - paid;
 
         return prisma.clientTrfTransaction.create({
@@ -470,7 +470,7 @@ const AccountClientsService = {
             updateData.booking = booking;
             updateData.rate = rate;
             updateData.paid = paid;
-            updateData.total = rate > 0 ? (amount + booking) * rate : (amount + booking);
+            updateData.total = rate > 0 ? booking * rate : booking;
             updateData.balance = updateData.total - paid;
         }
 

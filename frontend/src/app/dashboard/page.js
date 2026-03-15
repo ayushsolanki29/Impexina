@@ -972,7 +972,7 @@ function AdminDashboard({ user, dashboardData }) {
                 </h3>
                 <div className="space-y-2">
                   <button
-                    onClick={() => router.push("/dashboard/tasks")}
+                    onClick={() => router.push("/dashboard/my-tasks")}
                     className="w-full p-3 flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors"
                   >
                     <ListTodo className="w-5 h-5" />
@@ -1238,7 +1238,7 @@ function EmployeeDashboard({ user, dashboardData }) {
               Today&apos;s Tasks
             </h3>
             <button
-              onClick={() => router.push("/dashboard/tasks")}
+              onClick={() => router.push("/dashboard/my-tasks")}
               className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
             >
               View All <ArrowRight className="w-3 h-3" />
@@ -1278,7 +1278,7 @@ function EmployeeDashboard({ user, dashboardData }) {
                       </div>
                       {!isCompleted && (
                         <button
-                          onClick={() => router.push("/dashboard/tasks")}
+                          onClick={() => router.push("/dashboard/my-tasks")}
                           className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
                         >
                           Complete
@@ -1327,7 +1327,7 @@ function EmployeeDashboard({ user, dashboardData }) {
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => router.push("/dashboard/tasks")}
+                onClick={() => router.push("/dashboard/my-tasks")}
                 className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold flex flex-col items-center gap-2 hover:bg-emerald-100 transition-colors"
               >
                 <ListTodo className="w-5 h-5" />
@@ -1497,7 +1497,7 @@ function NewJoinerDashboard({ user }) {
               </p>
             </div>
             <button
-              onClick={() => router.push("/dashboard/tasks")}
+              onClick={() => router.push("/dashboard/my-tasks")}
               className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
             >
               View All <ArrowRight className="w-3 h-3" />
@@ -1552,7 +1552,7 @@ function NewJoinerDashboard({ user }) {
                         </div>
                         {!isCompleted && (
                           <button
-                            onClick={() => router.push("/dashboard/tasks")}
+                            onClick={() => router.push("/dashboard/my-tasks")}
                             className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
                           >
                             Complete
@@ -1657,7 +1657,7 @@ function NewJoinerDashboard({ user }) {
             </h3>
             <div className="space-y-2">
               <button
-                onClick={() => router.push("/dashboard/tasks")}
+                onClick={() => router.push("/dashboard/my-tasks")}
                 className="w-full p-3 flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors"
               >
                 <ListTodo className="w-5 h-5" />

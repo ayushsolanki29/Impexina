@@ -17,11 +17,22 @@ export default function LayoutShell({ children }) {
 
   const handleLogout = () => {
     clearAuthCookies();
+    // Brute force clear all cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    // Clear all storage
+    localStorage.clear();
+    sessionStorage.clear();
     window.location.href = "/auth/login";
   };
 
   const handleReload = () => {
-    window.location.reload(true);
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = window.location.pathname;
   };
 
   // Hide sidebar on auth pages

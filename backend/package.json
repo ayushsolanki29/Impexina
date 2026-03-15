@@ -1,7 +1,7 @@
 {
   "name": "bennet-tradding-backend",
   "description": "Bennet Tradding Internal Management System",
-  "version": "1.0.9",
+  "version": "1.2.1",
   "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -21,6 +21,7 @@
   "dependencies": {
     "@prisma/client": "^6.18.0",
     "bcryptjs": "^3.0.2",
+    "check-disk-space": "^3.4.0",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.3",

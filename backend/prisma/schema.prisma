@@ -623,6 +623,7 @@ model ContainerInSummary {
   origin           String?
 
   containerNoField String? // Actual container number
+  cellStyles       Json?
   sims             String?
   pims             String?
   

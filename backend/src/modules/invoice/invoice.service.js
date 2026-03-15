@@ -118,6 +118,12 @@ const invoiceService = {
       invoiceNo,
       invoiceDate,
       status,
+      // Ignore packing list specific fields that might come in from frontend defaults
+      sellerCompanyName,
+      sellerAddress,
+      sellerIecNo,
+      sellerGst,
+      sellerEmail,
       ...headerData
     } = data;
 
@@ -135,7 +141,7 @@ const invoiceService = {
       const qtyPerCtn = parseInt(item.qtyPerCtn) || 0;
       const tQty = parseInt(item.tQty) || (ctn * qtyPerCtn);
       const unitPrice = parseFloat(item.unitPrice) || 0;
-      const amountUsd = parseFloat(item.amountUsd) || (tQty * unitPrice);
+      const amountUsd = Math.round(parseFloat(item.amountUsd) || (tQty * unitPrice));
 
       return {
         itemNumber: item.itemNumber || "",

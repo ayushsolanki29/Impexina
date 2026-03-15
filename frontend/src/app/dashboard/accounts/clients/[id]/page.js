@@ -180,7 +180,7 @@ export default function ExcelLedgerPage() {
         const totalAmt = transactions.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
         const totalPd = transactions.reduce((s, t) => s + (parseFloat(t.paid) || 0), 0);
         const bal = totalAmt - totalPd;
-        
+
         if (allFilled && Math.abs(bal) < 0.01) {
             setAccountStatus({ status: 'COMPLETED', manual: false });
         } else if (transactions.some(t => parseFloat(t.amount) > 0 || parseFloat(t.paid) > 0)) {
@@ -376,6 +376,8 @@ export default function ExcelLedgerPage() {
                                     return {
                                         ...t,
                                         particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
                                         from: info.from || t.from || '',
                                         to: info.to || t.to || ''
                                     };
@@ -392,6 +394,7 @@ export default function ExcelLedgerPage() {
                                         deliveryDate: info.delDateStr || new Date().toISOString().split('T')[0],
                                         particulars: info.particulars,
                                         quantity: info.totalCbm,
+                                        weight: info.totalWeight,
                                         rate: "",
                                         amount: "",
                                         paid: "",
@@ -414,7 +417,8 @@ export default function ExcelLedgerPage() {
                                         containerCode: "",
                                         deliveryDate: "",
                                         particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
-                                        quantity: "",
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
                                         rate: "",
                                         amount: info.totalGstAmount,
                                         paid: "",
@@ -590,12 +594,11 @@ export default function ExcelLedgerPage() {
         const updated = [...trfTransactions];
         updated[rowIndex] = { ...updated[rowIndex], [field]: value };
 
-        // Auto-calculate total: amount * rate (or just amount if no rate)
+        // Auto-calculate total: booking * rate
         if (field === 'amount' || field === 'rate' || field === 'booking') {
-            const amt = parseFloat(updated[rowIndex].amount || 0);
             const booking = parseFloat(updated[rowIndex].booking || 0);
             const rate = parseFloat(updated[rowIndex].rate || 0);
-            updated[rowIndex].total = rate > 0 ? (amt + booking) * rate : (amt + booking);
+            updated[rowIndex].total = rate > 0 ? booking * rate : booking;
         }
 
         // Calculate balance
@@ -821,13 +824,12 @@ export default function ExcelLedgerPage() {
                             <button
                                 onClick={toggleAccountStatus}
                                 disabled={statusLoading}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all hover:shadow-sm ${
-                                    accountStatus.status === 'COMPLETED'
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all hover:shadow-sm ${accountStatus.status === 'COMPLETED'
                                         ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
                                         : accountStatus.status === 'IN_PROGRESS'
                                             ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
                                             : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
-                                }`}
+                                    }`}
                                 title={accountStatus.status === 'COMPLETED' ? 'Click to mark incomplete' : 'Click to mark completed'}
                             >
                                 {statusLoading ? (
@@ -984,14 +986,14 @@ export default function ExcelLedgerPage() {
                                                                     if (t.particulars?.startsWith("GST INV")) {
                                                                         const fromPart = info.from ? ` FROM: ${info.from}` : '';
                                                                         const toPart = info.to ? ` TO: ${info.to}` : '';
-                                                                        return { ...t, particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, amount: info.totalGstAmount, from: info.from || t.from || '', to: info.to || t.to || '' };
+                                                                        return { ...t, particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, quantity: info.totalCbm, weight: info.totalWeight, amount: info.totalGstAmount, from: info.from || t.from || '', to: info.to || t.to || '' };
                                                                     }
                                                                     return { ...t, containerCode: info.formatted, particulars: info.particulars, deliveryDate: info.delDateStr, quantity: info.totalCbm, weight: info.totalWeight, from: info.from || t.from || '', to: info.to || t.to || '' };
                                                                 });
                                                                 if (!existingGstRow && (info.invoiceNo || info.totalGstAmount > 0)) {
                                                                     const fromPart = info.from ? ` FROM: ${info.from}` : '';
                                                                     const toPart = info.to ? ` TO: ${info.to}` : '';
-                                                                    updated.push({ id: `temp-${Date.now()}`, isNew: true, containerCode: "", deliveryDate: "", particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, amount: info.totalGstAmount, paid: "", clientId: id, billingType: "FLAT", sheetName: querySheetName || "", from: info.from || '', to: info.to || '' });
+                                                                    updated.push({ id: `temp-${Date.now()}`, isNew: true, containerCode: "", deliveryDate: "", particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`, quantity: info.totalCbm, weight: info.totalWeight, amount: info.totalGstAmount, paid: "", clientId: id, billingType: "FLAT", sheetName: querySheetName || "", from: info.from || '', to: info.to || '' });
                                                                 }
                                                                 return updated;
                                                             });
