@@ -144,6 +144,49 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
     const exportVisibleExcel = () => {
         try {
             const wb = XLSX.utils.book_new();
+            const excelTotalVal = (col) => {
+                switch (col.key) {
+                    case "no": return "";
+                    case "containerCode": return "TOTALS";
+                    case "ctn": return totals.ctn;
+                    case "dollar": return totals.dollar;
+                    case "dollarRate": return "";
+                    case "inr": return totals.inr;
+                    case "duty": return totals.duty;
+                    case "total": return totals.total;
+                    case "gst": return totals.gst;
+                    case "totalDuty": return totals.totalDuty;
+                    case "doCharge": return totals.doCharge;
+                    case "cfs": return totals.cfs;
+                    case "finalAmount": return totals.finalAmount;
+                    default: return "";
+                }
+            };
+
+            const isNumericKey = new Set([
+                "no",
+                "ctn",
+                "dollar",
+                "dollarRate",
+                "inr",
+                "duty",
+                "total",
+                "gst",
+                "totalDuty",
+                "doCharge",
+                "cfs",
+                "finalAmount",
+            ]);
+
+            const numFmtForKey = (key) => {
+                if (key === "no" || key === "ctn" || key === "doCharge" || key === "cfs") return "#,##0";
+                if (key === "dollarRate") return "#,##0.0";
+                if (key === "dollar") return "#,##0.00";
+                // INR + duties etc
+                if (["inr", "duty", "total", "gst", "totalDuty", "finalAmount"].includes(key)) return "#,##0.00";
+                return "#,##0.00";
+            };
+
             const wsData = [
                 [`${summary?.month || "Container Summary"} (Export)`],
                 [`Generated: ${new Date().toLocaleString("en-IN")}`],
@@ -154,28 +197,84 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
             containers.forEach((c, idx) => {
                 wsData.push(visibleCols.map(col => excelCellVal(col, c, idx)));
             });
-            wsData.push(visibleCols.map(col => totalVal(col)));
+            wsData.push([]);
+            wsData.push(visibleCols.map(col => excelTotalVal(col)));
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-            // Basic styling for header row (row index 3)
+            // Merges for the title row (row 0)
+            ws["!merges"] = ws["!merges"] || [];
+            ws["!merges"].push({
+                s: { r: 0, c: 0 },
+                e: { r: 0, c: Math.max(visibleCols.length - 1, 0) },
+            });
+
+            const border = {
+                top: { style: "thin", color: { rgb: "CBD5E1" } },
+                bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+                left: { style: "thin", color: { rgb: "CBD5E1" } },
+                right: { style: "thin", color: { rgb: "CBD5E1" } },
+            };
+
+            const setCellStyle = (r, c, style) => {
+                const cellRef = XLSX.utils.encode_cell({ r, c });
+                const cell = ws[cellRef];
+                if (!cell) return;
+                cell.s = style;
+            };
+
+            // Title row (green) - row 0
+            for (let c = 0; c < visibleCols.length; c++) {
+                setCellStyle(0, c, {
+                    font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
+                    fill: { patternType: "solid", fgColor: { rgb: "059669" } },
+                    alignment: { vertical: "center", horizontal: "center" },
+                });
+            }
+            ws["!rows"] = ws["!rows"] || [];
+            ws["!rows"][0] = { hpt: 26 };
+
+            // Header row (amber) - row index 3
             const headerRowIndex = 3;
             const range = XLSX.utils.decode_range(ws["!ref"]);
             for (let C = range.s.c; C <= range.e.c; C++) {
-                const cell = ws[XLSX.utils.encode_cell({ r: headerRowIndex, c: C })];
-                if (cell) {
-                    cell.s = {
-                        font: { bold: true, color: { rgb: "FFFFFF" } },
-                        fill: { fgColor: { rgb: "1E293B" } },
-                        alignment: { vertical: "center", horizontal: "center", wrapText: true },
-                        border: {
-                            top: { style: "thin", color: { rgb: "334155" } },
-                            bottom: { style: "thin", color: { rgb: "334155" } },
-                            left: { style: "thin", color: { rgb: "334155" } },
-                            right: { style: "thin", color: { rgb: "334155" } },
-                        },
-                    };
+                const colKey = visibleCols[C]?.key;
+                const isNumber = isNumericKey.has(colKey);
+                setCellStyle(headerRowIndex, C, {
+                    font: { bold: true, color: { rgb: "0F172A" } },
+                    fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
+                    alignment: { vertical: "center", horizontal: isNumber ? "right" : "left", wrapText: true },
+                    border,
+                });
+            }
+
+            // Data rows (borders + num formats)
+            const firstDataRow = headerRowIndex + 1;
+            const lastDataRow = firstDataRow + containers.length - 1;
+            for (let r = firstDataRow; r <= lastDataRow; r++) {
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                    const colKey = visibleCols[c]?.key;
+                    const isNumber = isNumericKey.has(colKey);
+                    setCellStyle(r, c, {
+                        border,
+                        alignment: { vertical: "top", horizontal: isNumber ? "right" : "left", wrapText: true },
+                        numFmt: isNumber ? numFmtForKey(colKey) : undefined,
+                    });
                 }
+            }
+
+            // Totals row styling (after blank row)
+            const totalsRowIndex = lastDataRow + 2;
+            for (let c = range.s.c; c <= range.e.c; c++) {
+                const colKey = visibleCols[c]?.key;
+                const isNumber = isNumericKey.has(colKey);
+                setCellStyle(totalsRowIndex, c, {
+                    font: { bold: true },
+                    fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
+                    border,
+                    alignment: { vertical: "center", horizontal: isNumber ? "right" : "left", wrapText: true },
+                    numFmt: isNumber ? numFmtForKey(colKey) : undefined,
+                });
             }
 
             // Column widths
@@ -336,7 +435,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                 <div className="bg-white w-full max-w-[96vw] h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
                     {/* ── Modal Header ── */}
-                    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+                    <div className="px-6 py-4 border-b border-slate-200 bg-emerald-50/60 flex items-center justify-between shrink-0">
                         <div>
                             <h2 className="text-lg font-black text-slate-900 uppercase tracking-wide">
                                 {summary?.month || "Container Summary"} — Preview
@@ -349,7 +448,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                             {/* Settings toggle */}
                             <button
                                 onClick={() => setShowSettings(v => !v)}
-                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:border-blue-400 transition-all"
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:border-emerald-400 transition-all"
                             >
                                 <Eye className="w-3.5 h-3.5" />
                                 Columns
@@ -382,7 +481,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
 
                     {/* ── Column Visibility Panel ── */}
                     {showSettings && (
-                        <div className="px-6 py-3 border-b border-slate-100 bg-blue-50/50 shrink-0">
+                        <div className="px-6 py-3 border-b border-slate-100 bg-emerald-50/60 shrink-0">
                             <div className="flex items-center gap-4 flex-wrap">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] shrink-0">Financial:</span>
                                 {FINANCIAL_COLS.map(col => (
@@ -405,7 +504,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                         key={col.key}
                                         onClick={() => toggle(col.key)}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all ${visible[col.key]
-                                            ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
                                             : "bg-white text-slate-400 border-slate-200 line-through"
                                             }`}
                                     >
@@ -431,7 +530,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                         <th
                                             key={col.key}
                                             className={`
-                                                px-3 py-3 border border-slate-300 bg-slate-800 text-white
+                                                px-3 py-3 border border-amber-300 bg-amber-200 text-slate-900
                                                 font-black uppercase tracking-widest whitespace-nowrap text-[9px]
                                                 ${rightAligned.has(col.key) ? "text-right" : centerAligned.has(col.key) ? "text-center" : "text-left"}
                                             `}
@@ -468,11 +567,11 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                                         px-3 py-2 border border-slate-200 whitespace-nowrap
                                                         ${isRight ? "text-right tabular-nums font-mono" : isCenter ? "text-center" : ""}
                                                         ${col.key === "containerCode" ? "font-bold text-slate-800" : ""}
-                                                        ${col.key === "finalAmount" ? "font-black text-blue-700" : ""}
+                                                        ${col.key === "finalAmount" ? "font-black text-emerald-700" : ""}
                                                         ${col.key === "totalDuty" ? "font-bold text-slate-900" : ""}
                                                         ${col.key === "gst" ? "font-bold text-violet-700" : ""}
                                                         ${col.key === "eta" ? "font-bold text-amber-700" : ""}
-                                                        ${col.key === "sims" ? "font-bold text-blue-600 uppercase" : ""}
+                                                        ${col.key === "sims" ? "font-bold text-emerald-700 uppercase" : ""}
                                                         ${col.key === "no" ? "text-slate-400 font-bold text-center" : ""}
                                                         text-slate-700
                                                     `}
@@ -485,7 +584,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                 ))}
 
                                 {/* ── Totals row ── */}
-                                <tr className="bg-slate-900 text-white font-bold">
+                                <tr className="bg-emerald-700 text-white font-bold">
                                     {visibleCols.map(col => {
                                         const val = totalVal(col);
                                         const isRight = rightAligned.has(col.key);
@@ -493,9 +592,9 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                             <td
                                                 key={col.key}
                                                 className={`
-                                                    px-3 py-3 border border-slate-700 whitespace-nowrap
+                                                    px-3 py-3 border border-emerald-800 whitespace-nowrap
                                                     ${isRight ? "text-right tabular-nums font-mono" : ""}
-                                                    ${col.key === "finalAmount" ? "text-blue-300 font-black" : ""}
+                                                    ${col.key === "finalAmount" ? "text-emerald-100 font-black" : ""}
                                                     ${col.key === "containerCode" ? "text-slate-300 font-black uppercase tracking-widest text-[9px]" : ""}
                                                 `}
                                             >
@@ -518,7 +617,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                             { label: "Total Duty", val: `₹${fmt(totals.totalDuty, 0)}`, show: visible.totalDuty },
                             { label: "Final Amount", val: `₹${fmt(totals.finalAmount, 4)}`, highlight: true },
                         ].filter(s => s.show !== false).map((s, i) => (
-                            <div key={i} className={`text-center px-4 py-2 rounded-xl border ${s.highlight ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-200"}`}>
+                            <div key={i} className={`text-center px-4 py-2 rounded-xl border ${s.highlight ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200"}`}>
                                 <div className="text-[8px] font-black uppercase tracking-widest text-inherit opacity-70">{s.label}</div>
                                 <div className={`text-sm font-black tabular-nums ${s.highlight ? "text-white" : "text-slate-900"}`}>{s.val}</div>
                             </div>
@@ -569,10 +668,10 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                     }
 
                     body.container-summary-printing #container-summary-print-root th {
-                        background: #1e293b;
-                        color: #fff;
+                        background: #fde68a;
+                        color: #0f172a;
                         padding: 5px 8px;
-                        border: 1px solid #334155;
+                        border: 1px solid #f59e0b;
                         text-align: left;
                         font-weight: 700;
                         white-space: nowrap;
@@ -589,10 +688,10 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
 
                     body.container-summary-printing #container-summary-print-root tr:nth-child(even) td { background: #f8fafc; }
                     body.container-summary-printing #container-summary-print-root tr.total-row td {
-                        background: #1e293b;
+                        background: #047857;
                         color: #fff;
                         font-weight: 700;
-                        border-color: #334155;
+                        border-color: #065f46;
                     }
 
                     body.container-summary-printing #container-summary-print-root .right { text-align: right; }

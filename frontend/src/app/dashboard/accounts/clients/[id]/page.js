@@ -1038,7 +1038,7 @@ export default function ExcelLedgerPage() {
                 >
                     <div className="min-w-max p-1">
                         {/* Header Row - Blue Theme */}
-                        <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-white z-20 grid grid-cols-[140px_90px_250px_70px_70px_70px_80px_100px_100px_110px_100px_140px_140px_60px] border-b border-blue-100 shadow-sm">
+                        <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-white z-20 grid grid-cols-[minmax(140px,max-content)_minmax(110px,max-content)_minmax(250px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(110px,max-content)_minmax(110px,max-content)_minmax(140px,max-content)_minmax(120px,max-content)_minmax(160px,max-content)_minmax(160px,max-content)_minmax(60px,max-content)] border-b border-blue-100 shadow-sm">
                             {['Container', 'Delivery', 'Particulars', 'CBM', 'Weight', 'Rate', 'Basis', 'Total', 'Paid', 'Payment Date', 'Mode', 'FROM', 'TO', ''].map((h, i) => (
                                 <div key={i} className={`px-2 py-3 text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center ${['CBM', 'Weight', 'Rate', 'Total', 'Paid'].includes(h) ? 'justify-end text-right' : 'justify-start'}`}>
                                     {h}
@@ -1051,7 +1051,7 @@ export default function ExcelLedgerPage() {
                             {transactions.map((txn, idx) => (
                                 <div
                                     key={txn.id}
-                                    className={`grid grid-cols-[140px_90px_250px_70px_70px_70px_80px_100px_100px_110px_100px_140px_140px_60px] hover:bg-blue-50/40 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
+                                    className={`grid grid-cols-[minmax(140px,max-content)_minmax(110px,max-content)_minmax(250px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(110px,max-content)_minmax(110px,max-content)_minmax(140px,max-content)_minmax(120px,max-content)_minmax(160px,max-content)_minmax(160px,max-content)_minmax(60px,max-content)] hover:bg-blue-50/40 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
                                 >
                                     <div className="px-2 py-0.5">
                                         <EditableCell
@@ -1226,7 +1226,7 @@ export default function ExcelLedgerPage() {
                 >
                     <div className="min-w-max p-1">
                         {/* Header Row - Yellow/Amber Theme */}
-                        <div className="sticky top-0 bg-gradient-to-r from-amber-50 to-white z-20 grid grid-cols-[300px_100px_100px_100px_90px_120px_120px_100px_100px_60px] border-b border-amber-200 shadow-sm">
+                        <div className="sticky top-0 bg-gradient-to-r from-amber-50 to-white z-20 grid grid-cols-[minmax(300px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(120px,max-content)_minmax(120px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(60px,max-content)] border-b border-amber-200 shadow-sm">
                             {['Particular', 'Date', 'Amount', 'Booking', 'Rate', 'Total', 'Paid', 'Date', 'Mode', ''].map((h, i) => (
                                 <div key={i} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center ${['Amount', 'Booking', 'Rate', 'Total', 'Paid'].includes(h) ? 'justify-end text-right' : 'justify-start'}`}>
                                     {h}
@@ -1239,7 +1239,7 @@ export default function ExcelLedgerPage() {
                             {trfTransactions.map((txn, idx) => (
                                 <div
                                     key={txn.id}
-                                    className={`grid grid-cols-[300px_100px_100px_100px_90px_120px_120px_100px_100px_60px] hover:bg-amber-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-amber-50/10' : ''}`}
+                                    className={`grid grid-cols-[minmax(300px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(120px,max-content)_minmax(120px,max-content)_minmax(100px,max-content)_minmax(100px,max-content)_minmax(60px,max-content)] hover:bg-amber-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-amber-50/10' : ''}`}
                                 >
                                     <div className="px-2 py-1">
                                         <EditableCell

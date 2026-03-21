@@ -34,6 +34,9 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
   const isCombined = sheetsList.length > 1;
   const mainTitle = isCombined ? "Full Container Preview" : `Preview: ${sheet?.shippingMark}`;
   const firstSheet = sheetsList[0] || {};
+  const loadingDate = container?.loadingDate
+    ? new Date(container.loadingDate).toLocaleDateString("en-GB")
+    : "-";
   const [showImages, setShowImages] = useState(true);
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -421,6 +424,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
   const handleWhatsAppCopy = async () => {
     try {
       const summaryText = `*${isCombined ? "GLOBAL SUMMARY" : firstSheet.shippingMark}* CONFIRMATION
+LOADING DATE: ${loadingDate}
 CTN: ${globalTotals.ctn} | PCS: ${globalTotals.tPcs}
 CBM: ${globalTotals.tCbm.toFixed(3)} | WT: ${globalTotals.tWt.toFixed(2)} KG
 CONTAINER: ${container.containerCode}`;
@@ -493,7 +497,12 @@ CONTAINER: ${container.containerCode}`;
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50 rounded-t-lg">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-slate-800">{mainTitle}</h2>
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">{mainTitle}</h2>
+              <div className="text-[11px] text-slate-500 font-medium">
+                Loading Date: {loadingDate}
+              </div>
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
@@ -717,6 +726,7 @@ CONTAINER: ${container.containerCode}`;
                 }}
               >
                 *{isCombined ? "GLOBAL SUMMARY" : firstSheet.shippingMark}* CONFIRMATION<br/>
+                LOADING DATE: {loadingDate}<br/>
                 CTN: {globalTotals.ctn} | PCS: {globalTotals.tPcs}<br/>
                 CBM: {globalTotals.tCbm.toFixed(3)} | WT: {globalTotals.tWt.toFixed(2)} KG<br/>
                 CONTAINER: {container.containerCode}
