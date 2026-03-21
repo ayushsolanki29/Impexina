@@ -8,8 +8,8 @@ import {
 import { toast } from "sonner";
 import API from "@/lib/api";
 import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx-js-style";
 
 export default function AccountsPreviewModal({ 
   isOpen, 
@@ -25,6 +25,14 @@ export default function AccountsPreviewModal({
 
   if (!isOpen) return null;
 
+  const toSafeFileBase = (value) => {
+    const raw = String(value || "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[\\/:*?"<>|]+/g, "-");
+    return raw || "account_ledger";
+  };
+
   // Calculate totals
   const expenseTotal = expenseTransactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
   const expensePaid = expenseTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
@@ -35,20 +43,24 @@ export default function AccountsPreviewModal({
   const trfBalance = trfTotal - trfPaid;
 
   // Export functions
-  const performExport = async (format) => {
-    if (!previewRef.current) return;
+  const captureCanvas = async () => {
+    if (!previewRef.current || typeof document === "undefined") return null;
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '1600px';
-    iframe.style.height = '2500px';
-    iframe.style.border = 'none';
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "1800px";
+    iframe.style.height = "2400px";
+    iframe.style.border = "none";
     document.body.appendChild(iframe);
 
     try {
-      setLoading(true);
+      const stylesHtml = Array.from(
+        document.querySelectorAll("style, link[rel=\"stylesheet\"]"),
+      )
+        .map((n) => n.outerHTML)
+        .join("");
 
       const doc = iframe.contentWindow.document;
       doc.open();
@@ -56,82 +68,152 @@ export default function AccountsPreviewModal({
         <!DOCTYPE html>
         <html>
           <head>
+            <base href="${window.location.origin}/" />
+            ${stylesHtml}
             <style>
-              body { margin: 0; padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; }
+              body { margin: 0; padding: 0; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               * { box-sizing: border-box; }
+              .print-area { margin: 0 auto; }
             </style>
           </head>
           <body>
-            <div id="capture-mount" style="display: inline-block; width: 100%;"></div>
+            <div id="capture-mount" style="display: inline-block; width: 100%; background: #ffffff;"></div>
           </body>
         </html>
       `);
       doc.close();
 
+      const mountPoint = doc.getElementById("capture-mount");
       const content = previewRef.current.cloneNode(true);
-      
-      const stripClasses = (node) => {
-        if (node.nodeType === 1) {
-          node.removeAttribute('class');
-          node.removeAttribute('className');
-          if (!node.style.borderColor) node.style.borderColor = '#e2e8f0';
-          Array.from(node.children).forEach(stripClasses);
-        }
-      };
-      stripClasses(content);
-      
-      const mountPoint = doc.getElementById('capture-mount');
       mountPoint.appendChild(content);
 
       const images = Array.from(doc.images);
-      await Promise.all(images.map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      }));
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve;
+          });
+        }),
+      );
 
-      const canvas = await html2canvas(mountPoint.firstElementChild, {
+      return await html2canvas(mountPoint.firstElementChild, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
       });
+    } finally {
+      document.body.removeChild(iframe);
+    }
+  };
 
-      if (format === 'pdf') {
+  const performExport = async (format) => {
+    try {
+      setLoading(true);
+      const canvas = await captureCanvas();
+      if (!canvas) return;
+
+      const fileBase = toSafeFileBase(`${client?.name || "account"}-${sheetName || "ledger"}`);
+
+      if (format === "pdf") {
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const pdf = new jsPDF({
-          orientation: "landscape",
-          unit: "px",
-          format: "a4"
-        });
-        
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${client?.name || 'account'}-${sheetName || 'ledger'}.pdf`);
-        toast.success("PDF generated successfully");
+        const pdf = new jsPDF("landscape", "mm", "a4");
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+
+        pdf.save(`${fileBase}.pdf`);
+        toast.success("PDF generated successfully", { duration: 5000 });
       } else {
         const link = document.createElement("a");
-        link.download = `${client?.name || 'account'}-${sheetName || 'ledger'}.png`;
+        link.download = `${fileBase}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
-        toast.success("Image downloaded");
+        toast.success("Image downloaded", { duration: 5000 });
       }
-
     } catch (error) {
       console.error("Export Error:", error);
       toast.error(`Failed to export ${format.toUpperCase()}`);
     } finally {
-      document.body.removeChild(iframe);
       setLoading(false);
     }
   };
 
-  const handleDownloadPDF = () => performExport('pdf');
-  const handleDownloadImage = () => performExport('image');
+  const handleDownloadPDF = () => performExport("pdf");
+  const handleDownloadImage = () => performExport("image");
+
+  const styleAllCells = (ws) => {
+    if (!ws || !ws["!ref"]) return;
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const border = {
+      top: { style: "thin", color: { rgb: "CBD5E1" } },
+      bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+      left: { style: "thin", color: { rgb: "CBD5E1" } },
+      right: { style: "thin", color: { rgb: "CBD5E1" } },
+    };
+
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        const cell = ws[ref];
+        if (!cell) continue;
+        cell.s = cell.s || {};
+        cell.s.border = cell.s.border || border;
+        cell.s.alignment = cell.s.alignment || { vertical: "center", wrapText: true };
+        cell.s.font = cell.s.font || { name: "Arial", sz: 10 };
+      }
+    }
+  };
+
+  const applyHeaderStyle = (ws, headerRowIndex, fillRgb) => {
+    if (!ws || !ws["!ref"]) return;
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const ref = XLSX.utils.encode_cell({ r: headerRowIndex, c });
+      const cell = ws[ref];
+      if (!cell) continue;
+      cell.s = {
+        ...(cell.s || {}),
+        font: { name: "Arial", sz: 10, bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: fillRgb } },
+        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "1E293B" } },
+          bottom: { style: "thin", color: { rgb: "1E293B" } },
+          left: { style: "thin", color: { rgb: "1E293B" } },
+          right: { style: "thin", color: { rgb: "1E293B" } },
+        },
+      };
+    }
+  };
+
+  const setAutoColumnWidths = (ws, rows, min = 8, max = 45) => {
+    if (!ws) return;
+    const widths = [];
+    rows.forEach((row) => {
+      row.forEach((v, idx) => {
+        const len = String(v ?? "").length;
+        widths[idx] = Math.max(widths[idx] || 0, len);
+      });
+    });
+    ws["!cols"] = widths.map((w) => ({ wch: Math.min(Math.max(w + 2, min), max) }));
+  };
 
   const handleDownloadExcel = () => {
     try {
@@ -140,48 +222,116 @@ export default function AccountsPreviewModal({
 
       // Expense Sheet
       const expenseData = [
+        [`${client?.name || "Client"} Account Ledger`],
+        [sheetName || "ENTIRE LEDGER"],
+        [`Generated: ${new Date().toLocaleDateString("en-GB")}`],
+        [],
         ['CONTAINER', 'DELIVERY', 'PARTICULARS', 'CBM', 'WEIGHT', 'RATE', 'BASIS', 'TOTAL', 'PAID', 'PAYMENT DATE', 'MODE'],
         ...expenseTransactions.map(t => [
           t.containerCode || '',
-          t.deliveryDate ? new Date(t.deliveryDate).toLocaleDateString() : '',
+          t.deliveryDate ? new Date(t.deliveryDate).toLocaleDateString('en-GB') : '',
           t.particulars || '',
-          t.quantity || '',
-          t.weight || '',
-          t.rate || '',
+          Number(t.quantity) || 0,
+          Number(t.weight) || 0,
+          Number(t.rate) || 0,
           t.billingType || 'FLAT',
-          t.amount || 0,
-          t.paid || 0,
-          t.paymentDate ? new Date(t.paymentDate).toLocaleDateString() : '',
+          Number(t.amount) || 0,
+          Number(t.paid) || 0,
+          t.paymentDate ? new Date(t.paymentDate).toLocaleDateString('en-GB') : '',
           t.paymentMode || ''
         ]),
-        ['', '', 'TOTAL', '', '', '', expenseTotal, expensePaid, '', ''],
-        ['', '', 'BALANCE', '', '', '', expenseBalance, '', '', '']
+        ['', '', 'TOTAL', '', '', '', '', expenseTotal, expensePaid, '', ''],
+        ['', '', 'BALANCE', '', '', '', '', expenseBalance, '', '', '']
       ];
       const expenseWs = XLSX.utils.aoa_to_sheet(expenseData);
+      expenseWs["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 10 } },
+      ];
+      applyHeaderStyle(expenseWs, 4, "2563EB");
+      styleAllCells(expenseWs);
+      setAutoColumnWidths(expenseWs, expenseData);
+
+      const expenseTotalsRow = 5 + expenseTransactions.length;
+      const expenseBalanceRow = expenseTotalsRow + 1;
+      for (let r = 5; r <= expenseBalanceRow; r++) {
+        for (const c of [3, 4, 5, 7, 8]) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (expenseWs[ref]) expenseWs[ref].z = "#,##0";
+        }
+      }
+      // Totals/balance row highlight
+      for (const r of [expenseTotalsRow, expenseBalanceRow]) {
+        for (let c = 0; c <= 10; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          const cell = expenseWs[ref];
+          if (!cell) continue;
+          cell.s = {
+            ...(cell.s || {}),
+            font: { name: "Arial", sz: 10, bold: true },
+            fill: { fgColor: { rgb: r === expenseTotalsRow ? "DBEAFE" : "FEF9C3" } },
+          };
+        }
+      }
       XLSX.utils.book_append_sheet(wb, expenseWs, 'EXPENSE');
 
       // TRF Sheet
       const trfData = [
-        ['PARTICULAR', 'DATE', 'AMOUNT', 'BOOKING', 'RATE', 'TOTAL', 'PAID', 'DATE', 'MODE'],
+        [`${client?.name || "Client"} Account Ledger`],
+        [sheetName || "ENTIRE LEDGER"],
+        [`Generated: ${new Date().toLocaleDateString("en-GB")}`],
+        [],
+        ['PARTICULAR', 'DATE', 'AMOUNT', 'BOOKING', 'RATE', 'TOTAL', 'PAID', 'PAYMENT DATE', 'MODE'],
         ...trfTransactions.map(t => [
           t.particular || '',
-          t.transactionDate ? new Date(t.transactionDate).toLocaleDateString() : '',
-          t.amount || 0,
-          t.booking || 0,
-          t.rate || 0,
-          t.total || 0,
-          t.paid || 0,
-          t.paymentDate ? new Date(t.paymentDate).toLocaleDateString() : '',
+          t.transactionDate ? new Date(t.transactionDate).toLocaleDateString('en-GB') : '',
+          Number(t.amount) || 0,
+          Number(t.booking) || 0,
+          Number(t.rate) || 0,
+          Number(t.total) || 0,
+          Number(t.paid) || 0,
+          t.paymentDate ? new Date(t.paymentDate).toLocaleDateString('en-GB') : '',
           t.paymentMode || ''
         ]),
-        ['', '', '', '', '', 'TOTAL', trfTotal, trfPaid, ''],
-        ['', '', '', '', '', 'BALANCE', trfBalance, '', '']
+        ['', '', '', '', 'TOTAL', trfTotal, trfPaid, '', ''],
+        ['', '', '', '', 'BALANCE', trfBalance, '', '', '']
       ];
       const trfWs = XLSX.utils.aoa_to_sheet(trfData);
+      trfWs["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } },
+      ];
+      applyHeaderStyle(trfWs, 4, "F59E0B");
+      styleAllCells(trfWs);
+      setAutoColumnWidths(trfWs, trfData);
+
+      const trfTotalsRow = 5 + trfTransactions.length;
+      const trfBalanceRow = trfTotalsRow + 1;
+      for (let r = 5; r <= trfBalanceRow; r++) {
+        for (const c of [2, 3, 4, 5, 6]) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (trfWs[ref]) trfWs[ref].z = "#,##0";
+        }
+      }
+      for (const r of [trfTotalsRow, trfBalanceRow]) {
+        for (let c = 0; c <= 8; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          const cell = trfWs[ref];
+          if (!cell) continue;
+          cell.s = {
+            ...(cell.s || {}),
+            font: { name: "Arial", sz: 10, bold: true },
+            fill: { fgColor: { rgb: r === trfTotalsRow ? "FFEDD5" : "FEF9C3" } },
+          };
+        }
+      }
       XLSX.utils.book_append_sheet(wb, trfWs, 'TRF');
 
-      XLSX.writeFile(wb, `${client?.name || 'account'}-${sheetName || 'ledger'}.xlsx`);
-      toast.success("Excel downloaded");
+      const fileBase = toSafeFileBase(`${client?.name || 'account'}-${sheetName || 'ledger'}`);
+      XLSX.writeFile(wb, `${fileBase}.xlsx`);
+      toast.success("Excel downloaded", { duration: 5000 });
     } catch (error) {
       console.error("Excel Export Error:", error);
       toast.error("Failed to download Excel");
@@ -206,6 +356,46 @@ export default function AccountsPreviewModal({
     });
   };
 
+  const startPrint = (fileBase) => {
+    if (!previewRef.current || typeof document === "undefined") {
+      window.print();
+      return;
+    }
+
+    const existing = document.getElementById("accounts-ledger-print-root");
+    if (existing) existing.remove();
+
+    const root = document.createElement("div");
+    root.id = "accounts-ledger-print-root";
+    root.style.background = "#ffffff";
+
+    const clone = previewRef.current.cloneNode(true);
+    root.appendChild(clone);
+    document.body.appendChild(root);
+
+    document.body.classList.add("accounts-ledger-printing");
+    const originalTitle = document.title;
+    document.title = fileBase;
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      document.title = originalTitle;
+      document.body.classList.remove("accounts-ledger-printing");
+      root.remove();
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
+    setTimeout(cleanup, 30_000);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  };
+
+  const handlePrint = () => {
+    const fileBase = toSafeFileBase(`${client?.name || "account"}-${sheetName || "ledger"}`);
+    startPrint(fileBase);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-[1600px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
@@ -219,7 +409,7 @@ export default function AccountsPreviewModal({
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <button 
-              onClick={() => window.print()} 
+              onClick={handlePrint} 
               className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-bold text-[10px] sm:text-xs shadow-sm"
             >
               <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -291,9 +481,9 @@ export default function AccountsPreviewModal({
             </div>
 
             {/* Side by Side Sheets (Responsive Grid) */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="accounts-ledger-grid grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* EXPENSE Sheet (Blue) */}
-              <div className="border-2 border-blue-200 rounded-lg overflow-hidden">
+              <div className="accounts-ledger-sheet border-2 border-blue-200 rounded-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3">
                   <h3 className="text-white font-bold text-sm uppercase tracking-wider">
                     EXPENSE SHEET
@@ -389,7 +579,7 @@ export default function AccountsPreviewModal({
               </div>
 
               {/* TRF Sheet (Yellow/Amber) */}
-              <div className="border-2 border-amber-200 rounded-lg overflow-hidden">
+              <div className="accounts-ledger-sheet border-2 border-amber-200 rounded-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3">
                   <h3 className="text-white font-bold text-sm uppercase tracking-wider">
                     TRF SHEET
@@ -497,6 +687,47 @@ export default function AccountsPreviewModal({
           <span className="font-bold uppercase tracking-widest">Impexina Financial Management</span>
           <span className="font-medium italic">Confidential Document</span>
         </div>
+
+        <style jsx global>{`
+          @media print {
+            /* Let user pick paper size; force landscape layout for wide tables */
+            @page { size: landscape; margin: 8mm; }
+
+            body.accounts-ledger-printing > :not(#accounts-ledger-print-root) { display: none !important; }
+            body.accounts-ledger-printing { margin: 0 !important; padding: 0 !important; }
+
+            body.accounts-ledger-printing #accounts-ledger-print-root {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              background: #ffffff !important;
+            }
+
+            body.accounts-ledger-printing #accounts-ledger-print-root * {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+
+            /* Stack the two sheets on print and split onto separate pages */
+            body.accounts-ledger-printing #accounts-ledger-print-root .accounts-ledger-grid {
+              display: block !important;
+            }
+            body.accounts-ledger-printing #accounts-ledger-print-root .accounts-ledger-sheet {
+              break-inside: avoid;
+              page-break-inside: avoid;
+              margin-bottom: 12mm;
+            }
+            body.accounts-ledger-printing #accounts-ledger-print-root .accounts-ledger-sheet + .accounts-ledger-sheet {
+              break-before: page;
+              page-break-before: always;
+            }
+
+            body.accounts-ledger-printing #accounts-ledger-print-root .overflow-x-auto { overflow: visible !important; }
+            body.accounts-ledger-printing #accounts-ledger-print-root table { width: 100% !important; page-break-inside: auto; }
+            body.accounts-ledger-printing #accounts-ledger-print-root tr { break-inside: avoid; page-break-inside: avoid; }
+          }
+        `}</style>
       </div>
     </div>
   );
