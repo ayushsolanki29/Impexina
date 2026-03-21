@@ -8,7 +8,6 @@ import {
   Save,
   Trash2,
   Printer,
-  FileDown,
   PlusCircle,
   Calculator,
   Search,
@@ -313,26 +312,6 @@ export default function KavyaSheetPage() {
     }
   }, [loadEntries, loadSheetData]);
 
-  // Handle Export
-  const handleExport = useCallback(async () => {
-    try {
-      const blob = await kavyaAPI.exportSheet(sheetId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `KAVYA_SHEET_${sheet?.title || "sheet"}_export_${new Date()
-        .toISOString()
-        .slice(0, 10)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success("Sheet exported successfully");
-    } catch (error) {
-      toast.error(error.message || "Failed to export");
-    }
-  }, [sheetId, sheet]);
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -461,13 +440,6 @@ export default function KavyaSheetPage() {
                   >
                     <Eye className="w-4 h-4" />
                     Preview
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white border border-emerald-500 rounded-lg hover:bg-emerald-700 font-medium text-sm shadow-lg shadow-emerald-50"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    Export
                   </button>
                   <button
                     onClick={() => {

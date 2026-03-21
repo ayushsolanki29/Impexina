@@ -8,7 +8,6 @@ import {
   Save,
   Trash2,
   Printer,
-  FileDown,
   PlusCircle,
   Calculator,
   Search,
@@ -327,26 +326,6 @@ export default function TukaramSheetPage() {
       toast.error(error.message || "Failed to delete entry");
     }
   }, [loadEntries, loadSheetData]);
-
-  // Handle Export
-  const handleExport = useCallback(async () => {
-    try {
-      const blob = await tukaramAPI.exportSheet(sheetId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `TUKARAM_JI_${sheet?.title || "sheet"}_export_${new Date()
-        .toISOString()
-        .slice(0, 10)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success("Sheet exported successfully");
-    } catch (error) {
-      toast.error(error.message || "Failed to export");
-    }
-  }, [sheetId, sheet]);
 
   // Calculate total automatically (charges + scanning + dc)
   useEffect(() => {

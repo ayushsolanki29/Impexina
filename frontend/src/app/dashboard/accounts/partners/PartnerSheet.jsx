@@ -276,12 +276,15 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
 
             <div className="flex items-center gap-4">
               <div className="hidden lg:flex gap-4">
-                <div className="px-4 py-2 bg-amber-50 border border-amber-100 rounded-lg">
-                  <div className="text-[10px] uppercase font-bold text-amber-600">RMB Balance</div>
-                  <div className="font-mono font-bold">¥{formatCurrency(netRMB)}</div>
+                <div className="px-4 py-2 bg-white border border-slate-200 rounded-lg">
+                  <div className="text-[10px] uppercase font-bold text-slate-500">RMB Balance</div>
+                  <div className="font-mono font-bold">
+                    {"\u00A5"}
+                    {formatCurrency(netRMB)}
+                  </div>
                 </div>
-                <div className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                  <div className="text-[10px] uppercase font-bold text-emerald-600">USD Balance</div>
+                <div className="px-4 py-2 bg-white border border-slate-200 rounded-lg">
+                  <div className="text-[10px] uppercase font-bold text-slate-500">USD Balance</div>
                   <div className="font-mono font-bold">${formatCurrency(netUSD)}</div>
                 </div>
               </div>
@@ -313,7 +316,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
             <input
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="Search descriptions..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -329,15 +332,27 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
 
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="px-4 py-3 text-left w-32 border-b">Date</th>
-                <th className="px-4 py-3 text-left border-b">Particulars</th>
-                <th className="px-4 py-3 text-right bg-amber-50/50 border-b border-l border-amber-100 w-32">Debit (¥)</th>
-                <th className="px-4 py-3 text-right bg-amber-50/50 border-b border-r border-amber-100 w-32">Credit (¥)</th>
-                <th className="px-4 py-3 text-right bg-emerald-50/50 border-b border-l border-emerald-100 w-32">Debit ($)</th>
-                <th className="px-4 py-3 text-right bg-emerald-50/50 border-b w-32">Credit ($)</th>
-                <th className="px-4 py-3 w-12 border-b"></th>
+            <thead>
+              <tr className="bg-amber-200 text-slate-900 border border-slate-300">
+                <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap w-32">
+                  Date
+                </th>
+                <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
+                  Particulars
+                </th>
+                <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-32">
+                  Debit ({"\u00A5"})
+                </th>
+                <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-32">
+                  Credit ({"\u00A5"})
+                </th>
+                <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-32">
+                  Debit ($)
+                </th>
+                <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-32">
+                  Credit ($)
+                </th>
+                <th className="border border-slate-300 px-3 py-2 w-12"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -345,10 +360,10 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
                 <tr key={row.id} className="hover:bg-slate-50/50 group">
                   <td className="px-2 py-1"><input type="date" className="w-full bg-transparent p-2 outline-none" value={row.date} onChange={(e) => updateRow(row.id, "date", e.target.value)} /></td>
                   <td className="px-2 py-1"><input className="w-full bg-transparent p-2 outline-none font-medium" placeholder="Description..." value={row.particulars} onChange={(e) => updateRow(row.id, "particulars", e.target.value)} /></td>
-                  <td className="px-2 py-1 bg-amber-50/10 border-l"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitRMB} onChange={(e) => updateRow(row.id, "debitRMB", e.target.value)} /></td>
-                  <td className="px-2 py-1 bg-amber-50/10 border-r"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono text-red-600" value={row.creditRMB} onChange={(e) => updateRow(row.id, "creditRMB", e.target.value)} /></td>
-                  <td className="px-2 py-1 bg-emerald-50/10 border-l"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitUSD} onChange={(e) => updateRow(row.id, "debitUSD", e.target.value)} /></td>
-                  <td className="px-2 py-1 bg-emerald-50/10"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono text-red-600" value={row.creditUSD} onChange={(e) => updateRow(row.id, "creditUSD", e.target.value)} /></td>
+                  <td className="px-2 py-1 border-l border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitRMB} onChange={(e) => updateRow(row.id, "debitRMB", e.target.value)} /></td>
+                  <td className="px-2 py-1 border-r border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono text-red-600" value={row.creditRMB} onChange={(e) => updateRow(row.id, "creditRMB", e.target.value)} /></td>
+                  <td className="px-2 py-1 border-l border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitUSD} onChange={(e) => updateRow(row.id, "debitUSD", e.target.value)} /></td>
+                  <td className="px-2 py-1"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono text-red-600" value={row.creditUSD} onChange={(e) => updateRow(row.id, "creditUSD", e.target.value)} /></td>
                   <td className="px-2 py-1 text-center">
                     <button onClick={() => deleteRow(row.id)} className="p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
                   </td>
@@ -358,8 +373,14 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
             <tfoot className="bg-slate-50 font-bold">
               <tr>
                 <td colSpan="2" className="p-4 text-right text-slate-500 uppercase text-[10px] tracking-widest">Totals</td>
-                <td className="p-4 text-right font-mono border-l">¥{formatCurrency(totals.dRMB)}</td>
-                <td className="p-4 text-right font-mono border-r text-red-600">¥{formatCurrency(totals.cRMB)}</td>
+                <td className="p-4 text-right font-mono border-l">
+                  {"\u00A5"}
+                  {formatCurrency(totals.dRMB)}
+                </td>
+                <td className="p-4 text-right font-mono border-r text-red-600">
+                  {"\u00A5"}
+                  {formatCurrency(totals.cRMB)}
+                </td>
                 <td className="p-4 text-right font-mono border-l">${formatCurrency(totals.dUSD)}</td>
                 <td className="p-4 text-right font-mono text-red-600">${formatCurrency(totals.cUSD)}</td>
                 <td></td>

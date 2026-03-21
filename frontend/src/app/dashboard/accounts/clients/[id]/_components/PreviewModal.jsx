@@ -56,11 +56,63 @@ export default function AccountsPreviewModal({
     document.body.appendChild(iframe);
 
     try {
-      const stylesHtml = Array.from(
-        document.querySelectorAll("style, link[rel=\"stylesheet\"]"),
-      )
-        .map((n) => n.outerHTML)
-        .join("");
+      // Build a clean HTML template (no Tailwind / no lab() colors) for reliable html2canvas capture.
+      const escapeHtml = (v) =>
+        String(v ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const generatedDateLabel =
+        dateRange?.from || dateRange?.to
+          ? `Period: ${escapeHtml(dateRange.from || "...")} to ${escapeHtml(dateRange.to || "...")}`
+          : `Date: ${escapeHtml(new Date().toLocaleDateString("en-GB"))}`;
+
+      const expenseRowsHtml =
+        expenseTransactions.length > 0
+          ? expenseTransactions
+              .map((t) => {
+                return `
+                  <tr>
+                    <td>${escapeHtml(t.containerCode || "-")}</td>
+                    <td>${escapeHtml(formatDate(t.deliveryDate))}</td>
+                    <td class="wrap">${escapeHtml(t.particulars || "-")}</td>
+                    <td class="right">${escapeHtml(t.quantity ?? "-")}</td>
+                    <td class="right">${escapeHtml(t.weight ?? "-")}</td>
+                    <td class="right">${escapeHtml(t.rate ?? "-")}</td>
+                    <td class="center badge">${escapeHtml(t.billingType || "FLAT")}</td>
+                    <td class="right strong">${escapeHtml(formatCurrency(t.amount))}</td>
+                    <td class="right paid">${escapeHtml(formatCurrency(t.paid))}</td>
+                    <td>${escapeHtml(formatDate(t.paymentDate))}</td>
+                    <td>${escapeHtml(t.paymentMode || "-")}</td>
+                  </tr>
+                `;
+              })
+              .join("")
+          : `<tr><td class="empty" colspan="11">No expense transactions</td></tr>`;
+
+      const trfRowsHtml =
+        trfTransactions.length > 0
+          ? trfTransactions
+              .map((t) => {
+                return `
+                  <tr>
+                    <td class="wrap">${escapeHtml(t.particular || "-")}</td>
+                    <td>${escapeHtml(formatDate(t.transactionDate))}</td>
+                    <td class="right">${escapeHtml(formatCurrency(t.amount))}</td>
+                    <td class="right">${escapeHtml(formatCurrency(t.booking))}</td>
+                    <td class="right">${escapeHtml(t.rate ?? "-")}</td>
+                    <td class="right strong">${escapeHtml(formatCurrency(t.total))}</td>
+                    <td class="right paid">${escapeHtml(formatCurrency(t.paid))}</td>
+                    <td>${escapeHtml(formatDate(t.paymentDate))}</td>
+                    <td>${escapeHtml(t.paymentMode || "-")}</td>
+                  </tr>
+                `;
+              })
+              .join("")
+          : `<tr><td class="empty" colspan="9">No TRF transactions</td></tr>`;
 
       const doc = iframe.contentWindow.document;
       doc.open();
@@ -69,24 +121,149 @@ export default function AccountsPreviewModal({
         <html>
           <head>
             <base href="${window.location.origin}/" />
-            ${stylesHtml}
             <style>
-              body { margin: 0; padding: 0; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { margin: 0; padding: 0; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
               * { box-sizing: border-box; }
-              .print-area { margin: 0 auto; }
+              .page { width: 1600px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1px solid #E2E8F0; }
+              .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0F172A; padding-bottom: 14px; margin-bottom: 18px; }
+              .title { font-size: 28px; font-weight: 900; text-transform: uppercase; color: #0F172A; line-height: 1.1; }
+              .subtitle { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.18em; color: #64748B; margin-top: 6px; }
+              .meta { text-align: right; }
+              .metaBox { display: inline-block; background: #F1F5F9; padding: 10px 12px; border-radius: 8px; }
+              .metaLabel { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748B; margin-bottom: 4px; }
+              .metaValue { font-size: 14px; font-weight: 900; color: #0F172A; }
+
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+              .card { border-radius: 10px; overflow: hidden; border: 2px solid #BFDBFE; }
+              .card.amb { border-color: #FDE68A; }
+              .cardHead { padding: 12px 14px; color: #ffffff; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; background: #2563EB; }
+              .cardHead.amb { background: #F59E0B; }
+              .tableWrap { overflow: hidden; }
+              table { width: 100%; border-collapse: collapse; font-size: 11px; }
+              th, td { padding: 8px 8px; border: 1px solid #DBEAFE; vertical-align: middle; }
+              .amb th, .amb td { border-color: #FEF3C7; }
+              th { background: #EFF6FF; color: #1D4ED8; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+              .amb th { background: #FFFBEB; color: #B45309; }
+              .right { text-align: right; }
+              .center { text-align: center; }
+              .wrap { white-space: normal; }
+              .badge { font-size: 9px; font-weight: 900; color: #1D4ED8; text-transform: uppercase; }
+              .strong { font-weight: 900; }
+              .paid { color: #059669; font-weight: 900; }
+              .empty { text-align: center; color: #94A3B8; padding: 18px 10px; }
+
+              .totRow td { background: #DBEAFE; font-weight: 900; border-color: #BFDBFE; }
+              .totRow.amb td { background: #FFEDD5; border-color: #FED7AA; }
+              .balRow td { background: #FEF9C3; font-weight: 900; border-color: #FDE68A; }
+
+              .overall { margin-top: 18px; padding-top: 14px; border-top: 2px solid #CBD5E1; display: flex; justify-content: flex-end; }
+              .overallBox { border: 2px solid #F59E0B; background: #FFFBEB; padding: 14px 18px; border-radius: 10px; min-width: 240px; text-align: right; }
+              .overallLabel { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748B; margin-bottom: 6px; }
+              .overallVal { font-size: 26px; font-weight: 900; color: #0F172A; }
             </style>
           </head>
           <body>
-            <div id="capture-mount" style="display: inline-block; width: 100%; background: #ffffff;"></div>
+            <div id="capture-mount" style="display: inline-block; width: 100%; background: #ffffff;">
+              <div class="page">
+                <div class="top">
+                  <div>
+                    <div class="title">${escapeHtml(client?.name || "Client")} Account Ledger</div>
+                    <div class="subtitle">${escapeHtml(sheetName || "ENTIRE LEDGER")}</div>
+                  </div>
+                  <div class="meta">
+                    <div class="metaBox">
+                      <div class="metaLabel">${escapeHtml(dateRange?.from || dateRange?.to ? "Period" : "Date Generated")}</div>
+                      <div class="metaValue">${generatedDateLabel}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid">
+                  <div class="card">
+                    <div class="cardHead">Expense Sheet</div>
+                    <div class="tableWrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Container</th>
+                            <th>Delivery</th>
+                            <th>Particulars</th>
+                            <th class="right">CBM</th>
+                            <th class="right">Weight</th>
+                            <th class="right">Rate</th>
+                            <th class="center">Basis</th>
+                            <th class="right">Total</th>
+                            <th class="right">Paid</th>
+                            <th>Payment Date</th>
+                            <th>Mode</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${expenseRowsHtml}
+                          <tr class="totRow">
+                            <td colspan="7" class="right">TOTAL</td>
+                            <td class="right">${escapeHtml(formatCurrency(expenseTotal))}</td>
+                            <td class="right">${escapeHtml(formatCurrency(expensePaid))}</td>
+                            <td colspan="2"></td>
+                          </tr>
+                          <tr class="balRow">
+                            <td colspan="7" class="right">BALANCE</td>
+                            <td colspan="4" class="right">${escapeHtml(formatCurrency(expenseBalance))}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div class="card amb">
+                    <div class="cardHead amb">TRF Sheet</div>
+                    <div class="tableWrap">
+                      <table class="amb">
+                        <thead>
+                          <tr>
+                            <th>Particular</th>
+                            <th>Date</th>
+                            <th class="right">Amount</th>
+                            <th class="right">Booking</th>
+                            <th class="right">Rate</th>
+                            <th class="right">Total</th>
+                            <th class="right">Paid</th>
+                            <th>Payment Date</th>
+                            <th>Mode</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${trfRowsHtml}
+                          <tr class="totRow amb">
+                            <td colspan="5" class="right">TOTAL</td>
+                            <td class="right">${escapeHtml(formatCurrency(trfTotal))}</td>
+                            <td class="right">${escapeHtml(formatCurrency(trfPaid))}</td>
+                            <td colspan="2"></td>
+                          </tr>
+                          <tr class="balRow">
+                            <td colspan="5" class="right">BALANCE</td>
+                            <td colspan="4" class="right">${escapeHtml(formatCurrency(trfBalance))}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="overall">
+                  <div class="overallBox">
+                    <div class="overallLabel">Total Balance</div>
+                    <div class="overallVal">₹${escapeHtml(formatCurrency(expenseBalance + trfBalance))}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </body>
         </html>
       `);
       doc.close();
 
       const mountPoint = doc.getElementById("capture-mount");
-      const content = previewRef.current.cloneNode(true);
-      mountPoint.appendChild(content);
-
       const images = Array.from(doc.images);
       await Promise.all(
         images.map((img) => {

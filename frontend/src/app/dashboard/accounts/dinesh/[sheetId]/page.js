@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Printer, FileDown, Eye, PlusCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, PlusCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { dineshbhaiAPI } from "@/services/dineshbhai.service";
 import DineshPreviewModal from "./_components/DineshPreviewModal";
@@ -204,38 +204,6 @@ export default function DineshSheetPage() {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      const blob = await dineshbhaiAPI.exportSheet(sheetId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${sheet?.title || "sheet"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success("Exported");
-    } catch (error) {
-      let msg = "Export failed";
-      const data = error.response?.data;
-      if (data instanceof Blob) {
-        try {
-          const text = await data.text();
-          const parsed = JSON.parse(text);
-          msg = parsed?.message || msg;
-        } catch (_) {}
-      } else if (data?.message) {
-        msg = data.message;
-      } else if (error.message) {
-        msg = error.message;
-      }
-      if (data && !(data instanceof Blob) && data?.errors?.length > 0) {
-        data.errors.forEach((err) => toast.error(`${err.field || "Field"}: ${err.message || msg}`));
-      } else {
-        toast.error(msg);
-      }
-    }
-  };
-
   const totals = useMemo(() => {
     const totalLeft = entries.reduce((s, e) => s + (e.total || 0), 0);
     const totalPaid = entries.reduce((s, e) => s + (e.paid || 0), 0);
@@ -272,13 +240,6 @@ export default function DineshSheetPage() {
             >
               <Eye className="w-4 h-4" />
               Preview
-            </button>
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-            >
-              <FileDown className="w-4 h-4" />
-              Excel
             </button>
           </div>
         </div>
