@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
+import * as XLSX from "xlsx-js-style";
 import {
     Loader2, RefreshCw, ChevronLeft, ChevronRight,
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink,
@@ -95,6 +96,14 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
 
     if (!isOpen) return null;
 
+    const toSafeFileBase = (value) => {
+        const raw = String(value || "")
+            .trim()
+            .replace(/\s+/g, "_")
+            .replace(/[\\/:*?"<>|]+/g, "-");
+        return raw || "warehouse_plan";
+    };
+
     // First group by container, then by client
     const groupedData = {};
     data.forEach(item => {
@@ -119,47 +128,140 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
 
     const firstContainer = Object.values(groupedData)[0] || {};
 
-    const handlePrint = () => {
+    const handleExportExcel = () => {
+        try {
+            const containerCode = firstContainer.containerCode || "container";
+            const wb = XLSX.utils.book_new();
+
+            const cols = [
+                { key: "clientName", label: "CLIENT" },
+                { key: "mark", label: "MARK" },
+                { key: "ctn", label: "CTN" },
+                { key: "product", label: "PRODUCT" },
+                { key: "transporter", label: "TRANSPORTER" },
+                { key: "totalCbm", label: "CBM" },
+                { key: "totalWt", label: "WEIGHT" },
+                { key: "loadingDate", label: "LOADING" },
+                { key: "deliveryDate", label: "DELIVERY" },
+            ];
+            if (showFinancials) {
+                cols.push(
+                    { key: "invoiceNo", label: "INV #" },
+                    { key: "gstAmount", label: "GST" },
+                    { key: "lrNo", label: "LR" },
+                );
+            }
+            cols.push(
+                { key: "dispatchDone", label: "DISPATCH DONE" },
+                { key: "holdCtn", label: "HOLD CTN" },
+            );
+
+            const wsData = [
+                [`Warehouse Plan - ${containerCode}`],
+                [`Generated: ${new Date().toLocaleString("en-IN")}`],
+                [],
+                cols.map(c => c.label),
+            ];
+
+            data.forEach((row) => {
+                wsData.push(cols.map((c) => {
+                    switch (c.key) {
+                        case "totalCbm": return Number(row.totalCbm) || 0;
+                        case "totalWt": return Number(row.totalWt) || 0;
+                        case "loadingDate": return row.loadingDate ? new Date(row.loadingDate).toLocaleDateString("en-GB") : "";
+                        case "deliveryDate": return row.deliveryDate ? new Date(row.deliveryDate).toLocaleDateString("en-GB") : "";
+                        case "gstAmount": return Number(row.gstAmount) || 0;
+                        case "dispatchDone": return row.dispatchDone ? "Done" : "No";
+                        case "holdCtn": return row.holdCtn ?? 0;
+                        case "lrNo": return row.lrNo ? "Yes" : "No";
+                        default: return row[c.key] ?? "";
+                    }
+                }));
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // Header styling row (index 3)
+            const headerRowIndex = 3;
+            const range = XLSX.utils.decode_range(ws["!ref"]);
+            for (let C = range.s.c; C <= range.e.c; C++) {
+                const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c: C });
+                const cell = ws[cellRef];
+                if (!cell) continue;
+                cell.s = {
+                    font: { bold: true, color: { rgb: "FFFFFF" } },
+                    fill: { fgColor: { rgb: "1E293B" } },
+                    alignment: { vertical: "center", horizontal: "center", wrapText: true },
+                    border: {
+                        top: { style: "thin", color: { rgb: "334155" } },
+                        bottom: { style: "thin", color: { rgb: "334155" } },
+                        left: { style: "thin", color: { rgb: "334155" } },
+                        right: { style: "thin", color: { rgb: "334155" } },
+                    },
+                };
+            }
+
+            // Column widths
+            ws["!cols"] = cols.map((col, colIdx) => {
+                let max = (col.label || "").length;
+                for (let r = 4; r < wsData.length; r++) {
+                    max = Math.max(max, String(wsData[r]?.[colIdx] ?? "").length);
+                }
+                return { wch: Math.min(Math.max(max + 2, 8), 45) };
+            });
+
+            XLSX.utils.book_append_sheet(wb, ws, "Warehouse Plan");
+            const fileBase = toSafeFileBase(`warehouse_plan_${containerCode}`);
+            XLSX.writeFile(wb, `${fileBase}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        } catch (err) {
+            console.error("Excel export failed:", err);
+            toast.error("Failed to export Excel");
+        }
+    };
+
+    const startPrint = (fileBase) => {
         const content = previewRef.current;
-        if (!content) return;
+        if (!content || typeof document === "undefined") return;
 
-        const printWindow = window.open('', '_blank', 'width=1200,height=800');
-        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-            .map(s => s.outerHTML)
-            .join('');
+        const existing = document.getElementById("warehouse-plan-print-root");
+        if (existing) existing.remove();
 
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Warehouse Plan - ${firstContainer.containerCode || ''}</title>
-                    ${styles}
-                    <style>
-                        body { background: white !important; margin: 0; padding: 20px; }
-                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        @page { margin: 10mm; size: auto; }
-                    </style>
-                </head>
-                <body>
-                    <div class="bg-white p-8">
-                        ${content.innerHTML}
-                    </div>
-                    <script>
-                        window.onload = () => {
-                            setTimeout(() => {
-                                window.print();
-                                window.close();
-                            }, 500);
-                        };
-                    </script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
+        const root = document.createElement("div");
+        root.id = "warehouse-plan-print-root";
+        root.style.background = "#ffffff";
+
+        const clone = content.cloneNode(true);
+        clone.className = "";
+        root.appendChild(clone);
+        document.body.appendChild(root);
+
+        document.body.classList.add("warehouse-plan-printing");
+        const originalTitle = document.title;
+        document.title = fileBase;
+
+        let cleanedUp = false;
+        const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
+            document.title = originalTitle;
+            document.body.classList.remove("warehouse-plan-printing");
+            root.remove();
+        };
+
+        window.addEventListener("afterprint", cleanup, { once: true });
+        setTimeout(cleanup, 30_000);
+        requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    };
+
+    const handlePrint = () => {
+        const containerCode = firstContainer.containerCode || "container";
+        startPrint(toSafeFileBase(`warehouse_plan_${containerCode}`));
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-[1400px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
+        <>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                <div className="bg-white w-full max-w-[1400px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
                 {/* Header */}
                 <div className="px-6 py-4 border-b flex justify-between items-center bg-white print:hidden">
                     <div>
@@ -173,6 +275,13 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                         >
                             {showFinancials ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                             {showFinancials ? 'Hide Financials' : 'Show Financials'}
+                        </button>
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors font-semibold text-xs shadow-sm border border-emerald-200"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Excel
                         </button>
                         <button
                             onClick={handlePrint}
@@ -209,7 +318,7 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                         </div>
 
                         {Object.entries(groupedData).map(([cCode, container]) => (
-                            <div key={cCode} className="mb-10 last:mb-0 break-inside-avoid">
+                            <div key={cCode} className="warehouse-container-section mb-10 last:mb-0 break-inside-avoid">
                                 {/* Container Header */}
                                 <div className="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded border border-slate-200">
                                     <div className="flex items-center gap-4">
@@ -334,8 +443,41 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                 </div>
 
         
+                </div>
             </div>
-        </div>
+            <style jsx global>{`
+            @media print {
+                @page { size: A4; margin: 8mm; }
+
+                body.warehouse-plan-printing > :not(#warehouse-plan-print-root) { display: none !important; }
+                body.warehouse-plan-printing { margin: 0 !important; padding: 0 !important; }
+
+                body.warehouse-plan-printing #warehouse-plan-print-root {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    background: #ffffff !important;
+                }
+
+                body.warehouse-plan-printing #warehouse-plan-print-root * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
+                body.warehouse-plan-printing .break-inside-avoid {
+                    break-inside: avoid;
+                    page-break-inside: avoid;
+                }
+
+                /* Start each container block on a new page in print preview (for large datasets) */
+                body.warehouse-plan-printing .warehouse-container-section + .warehouse-container-section {
+                    break-before: page;
+                    page-break-before: always;
+                }
+            }
+        `}</style>
+        </>
     );
 };
 

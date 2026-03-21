@@ -263,6 +263,14 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
     const firstContainer = Object.values(groupedData)[0] || {};
     const filename = `bifurcation-report-${firstContainer.containerCode || 'export'}`;
 
+    const toSafeFileBase = (value) => {
+        const raw = String(value || "")
+            .trim()
+            .replace(/\s+/g, "_")
+            .replace(/[\\/:*?"<>|]+/g, "-");
+        return raw || "bifurcation-report";
+    };
+
     const handleDownloadExcel = async () => {
         try {
             setLoading(true);
@@ -289,47 +297,49 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
         }
     };
 
-    const handlePrint = () => {
+    const startPrint = (fileBase) => {
         const content = previewRef.current;
-        if (!content) return;
+        if (!content || typeof document === "undefined") return;
 
-        const printWindow = window.open('', '_blank', 'width=1200,height=800');
-        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-            .map(s => s.outerHTML)
-            .join('');
+        const existing = document.getElementById("bifurcation-print-root");
+        if (existing) existing.remove();
 
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Bifurcation Report - ${firstContainer.containerCode || ''}</title>
-                    ${styles}
-                    <style>
-                        body { background: white !important; margin: 0; padding: 20px; }
-                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        @page { margin: 10mm; size: auto; }
-                    </style>
-                </head>
-                <body>
-                    <div class="bg-white p-8">
-                        ${content.innerHTML}
-                    </div>
-                    <script>
-                        window.onload = () => {
-                            setTimeout(() => {
-                                window.print();
-                                window.close();
-                            }, 500);
-                        };
-                    </script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
+        const root = document.createElement("div");
+        root.id = "bifurcation-print-root";
+        root.style.background = "#ffffff";
+
+        const clone = content.cloneNode(true);
+        clone.className = "";
+        root.appendChild(clone);
+        document.body.appendChild(root);
+
+        document.body.classList.add("bifurcation-printing");
+        const originalTitle = document.title;
+        document.title = fileBase;
+
+        let cleanedUp = false;
+        const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
+            document.title = originalTitle;
+            document.body.classList.remove("bifurcation-printing");
+            root.remove();
+        };
+
+        window.addEventListener("afterprint", cleanup, { once: true });
+        setTimeout(cleanup, 30_000);
+        requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    };
+
+    const handlePrint = () => {
+        const containerCode = firstContainer.containerCode || "export";
+        startPrint(toSafeFileBase(`bifurcation-report-${containerCode}`));
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-[1400px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
+        <>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                <div className="bg-white w-full max-w-[1400px] h-[90vh] rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans">
                 {/* Header */}
                 <div className="px-6 py-4 border-b flex justify-between items-center bg-white print:hidden">
                     <div>
@@ -391,7 +401,7 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                         </div>
 
                         {Object.entries(groupedData).map(([cCode, container]) => (
-                            <div key={cCode} className="mb-10 last:mb-0 break-inside-avoid">
+                            <div key={cCode} className="bifurcation-container-section mb-10 last:mb-0 break-inside-avoid">
                                 {/* Container Header */}
                                 <div className="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded border border-slate-200">
                                     <div className="flex items-center gap-4">
@@ -497,9 +507,42 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                     </div>
                 </div>
 
-               
+        
+                </div>
             </div>
-        </div>
+            <style jsx global>{`
+                @media print {
+                    @page { size: A4; margin: 8mm; }
+
+                    body.bifurcation-printing > :not(#bifurcation-print-root) { display: none !important; }
+                    body.bifurcation-printing { margin: 0 !important; padding: 0 !important; }
+
+                    body.bifurcation-printing #bifurcation-print-root {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        background: #ffffff !important;
+                    }
+
+                    body.bifurcation-printing #bifurcation-print-root * {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+
+                    body.bifurcation-printing .break-inside-avoid {
+                        break-inside: avoid;
+                        page-break-inside: avoid;
+                    }
+
+                    /* Start each container block on a new page in print preview (for large datasets) */
+                    body.bifurcation-printing .bifurcation-container-section + .bifurcation-container-section {
+                        break-before: page;
+                        page-break-before: always;
+                    }
+                }
+            `}</style>
+        </>
     );
 };
 
