@@ -39,6 +39,14 @@ export default function InvoiceEntryPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [roundUsd, setRoundUsd] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("invoice_round_usd");
+      if (saved === "0") return false;
+      if (saved === "1") return true;
+    }
+    return true;
+  });
 
   // Templates
   const [templates, setTemplates] = useState([]);
@@ -89,6 +97,10 @@ export default function InvoiceEntryPage() {
   useEffect(() => {
     localStorage.setItem('invoice_accordion_state', JSON.stringify(openSections));
   }, [openSections]);
+
+  useEffect(() => {
+    localStorage.setItem("invoice_round_usd", roundUsd ? "1" : "0");
+  }, [roundUsd]);
 
   const [items, setItems] = useState([]);
 
@@ -411,12 +423,14 @@ export default function InvoiceEntryPage() {
 
         // Auto-calculate amountUsd
         if (field === 'tQty' || field === 'unitPrice') {
-          updated.amountUsd = Math.round((parseInt(updated.tQty) || 0) * (parseFloat(updated.unitPrice) || 0));
+          const raw = (parseInt(updated.tQty) || 0) * (parseFloat(updated.unitPrice) || 0);
+          updated.amountUsd = Number.isFinite(raw) ? parseFloat(raw.toFixed(2)) : 0;
         }
 
         // Recalculate if ctn or qtyPerCtn changed
         if (field === 'ctn' || field === 'qtyPerCtn') {
-          updated.amountUsd = Math.round(updated.tQty * (parseFloat(updated.unitPrice) || 0));
+          const raw = updated.tQty * (parseFloat(updated.unitPrice) || 0);
+          updated.amountUsd = Number.isFinite(raw) ? parseFloat(raw.toFixed(2)) : 0;
         }
 
         return updated;
@@ -513,7 +527,16 @@ export default function InvoiceEntryPage() {
     totalItems: items.length,
     totalCtn: items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0),
     totalQty: items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0),
-    totalAmount: Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0))
+    totalAmountRaw: items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0),
+  };
+
+  const formatUsd = (value) => {
+    const num = parseFloat(value) || 0;
+    if (roundUsd) return Math.round(num).toLocaleString();
+    return num.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
   if (loading && !container) {
@@ -560,6 +583,15 @@ export default function InvoiceEntryPage() {
                   <option value="PRINTED">PRINTED</option>
                   <option value="CANCELLED">CANCELLED</option>
                 </select>
+                <label className="flex items-center gap-2 px-3 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={roundUsd}
+                    onChange={(e) => setRoundUsd(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-emerald-600"
+                  />
+                  Round USD
+                </label>
               </div>
               <p className="text-sm text-slate-600">
                 {container?.origin} • {new Date(container?.loadingDate).toLocaleDateString()}
@@ -638,7 +670,7 @@ export default function InvoiceEntryPage() {
             </div>
             <div>
               <div className="text-sm font-medium text-slate-500 uppercase tracking-widest">Total USD</div>
-              <div className="text-2xl font-bold text-emerald-700">${stats.totalAmount.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-emerald-700">${formatUsd(stats.totalAmountRaw)}</div>
             </div>
           </div>
         </div>
@@ -1194,7 +1226,9 @@ export default function InvoiceEntryPage() {
                         placeholder="0.00"
                       />
                     </td>
-                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-emerald-700 bg-emerald-50/20">{Math.round(parseFloat(item.amountUsd) || 0).toLocaleString()}</td>
+                    <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      {formatUsd(item.amountUsd)}
+                    </td>
                     {formData.showHsnColumn && (
                       <td className="px-1 py-1 border-r border-slate-100">
                         <input
@@ -1243,7 +1277,7 @@ export default function InvoiceEntryPage() {
                 <div className="text-right">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Amount</span>
                   <div className="text-xl font-bold text-slate-800">
-                    USD {Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0))}
+                    USD {formatUsd(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0))}
                   </div>
                 </div>
               </div>
@@ -1312,6 +1346,7 @@ export default function InvoiceEntryPage() {
         data={formData}
         items={items}
         container={container}
+        roundUsd={roundUsd}
       />
 
       {/* Custom Context Menu */}

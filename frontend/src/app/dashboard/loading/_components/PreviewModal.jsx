@@ -7,9 +7,9 @@ import {
   Package
 } from "lucide-react";
 import { toast } from "sonner";
-import API from "@/lib/api";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import * as XLSX from "xlsx-js-style";
 
 // Helper function to get image URL
 const getImageUrl = (photoPath) => {
@@ -160,21 +160,256 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
   const handleDownloadExcel = async () => {
     try {
       setLoading(true);
-      
-      const endpoint = isCombined 
-        ? `/loading-sheets/container/${container.id}/export/excel`
-        : `/loading-sheets/${sheet.id}/export/excel`;
 
-      const response = await API.get(endpoint, {
-        responseType: "blob",
+      const toSafeFileBase = (value) => {
+        const raw = String(value || "")
+          .trim()
+          .replace(/\s+/g, "_")
+          .replace(/[\\/:*?"<>|]+/g, "-");
+        return raw || "loading-sheet";
+      };
+
+      const safeFileBase = toSafeFileBase(filename);
+
+      const columns = isCombined
+        ? [
+            { key: "sheetMark", label: "SHEET MARK", type: "text" },
+            { key: "no", label: "NO.", type: "int" },
+            { key: "particular", label: "PARTICULAR", type: "textWrap" },
+            { key: "mark", label: "MARK", type: "text" },
+            { key: "itemNo", label: "ITEM NO.", type: "text" },
+            { key: "ctn", label: "CTN", type: "int" },
+            { key: "pcs", label: "PCS", type: "int" },
+            { key: "tPcs", label: "TOTAL PCS", type: "int" },
+            { key: "unit", label: "UNIT", type: "text" },
+            { key: "cbm", label: "CBM", type: "dec3" },
+            { key: "tCbm", label: "TOTAL CBM", type: "dec3" },
+            { key: "wt", label: "WT", type: "dec2" },
+            { key: "tWt", label: "TOTAL WT", type: "dec2" },
+          ]
+        : [
+            { key: "no", label: "NO.", type: "int" },
+            { key: "particular", label: "PARTICULAR", type: "textWrap" },
+            { key: "mark", label: "MARK", type: "text" },
+            { key: "itemNo", label: "ITEM NO.", type: "text" },
+            { key: "ctn", label: "CTN", type: "int" },
+            { key: "pcs", label: "PCS", type: "int" },
+            { key: "tPcs", label: "TOTAL PCS", type: "int" },
+            { key: "unit", label: "UNIT", type: "text" },
+            { key: "cbm", label: "CBM", type: "dec3" },
+            { key: "tCbm", label: "TOTAL CBM", type: "dec3" },
+            { key: "wt", label: "WT", type: "dec2" },
+            { key: "tWt", label: "TOTAL WT", type: "dec2" },
+          ];
+
+      const headerRow = columns.map((c) => c.label);
+
+      const rows = [];
+      sheetsList.forEach((s) => {
+        (s.items || []).forEach((item) => {
+          if (!item?.particular?.trim()) return;
+          const ctn = parseInt(item.ctn) || 0;
+          const pcs = parseInt(item.pcs) || 0;
+          const cbm = parseFloat(item.cbm) || 0;
+          const wt = parseFloat(item.wt) || 0;
+
+          const rowObj = {
+            sheetMark: s.shippingMark || "",
+            no: rows.length + 1,
+            particular: item.particular || "",
+            mark: item.mark || s.shippingMark || "",
+            itemNo: item.itemNo || "",
+            ctn,
+            pcs,
+            tPcs: ctn * pcs,
+            unit: item.unit || "PCS",
+            cbm,
+            tCbm: ctn * cbm,
+            wt,
+            tWt: ctn * wt,
+          };
+
+          rows.push(columns.map((c) => rowObj[c.key]));
+        });
       });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `${filename}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+
+      if (rows.length === 0) {
+        toast.error("No items to export");
+        return;
+      }
+
+      const now = new Date();
+      const titleText = isCombined
+        ? `FULL CONTAINER - ${container?.containerCode || ""}`.trim()
+        : `LOADING SHEET - ${sheet?.shippingMark || ""}`.trim();
+
+      const metaLeft = isCombined
+        ? `Container: ${container?.containerCode || "-"}   ·   Sheets: ${sheetsList.length}`
+        : `Container: ${container?.containerCode || "-"}   ·   Client: ${sheet?.clientName || "-"}`;
+
+      const metaRight = `Date: ${now.toLocaleDateString("en-GB")}`;
+
+      const metaRow = new Array(columns.length).fill("");
+      metaRow[0] = metaLeft;
+      metaRow[Math.max(columns.length - 2, 0)] = metaRight;
+
+      const wsData = [[titleText], metaRow, [], headerRow, ...rows];
+
+      // Totals row (same math as UI)
+      const totalsRow = new Array(columns.length).fill("");
+      const labelCol = isCombined ? 2 : 1;
+      totalsRow[labelCol] = "TOTAL";
+      // CTN / Total PCS / Total CBM / Total WT
+      const totals = sheetsList.reduce(
+        (acc, s) => {
+          (s.items || []).forEach((item) => {
+            if (!item?.particular?.trim()) return;
+            const ctn = parseInt(item.ctn) || 0;
+            const pcs = parseInt(item.pcs) || 0;
+            const cbm = parseFloat(item.cbm) || 0;
+            const wt = parseFloat(item.wt) || 0;
+            acc.ctn += ctn;
+            acc.tPcs += ctn * pcs;
+            acc.tCbm += ctn * cbm;
+            acc.tWt += ctn * wt;
+          });
+          return acc;
+        },
+        { ctn: 0, tPcs: 0, tCbm: 0, tWt: 0 }
+      );
+
+      const colIndexByKey = Object.fromEntries(columns.map((c, idx) => [c.key, idx]));
+      totalsRow[colIndexByKey.ctn] = totals.ctn;
+      totalsRow[colIndexByKey.tPcs] = totals.tPcs;
+      totalsRow[colIndexByKey.tCbm] = Number(totals.tCbm.toFixed(3));
+      totalsRow[colIndexByKey.tWt] = Number(totals.tWt.toFixed(2));
+
+      wsData.push([]);
+      wsData.push(totalsRow);
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      ws["!cols"] = isCombined
+        ? [
+            { wch: 18 }, // sheet mark
+            { wch: 6 },
+            { wch: 44 },
+            { wch: 16 },
+            { wch: 14 },
+            { wch: 8 },
+            { wch: 8 },
+            { wch: 10 },
+            { wch: 8 },
+            { wch: 10 },
+            { wch: 12 },
+            { wch: 10 },
+            { wch: 12 },
+          ]
+        : [
+            { wch: 6 },
+            { wch: 44 },
+            { wch: 16 },
+            { wch: 14 },
+            { wch: 8 },
+            { wch: 8 },
+            { wch: 10 },
+            { wch: 8 },
+            { wch: 10 },
+            { wch: 12 },
+            { wch: 10 },
+            { wch: 12 },
+          ];
+
+      // Merges for title + meta row
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: columns.length - 3 } },
+        { s: { r: 1, c: columns.length - 2 }, e: { r: 1, c: columns.length - 1 } },
+      ];
+
+      const border = {
+        top: { style: "thin", color: { rgb: "CBD5E1" } },
+        bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+        left: { style: "thin", color: { rgb: "CBD5E1" } },
+        right: { style: "thin", color: { rgb: "CBD5E1" } },
+      };
+
+      const styleForType = (type) => {
+        if (type === "int") return { numFmt: "#,##0" };
+        if (type === "dec3") return { numFmt: "#,##0.000" };
+        if (type === "dec2") return { numFmt: "#,##0.00" };
+        return {};
+      };
+
+      const setStyle = (addr, style) => {
+        if (!ws[addr]) return;
+        ws[addr].s = style;
+      };
+
+      // Title row style
+      for (let c = 0; c < columns.length; c += 1) {
+        setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
+          font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "059669" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        });
+      }
+      ws["!rows"] = [{ hpt: 26 }];
+
+      // Header row style (r=3)
+      const excelHeaderRow = 3;
+      for (let c = 0; c < columns.length; c += 1) {
+        const col = columns[c];
+        const isNumber = ["int", "dec3", "dec2"].includes(col.type);
+        setStyle(XLSX.utils.encode_cell({ r: excelHeaderRow, c }), {
+          font: { bold: true, color: { rgb: "0F172A" } },
+          fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
+          border,
+          alignment: {
+            horizontal: isNumber ? "right" : "left",
+            vertical: "center",
+            wrapText: true,
+          },
+        });
+      }
+
+      // Data rows start at r=4
+      const firstDataRow = 4;
+      const lastDataRow = firstDataRow + rows.length - 1;
+      for (let r = firstDataRow; r <= lastDataRow; r += 1) {
+        for (let c = 0; c < columns.length; c += 1) {
+          const col = columns[c];
+          const isNumber = ["int", "dec3", "dec2"].includes(col.type);
+          setStyle(XLSX.utils.encode_cell({ r, c }), {
+            border,
+            alignment: {
+              horizontal: isNumber ? "right" : "left",
+              vertical: "top",
+              wrapText: col.type === "textWrap",
+            },
+            ...(isNumber ? styleForType(col.type) : {}),
+          });
+        }
+      }
+
+      // Totals row style
+      const totalsExcelRow = lastDataRow + 2;
+      for (let c = 0; c < columns.length; c += 1) {
+        const col = columns[c];
+        const isNumber = ["int", "dec3", "dec2"].includes(col.type);
+        setStyle(XLSX.utils.encode_cell({ r: totalsExcelRow, c }), {
+          font: { bold: true },
+          fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
+          border,
+          alignment: { horizontal: isNumber ? "right" : "left", vertical: "center" },
+          ...(isNumber ? styleForType(col.type) : {}),
+        });
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Preview");
+      XLSX.writeFile(wb, `${safeFileBase}.xlsx`);
+
       toast.success("Excel downloaded");
     } catch (error) {
       toast.error("Failed to download Excel");

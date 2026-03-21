@@ -5,7 +5,7 @@ import { X, Printer, FileText, Table } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { getImageUrl } from '@/lib/image-utils';
 
-export default function InvoicePreviewModal({ isOpen, onClose, data, items, container }) {
+export default function InvoicePreviewModal({ isOpen, onClose, data, items, container, roundUsd = true }) {
   const previewRef = useRef(null);
 
   if (!isOpen) return null;
@@ -24,7 +24,19 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
 
   const totalCtn = items.reduce((s, i) => s + (parseInt(i.ctn) || 0), 0);
   const totalQty = items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0);
-  const totalAmount = Math.round(items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0));
+  const totalAmountRaw = items.reduce((s, i) => s + (parseFloat(i.amountUsd) || 0), 0);
+  const totalAmount = roundUsd ? Math.round(totalAmountRaw) : parseFloat(totalAmountRaw.toFixed(2));
+
+  const formatUsd = (value) => {
+    const num = parseFloat(value) || 0;
+    if (roundUsd) return Math.round(num).toLocaleString();
+    return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const usdNumberForExport = (value) => {
+    const num = parseFloat(value) || 0;
+    return roundUsd ? Math.round(num) : parseFloat(num.toFixed(2));
+  };
 
   const startPrint = (fileBase) => {
     if (!previewRef.current || typeof document === "undefined") {
@@ -110,7 +122,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
         item.unit || 'PCS',
         parseInt(item.tQty) || 0,
         parseFloat(item.unitPrice) || 0,
-        Math.round(parseFloat(item.amountUsd) || 0)
+        usdNumberForExport(item.amountUsd)
       ]);
     });
 
@@ -334,7 +346,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                       <td className="p-1 text-center align-top uppercase" style={{ borderRight: '1px solid #000000' }}>{item.unit || 'PCS'}</td>
                       <td className="p-1 text-center font-bold align-top" style={{ borderRight: '1px solid #000000' }}>{item.tQty}</td>
                       <td className="p-1 text-center align-top" style={{ borderRight: '1px solid #000000' }}>{parseFloat(item.unitPrice || 0).toFixed(2)}</td>
-                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{Math.round(parseFloat(item.amountUsd || 0)).toLocaleString()}</td>
+                      <td className="p-1 text-center font-black align-top underline underline-offset-2">{formatUsd(item.amountUsd || 0)}</td>
                     </tr>
                   ))}
                   {/* Totals Row */}
@@ -345,7 +357,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, data, items, cont
                     <td className="p-1" style={{ borderRight: '1px solid #000000' }}></td>
                     <td className="p-1 text-center" style={{ borderRight: '1px solid #000000' }}>{totalQty}</td>
                     <td className="p-1" style={{ borderRight: '1px solid #000000' }}></td>
-                    <td className="p-1 text-center underline decoration-double">{totalAmount.toLocaleString()}</td>
+                    <td className="p-1 text-center underline decoration-double">{formatUsd(totalAmountRaw)}</td>
                   </tr>
                   {/* Payment Terms Row */}
                   {data.paymentTerms && (

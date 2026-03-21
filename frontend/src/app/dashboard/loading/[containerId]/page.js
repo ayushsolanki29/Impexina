@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { toast } from "sonner";
+import * as XLSX from "xlsx-js-style";
 import { getImageFileFromClipboardEvent, getImageFileFromClipboard } from "@/lib/clipboard-image";
 
 import PreviewModal from "../_components/PreviewModal";
@@ -598,27 +599,186 @@ export default function LoadingSheetPage() {
     goBack();
   };
 
-  const handleExportExcel = async () => {
-    if (!activeSheet?.id) {
-      toast.error("Please save the sheet first");
-      return;
-    }
+  const handleExportExcel = () => {
     try {
-      toast.info("Generating Excel...");
-      const response = await API.get(`/loading-sheets/${activeSheet.id}/export/excel`, {
-        responseType: 'blob'
-      });
+      const safeFileBase = String(shippingMark || container?.containerCode || "loading-sheet")
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/[\\/:*?"<>|]+/g, "-") || "loading-sheet";
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${shippingMark || 'loading-sheet'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("Excel generated successfully");
+      const validItems = (items || []).filter((it) => it?.particular?.trim());
+      if (validItems.length === 0) {
+        toast.error("Add at least one item to export");
+        return;
+      }
+
+      const totals = calculateTotals();
+      const today = new Date();
+
+      const header = [
+        "No.",
+        "Particular",
+        "Mark",
+        "Item No.",
+        "CTN",
+        "PCS",
+        "Total PCS",
+        "Unit",
+        "CBM",
+        "Total CBM",
+        "WT",
+        "Total WT",
+      ];
+
+      const wsData = [
+        [`LOADING SHEET - ${shippingMark || ""}`.trim()],
+        [
+          `Container: ${container?.containerCode || "-"}`,
+          "",
+          "",
+          "",
+          `Client: ${clientName || "-"}`,
+          "",
+          "",
+          "",
+          `Date: ${today.toLocaleDateString("en-GB")}`,
+        ],
+        [],
+        header,
+        ...validItems.map((it, idx) => {
+          const ctn = parseInt(it.ctn) || 0;
+          const pcs = parseInt(it.pcs) || 0;
+          const cbm = parseFloat(it.cbm) || 0;
+          const wt = parseFloat(it.wt) || 0;
+          return [
+            idx + 1,
+            it.particular || "",
+            it.mark || shippingMark || "",
+            it.itemNo || "",
+            ctn,
+            pcs,
+            ctn * pcs,
+            it.unit || "PCS",
+            cbm,
+            ctn * cbm,
+            wt,
+            ctn * wt,
+          ];
+        }),
+        [],
+        [
+          "",
+          "TOTAL",
+          "",
+          "",
+          totals.ctn,
+          "",
+          totals.tPcs,
+          "",
+          "",
+          Number(totals.tCbm.toFixed(3)),
+          "",
+          Number(totals.tWt.toFixed(2)),
+        ],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Merges
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+        { s: { r: 1, c: 4 }, e: { r: 1, c: 7 } },
+        { s: { r: 1, c: 8 }, e: { r: 1, c: 11 } },
+      ];
+
+      ws["!cols"] = [
+        { wch: 6 },
+        { wch: 40 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 10 },
+        { wch: 8 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 12 },
+      ];
+
+      const border = {
+        top: { style: "thin", color: { rgb: "CBD5E1" } },
+        bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+        left: { style: "thin", color: { rgb: "CBD5E1" } },
+        right: { style: "thin", color: { rgb: "CBD5E1" } },
+      };
+
+      const numFmtForCol = (col) => {
+        if ([4, 5, 6].includes(col)) return "#,##0";
+        if ([8, 9].includes(col)) return "#,##0.000";
+        if ([10, 11].includes(col)) return "#,##0.00";
+        return "#,##0";
+      };
+
+      const setStyle = (cellAddr, style) => {
+        if (!ws[cellAddr]) return;
+        ws[cellAddr].s = style;
+      };
+
+      // Title row style
+      for (let c = 0; c <= 11; c += 1) {
+        setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
+          font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "059669" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        });
+      }
+      ws["!rows"] = [{ hpt: 26 }];
+
+      // Header row style (r=3)
+      for (let c = 0; c <= 11; c += 1) {
+        const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+        setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
+          font: { bold: true, color: { rgb: "0F172A" } },
+          fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
+          border,
+          alignment: { horizontal: isNumber ? "right" : "left", vertical: "center", wrapText: true },
+        });
+      }
+
+      // Data rows
+      const firstDataRow = 4;
+      const lastDataRow = firstDataRow + validItems.length - 1;
+      for (let r = firstDataRow; r <= lastDataRow; r += 1) {
+        for (let c = 0; c <= 11; c += 1) {
+          const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+          setStyle(XLSX.utils.encode_cell({ r, c }), {
+            border,
+            alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 1 },
+            numFmt: isNumber ? numFmtForCol(c) : undefined,
+          });
+        }
+      }
+
+      // Totals row style
+      const totalsRow = lastDataRow + 2;
+      for (let c = 0; c <= 11; c += 1) {
+        const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+        setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
+          font: { bold: true },
+          fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
+          border,
+          alignment: { horizontal: isNumber ? "right" : "left", vertical: "center" },
+          numFmt: isNumber ? numFmtForCol(c) : undefined,
+        });
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Loading Sheet");
+      XLSX.writeFile(wb, `${safeFileBase}_${today.toISOString().slice(0, 10)}.xlsx`);
     } catch (error) {
-      console.error("Export error:", error);
+      console.error("Excel export error:", error);
       toast.error("Failed to export Excel");
     }
   };
@@ -940,7 +1100,7 @@ export default function LoadingSheetPage() {
             {activeSheet && (
               <button
                 onClick={handleExportExcel}
-                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 border border-emerald-300 shadow-sm"
+                className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 shadow-lg border border-transparent transition-all active:scale-95"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Excel
