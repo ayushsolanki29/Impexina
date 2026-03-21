@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef } from "react";
-import { X, Printer, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Printer, Eye, EyeOff, ChevronDown, ChevronUp, Table } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 /* ─── Toggleable financial columns ─────────────────────────── */
 const FINANCIAL_COLS = [
@@ -68,6 +69,14 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
     const [showSettings, setShowSettings] = useState(true);
     const printRef = useRef(null);
 
+    const toSafeFileBase = (value) => {
+        const raw = String(value || "")
+            .trim()
+            .replace(/\s+/g, "_")
+            .replace(/[\\/:*?"<>|]+/g, "-");
+        return raw || "Container_Summary";
+    };
+
     const toggle = key =>
         setVisible(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -109,34 +118,122 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
         };
     }, { ctn: 0, dollar: 0, inr: 0, duty: 0, total: 0, gst: 0, totalDuty: 0, doCharge: 0, cfs: 0, finalAmount: 0 });
 
-    /* Print */
+    const excelCellVal = (col, c, idx) => {
+        const f = calc(c);
+        switch (col.key) {
+            case "no": return idx + 1;
+            case "ctn": return Number(c.ctn) || 0;
+            case "dollar": return Number(c.dollar) || 0;
+            case "dollarRate": return Number(f.dollarRate) || 0;
+            case "inr": return Number(f.inr) || 0;
+            case "duty": return Number(f.duty) || 0;
+            case "total": return Number(f.total) || 0;
+            case "gst": return Number(f.gst) || 0;
+            case "totalDuty": return Number(f.totalDuty) || 0;
+            case "doCharge": return Number(f.doCharge) || 0;
+            case "cfs": return Number(f.cfs) || 0;
+            case "finalAmount": return Number(f.finalAmount) || 0;
+            case "loadingDate": return c.loadingDate ? new Date(c.loadingDate).toLocaleDateString("en-GB") : "";
+            case "eta": return c.eta ? new Date(c.eta).toLocaleDateString("en-GB") : "";
+            case "invoiceDate": return c.invoiceDate ? new Date(c.invoiceDate).toLocaleDateString("en-GB") : "";
+            case "deliveryDate": return c.deliveryDate ? new Date(c.deliveryDate).toLocaleDateString("en-GB") : "";
+            default: return c[col.key] ?? "";
+        }
+    };
+
+    const exportVisibleExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+            const wsData = [
+                [`${summary?.month || "Container Summary"} (Export)`],
+                [`Generated: ${new Date().toLocaleString("en-IN")}`],
+                [],
+                visibleCols.map(c => c.label),
+            ];
+
+            containers.forEach((c, idx) => {
+                wsData.push(visibleCols.map(col => excelCellVal(col, c, idx)));
+            });
+            wsData.push(visibleCols.map(col => totalVal(col)));
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // Basic styling for header row (row index 3)
+            const headerRowIndex = 3;
+            const range = XLSX.utils.decode_range(ws["!ref"]);
+            for (let C = range.s.c; C <= range.e.c; C++) {
+                const cell = ws[XLSX.utils.encode_cell({ r: headerRowIndex, c: C })];
+                if (cell) {
+                    cell.s = {
+                        font: { bold: true, color: { rgb: "FFFFFF" } },
+                        fill: { fgColor: { rgb: "1E293B" } },
+                        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+                        border: {
+                            top: { style: "thin", color: { rgb: "334155" } },
+                            bottom: { style: "thin", color: { rgb: "334155" } },
+                            left: { style: "thin", color: { rgb: "334155" } },
+                            right: { style: "thin", color: { rgb: "334155" } },
+                        },
+                    };
+                }
+            }
+
+            // Column widths
+            ws["!cols"] = visibleCols.map((col, colIdx) => {
+                const label = col.label || "";
+                let max = label.length;
+                for (let r = 4; r < 4 + containers.length; r++) {
+                    const v = wsData[r]?.[colIdx];
+                    max = Math.max(max, String(v ?? "").length);
+                }
+                return { wch: Math.min(Math.max(max + 2, 8), 40) };
+            });
+
+            XLSX.utils.book_append_sheet(wb, ws, "Container Summary");
+            const fileBase = toSafeFileBase(summary?.month || "Container_Summary");
+            XLSX.writeFile(wb, `${fileBase}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        } catch (err) {
+            console.error("Excel export failed:", err);
+        }
+    };
+
+    /* Print (invoice-style: no popup, no blank first page) */
     const handlePrint = () => {
-        const content = printRef.current?.innerHTML;
-        if (!content) return;
-        const win = window.open("", "_blank", "width=1200,height=700");
-        win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>${summary?.month || "Container Summary"}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
-    body { background: #fff; padding: 16px; }
-    h1 { font-size: 14px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
-    p.sub { font-size: 10px; color: #555; margin-bottom: 14px; }
-    table { border-collapse: collapse; width: 100%; font-size: 10px; }
-    th { background: #1e293b; color: #fff; padding: 5px 8px; border: 1px solid #334155; text-align: left; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
-    td { padding: 4px 8px; border: 1px solid #cbd5e1; vertical-align: middle; white-space: nowrap; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    tr.total-row td { background: #1e293b; color: #fff; font-weight: 700; border-color: #334155; }
-    .right { text-align: right; }
-    .center { text-align: center; }
-  </style>
-</head>
-<body>${content}</body>
-</html>`);
-        win.document.close();
-        win.focus();
-        setTimeout(() => { win.print(); win.close(); }, 400);
+        if (!printRef.current || typeof document === "undefined") {
+            window.print();
+            return;
+        }
+
+        const fileBase = toSafeFileBase(summary?.month || "Container_Summary");
+
+        const existing = document.getElementById("container-summary-print-root");
+        if (existing) existing.remove();
+
+        const root = document.createElement("div");
+        root.id = "container-summary-print-root";
+        root.style.background = "#ffffff";
+
+        const clone = printRef.current.cloneNode(true);
+        clone.className = "";
+        root.appendChild(clone);
+        document.body.appendChild(root);
+
+        document.body.classList.add("container-summary-printing");
+        const originalTitle = document.title;
+        document.title = fileBase;
+
+        let cleanedUp = false;
+        const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
+            document.title = originalTitle;
+            document.body.classList.remove("container-summary-printing");
+            root.remove();
+        };
+
+        window.addEventListener("afterprint", cleanup, { once: true });
+        setTimeout(cleanup, 30_000);
+        requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
     };
 
     /* Cell value helper */
@@ -260,11 +357,18 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                             </button>
                             {/* Print */}
                             <button
+                                onClick={exportVisibleExcel}
+                                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg"
+                            >
+                                <Table className="w-3.5 h-3.5" />
+                                Excel (Selected)
+                            </button>
+                            <button
                                 onClick={handlePrint}
                                 className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-lg"
                             >
                                 <Printer className="w-3.5 h-3.5" />
-                                Print / Export
+                                Print
                             </button>
                             {/* Close */}
                             <button
@@ -422,6 +526,79 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                     </div>
                 </div>
             </div>
+
+            <style jsx global>{`
+                @media print {
+                    @page { size: A4; margin: 8mm; }
+
+                    body.container-summary-printing > :not(#container-summary-print-root) { display: none !important; }
+                    body.container-summary-printing { margin: 0 !important; padding: 0 !important; }
+
+                    body.container-summary-printing #container-summary-print-root {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        background: #ffffff !important;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root * {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                        box-sizing: border-box;
+                        font-family: Arial, sans-serif;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root h1 {
+                        font-size: 14px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        margin: 0 0 4px 0;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root p.sub {
+                        font-size: 10px;
+                        color: #555;
+                        margin: 0 0 14px 0;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root table {
+                        border-collapse: collapse;
+                        width: 100%;
+                        font-size: 10px;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root th {
+                        background: #1e293b;
+                        color: #fff;
+                        padding: 5px 8px;
+                        border: 1px solid #334155;
+                        text-align: left;
+                        font-weight: 700;
+                        white-space: nowrap;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root td {
+                        padding: 4px 8px;
+                        border: 1px solid #cbd5e1;
+                        vertical-align: middle;
+                        white-space: nowrap;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root tr:nth-child(even) td { background: #f8fafc; }
+                    body.container-summary-printing #container-summary-print-root tr.total-row td {
+                        background: #1e293b;
+                        color: #fff;
+                        font-weight: 700;
+                        border-color: #334155;
+                    }
+
+                    body.container-summary-printing #container-summary-print-root .right { text-align: right; }
+                    body.container-summary-printing #container-summary-print-root .center { text-align: center; }
+                }
+            `}</style>
         </>
     );
 }

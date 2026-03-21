@@ -69,6 +69,7 @@ export default function LoadingSheetPage() {
   const [clientId, setClientId] = useState("");
   const [shouldFocusNewItem, setShouldFocusNewItem] = useState(false);
   const lastItemRef = useRef(null);
+  const pendingFocusRef = useRef(null);
   const [items, setItems] = useState(() => [
     {
       id: `temp_${Date.now()}_${Math.random()}`,
@@ -91,7 +92,7 @@ export default function LoadingSheetPage() {
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleGlobalKeyDown = (e) => {
       // Ctrl+S: Save
       if (e.ctrlKey && e.key === "s") {
         e.preventDefault();
@@ -131,8 +132,8 @@ export default function LoadingSheetPage() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [shippingMark, clientName, items, showPreview, showGlobalPreview, showLeaveConfirm]);
 
   // Global paste listener for hover functionality (supports Excel/Office paste)
@@ -356,18 +357,61 @@ export default function LoadingSheetPage() {
     wt: 0,
   });
 
-  const addItem = () => {
+  const focusItemCell = (rowIndex, colKey) => {
+    if (typeof document === "undefined") return;
+    if (rowIndex < 0) return;
+    const selector = `[data-row="${rowIndex}"][data-col="${colKey}"]`;
+    const el = document.querySelector(selector);
+    if (el && typeof el.focus === "function") el.focus();
+  };
+
+  const addItem = (focusColKey) => {
     markUnsaved();
-    setItems([...items, createEmptyItem()]);
-    setShouldFocusNewItem(true);
+    setItems((prev) => {
+      const newIndex = prev.length;
+      if (focusColKey) pendingFocusRef.current = { rowIndex: newIndex, colKey: focusColKey };
+      return [...prev, createEmptyItem()];
+    });
+    setShouldFocusNewItem(!focusColKey);
   };
 
   useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (pending?.colKey) {
+      focusItemCell(pending.rowIndex, pending.colKey);
+      pendingFocusRef.current = null;
+      return;
+    }
+
     if (shouldFocusNewItem && lastItemRef.current) {
       lastItemRef.current.focus();
       setShouldFocusNewItem(false);
     }
   }, [items, shouldFocusNewItem]);
+
+  const handleKeyDown = (e, rowIndex) => {
+    const colKey = e?.currentTarget?.getAttribute?.("data-col");
+    if (!colKey) return;
+
+    // Allow multiline in textarea with Shift+Enter
+    if (e.key === "Enter" && e.shiftKey) return;
+
+    const isDown = e.key === "Enter" || e.key === "ArrowDown";
+    const isUp = e.key === "ArrowUp";
+    if (!isDown && !isUp) return;
+
+    e.preventDefault();
+
+    const nextRowIndex = isUp ? rowIndex - 1 : rowIndex + 1;
+    if (nextRowIndex < 0) return;
+
+    if (nextRowIndex >= items.length) {
+      addItem(colKey);
+      return;
+    }
+
+    focusItemCell(nextRowIndex, colKey);
+  };
 
   const duplicateLastItem = () => {
     markUnsaved();
@@ -1335,6 +1379,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <textarea
                           ref={idx === items.length - 1 ? lastItemRef : null}
+                          data-row={idx}
+                          data-col="particular"
                           value={item.particular}
                           onChange={(e) =>
                             updateItem(idx, "particular", e.target.value)
@@ -1355,6 +1401,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
+                          data-row={idx}
+                          data-col="mark"
                           value={item.mark || ""}
                           onChange={(e) =>
                             updateItem(idx, "mark", e.target.value)
@@ -1367,6 +1415,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
+                          data-row={idx}
+                          data-col="itemNo"
                           value={item.itemNo || ""}
                           onChange={(e) =>
                             updateItem(idx, "itemNo", e.target.value)
@@ -1379,6 +1429,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
+                          data-row={idx}
+                          data-col="ctn"
                           value={item.ctn}
                           onChange={(e) =>
                             updateItem(idx, "ctn", e.target.value)
@@ -1391,6 +1443,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
+                          data-row={idx}
+                          data-col="pcs"
                           value={item.pcs}
                           onChange={(e) =>
                             updateItem(idx, "pcs", e.target.value)
@@ -1406,6 +1460,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="text"
+                          data-row={idx}
+                          data-col="unit"
                           value={item.unit || "PCS"}
                           onChange={(e) =>
                             updateItem(idx, "unit", e.target.value)
@@ -1417,6 +1473,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
+                          data-row={idx}
+                          data-col="cbm"
                           value={item.cbm}
                           onChange={(e) =>
                             updateItem(idx, "cbm", e.target.value)
@@ -1433,6 +1491,8 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
                         <input
                           type="number"
+                          data-row={idx}
+                          data-col="wt"
                           value={item.wt}
                           onChange={(e) =>
                             updateItem(idx, "wt", e.target.value)

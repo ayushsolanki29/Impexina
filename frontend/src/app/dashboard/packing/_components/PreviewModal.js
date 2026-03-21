@@ -1,17 +1,22 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
-import { X, Printer, FileText, Download, Table } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+import React, { useRef } from 'react';
+import { X, Printer, FileText, Table } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { getImageUrl } from '@/lib/image-utils';
 
 export default function PreviewModal({ isOpen, onClose, data, items, container }) {
-  const [exporting, setExporting] = useState(false);
   const previewRef = useRef(null);
 
   if (!isOpen) return null;
+
+  const toSafeFileBase = (value) => {
+    const raw = String(value || "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[\\/:*?"<>|]+/g, "-");
+    return raw || "Packing_List";
+  };
 
   const exporterName = data.headerCompanyName || data.exporterCompanyName;
   const exporterAddress = data.headerCompanyAddress || data.exporterAddress;
@@ -21,112 +26,56 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
   const totalQty = items.reduce((s, i) => s + (parseInt(i.tQty) || 0), 0);
   const totalWeight = items.reduce((s, i) => s + (parseFloat(i.tKg) || 0), 0);
 
-  const performExport = async () => {
-    if (!previewRef.current) return;
-
-    // 1. Create hidden iframe to isolate from Tailwind 4 CSS variables (lab/oklch)
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '800px';
-    iframe.style.height = '2000px';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
-
-    try {
-      setExporting(true);
-
-      // 2. Prepare iframe document structure
-      const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { margin: 0; padding: 0; font-family: "Cambria", serif; -webkit-print-color-adjust: exact; background: #ffffff; }
-              * { box-sizing: border-box; }
-              .p-1 { padding: 4px; } .p-3 { padding: 12px; } .p-4 { padding: 16px; }
-              .px-4 { padding-left: 16px; padding-right: 16px; } .py-5 { padding-top: 20px; padding-bottom: 20px; }
-              .text-center { text-align: center; } .text-left { text-align: left; } .text-right { text-align: right; }
-              .font-bold { font-weight: bold; } .font-black { font-weight: 900; }
-              .uppercase { text-transform: uppercase; } .italic { font-style: italic; }
-              .w-full { width: 100%; } .flex { display: flex; } .gap-2 { gap: 8px; }
-              table { border-collapse: collapse; width: 100%; }
-              img { max-width: 100%; height: auto; }
-            </style>
-          </head>
-          <body>
-            <div id="capture-mount" style="display: inline-block; width: 100%;"></div>
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      // 3. Clone content and STRIP classes (keeps inline styles from Previews)
-      const content = previewRef.current.cloneNode(true);
-      const stripClasses = (node) => {
-        if (node.nodeType === 1) {
-          node.removeAttribute('class');
-          node.removeAttribute('className');
-          Array.from(node.children).forEach(stripClasses);
-        }
-      };
-      stripClasses(content);
-
-      const mountPoint = doc.getElementById('capture-mount');
-      mountPoint.appendChild(content);
-
-      // 4. Wait for images to load in iframe
-      const imagesList = Array.from(doc.images);
-      await Promise.all(imagesList.map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      }));
-
-      // 5. Capture with html2canvas inside the clean environment
-      const canvas = await html2canvas(mountPoint.firstElementChild, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-
-      // 6. Generate multi-page PDF
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`Packing_List_${data.invNo || 'Draft'}.pdf`);
-    } catch (error) {
-      console.error("PDF Export failed:", error);
-    } finally {
-      document.body.removeChild(iframe);
-      setExporting(false);
+  const startPrint = (fileBase) => {
+    if (!previewRef.current || typeof document === "undefined") {
+      window.print();
+      return;
     }
+
+    const existing = document.getElementById("packing-print-root");
+    if (existing) existing.remove();
+
+    const root = document.createElement("div");
+    root.id = "packing-print-root";
+    root.style.background = "#ffffff";
+
+    const page = document.createElement("div");
+    page.style.width = "210mm";
+    page.style.margin = "0 auto";
+
+    const clone = previewRef.current.cloneNode(true);
+    page.appendChild(clone);
+    root.appendChild(page);
+    document.body.appendChild(root);
+
+    document.body.classList.add("packing-printing");
+
+    const originalTitle = document.title;
+    document.title = fileBase;
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      document.title = originalTitle;
+      document.body.classList.remove("packing-printing");
+      root.remove();
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
+    setTimeout(cleanup, 30_000);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   };
 
-  const handleDownloadPDF = () => performExport();
+  const handlePrint = () => {
+    const containerCode = container?.containerCode;
+    const invNo = data?.invNo;
+    const fileBase = toSafeFileBase(
+      ["Packing_List", containerCode, invNo].filter(Boolean).join("_")
+    );
+    startPrint(fileBase);
+  };
 
   const handleDownloadExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -252,10 +201,10 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 md:p-8">
-      <div className="bg-white w-full max-w-6xl h-full max-h-[98vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 md:p-8 print:static print:inset-auto print:z-auto print:block print:bg-white print:backdrop-blur-none print:p-0">
+      <div className="bg-white w-full max-w-6xl h-full max-h-[98vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:max-w-none print:h-auto print:max-h-none print:rounded-none print:shadow-none print:overflow-visible">
         {/* Modal Header */}
-        <div className="px-8 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+        <div className="px-8 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 print:hidden">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
               <FileText className="w-5 h-5" />
@@ -267,14 +216,6 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleDownloadPDF}
-              disabled={exporting}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold text-sm shadow-md disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? 'Generating...' : 'PDF'}
-            </button>
-            <button
               onClick={handleDownloadExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold text-sm shadow-md"
             >
@@ -282,7 +223,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
               Excel
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-600 rounded-xl transition-all font-bold text-sm"
             >
               <Printer className="w-4 h-4" />
@@ -297,7 +238,7 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
           </div>
         </div>
 
-        <div id="print-area" className="flex-1 min-h-0 overflow-auto bg-slate-100/50 p-4 md:p-10 print:overflow-visible print:p-0 print:bg-white flex justify-center items-start">
+        <div id="print-area" className="flex-1 min-h-0 overflow-auto bg-slate-100/50 p-4 md:p-10 print:overflow-visible print:p-0 print:bg-white flex justify-center items-start print:block">
           <div
             id="print-area-content"
             ref={previewRef}
@@ -443,25 +384,25 @@ export default function PreviewModal({ isOpen, onClose, data, items, container }
       </div>
 
       <style jsx global>{`
-        #print-area * {
+        #print-area *, #packing-print-root * {
             font-family: "Cambria", "Times New Roman", serif !important;
         }
         @media print {
-          body * { visibility: hidden; pointer-events: none; }
-          #print-area, #print-area * { visibility: visible; }
-          #print-area { 
-            position: fixed; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            height: 100%;
-            margin: 0;
-            padding: 0;
+          @page { size: A4; margin: 8mm; }
+
+          body.packing-printing > :not(#packing-print-root) { display: none !important; }
+          body.packing-printing { margin: 0 !important; padding: 0 !important; }
+
+          body.packing-printing #packing-print-root {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
             background: white !important;
           }
-          @page {
-            size: A4;
-            margin: 0;
+          body.packing-printing #packing-print-root * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

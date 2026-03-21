@@ -28,6 +28,10 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const isLocalEnv =
+    String(process.env.NEXT_PUBLIC_APP_ENV || "production").toUpperCase() ===
+    "LOCAL";
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -101,6 +105,47 @@ function LoginForm() {
         setTimeout(() => {
           router.push("/dashboard");
         }, 300);
+      } else {
+        handleLoginError(res.message || "Login failed", res.errors);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error(error);
+      const data = error.response?.data;
+      const errors = data?.errors;
+      let errorMessage = data?.message || error.message || "An error occurred";
+      if (errors?.length) {
+        errorMessage = errors.map((e) => e.message).join(". ");
+      }
+      handleLoginError(errorMessage, errors);
+      setLoading(false);
+    }
+  };
+
+  const handleQuickSuperAdminLogin = async () => {
+    if (!isLocalEnv || loading) return;
+
+    const quickUsername =
+      process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPERADMIN_USERNAME || "superadmin";
+    const quickPassword =
+      process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPERADMIN_PASSWORD ||
+      "super@admin123";
+
+    setUsername(quickUsername);
+    setPassword(quickPassword);
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await authService.login({
+        username: quickUsername,
+        password: quickPassword,
+      });
+
+      if (res.success) {
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 150);
       } else {
         handleLoginError(res.message || "Login failed", res.errors);
         setLoading(false);
@@ -278,6 +323,19 @@ function LoginForm() {
                 </>
               )}
             </button>
+
+            {/* Local-only: One-tap super admin */}
+            {isLocalEnv && (
+              <button
+                type="button"
+                onClick={handleQuickSuperAdminLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all border border-blue-100"
+              >
+                <KeyRound className="w-4 h-4" />
+                One-tap Super Admin
+              </button>
+            )}
           </form>
 
           {/* Security Note */}
@@ -287,39 +345,67 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Backend status */}
-        {backendHealth !== null && (
-          <div className={`w-full flex-shrink-0 mt-3 px-4 py-2.5 rounded-xl border text-center text-[11px] leading-5 ${backendHealth.up ? "bg-emerald-50/80 border-emerald-200 text-emerald-800" : "bg-amber-50/80 border-amber-200 text-amber-800"}`}>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-              <span className="inline-flex items-center gap-1.5 font-medium">
-                <span className={`w-1.5 h-1.5 rounded-full ${backendHealth.up ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-                <Server className="w-3 h-3 opacity-70" />
-                {backendHealth.up ? backendHealth.message : backendHealth.message}
-              </span>
-              {backendHealth.up && backendHealth.lastUpdated && (
-                <>
-                  <span className="text-slate-400">&bull;</span>
-                  <span className="inline-flex items-center gap-1 text-slate-600">
-                    <Clock className="w-3 h-3 opacity-70" />
-                    Last updated: {new Date(backendHealth.lastUpdated).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </>
-              )}
-              {backendHealth.up && backendHealth.version && (
-                <>
-                  <span className="text-slate-400">&bull;</span>
-                  <span className="text-slate-600">API v{backendHealth.version}</span>
-                </>
-              )}
-              {backendHealth.up && backendHealth.uptimeFormatted && (
-                <>
-                  <span className="text-slate-400">&bull;</span>
-                  <span className="text-slate-600">Uptime: {backendHealth.uptimeFormatted}</span>
-                </>
-              )}
-            </div>
+    {/* Backend status */}
+{backendHealth !== null && (
+  <div
+    className={`w-full mt-3 px-4 py-3 rounded-xl border text-xs ${
+      backendHealth.up
+        ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+        : "bg-amber-50/70 border-amber-200 text-amber-900"
+    }`}
+  >
+    <div className="flex flex-col gap-2">
+
+      {/* Status */}
+      <div className="flex items-center gap-2 font-medium">
+        <span
+          className={`w-2 h-2 rounded-full ${
+            backendHealth.up ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+          }`}
+        />
+        <Server className="w-4 h-4 opacity-70" />
+        <span>{backendHealth.message}</span>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-slate-200/60" />
+
+      {/* Details */}
+      <div className="flex flex-col gap-1 text-slate-700">
+
+        {backendHealth.up && backendHealth.lastUpdated && (
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 opacity-60" />
+            <span>
+              Updated:{" "}
+              {new Date(backendHealth.lastUpdated).toLocaleString(undefined, {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
           </div>
         )}
+
+        {backendHealth.up && backendHealth.version && (
+          <div>
+            <span className="text-slate-500">Version:</span>{" "}
+            <span className="font-medium">v{backendHealth.version}</span>
+          </div>
+        )}
+
+        {backendHealth.up && backendHealth.uptimeFormatted && (
+          <div>
+            <span className="text-slate-500">Uptime:</span>{" "}
+            <span className="font-medium">{backendHealth.uptimeFormatted}</span>
+          </div>
+        )}
+
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Help + Footer - compact inline */}
         <div className="w-full flex-shrink-0 mt-3">

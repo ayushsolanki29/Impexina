@@ -333,10 +333,7 @@ const WarehousePreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                     </div>
                 </div>
 
-                <div className="px-8 py-3 bg-white border-t text-[10px] text-slate-400 flex justify-between items-center print:hidden">
-                    <span className="font-bold uppercase tracking-widest">Impexina Logistics Cloud</span>
-                    <span className="font-medium italic">Confidential Document</span>
-                </div>
+        
             </div>
         </div>
     );
