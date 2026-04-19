@@ -2,10 +2,11 @@
 
 import React, { useState, useRef } from "react";
 import { 
-  X, Download, FileSpreadsheet, FileText, Image as ImageIcon, 
-  Copy, Share2, Eye, EyeOff, Loader2, 
+  X, FileSpreadsheet, FileText, Image as ImageIcon, 
+  Copy, Eye, EyeOff, 
   Package
 } from "lucide-react";
+import API from "@/lib/api";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -29,6 +30,15 @@ const getImageUrl = (photoPath) => {
   return `${baseUrl}${normalizedPath}`;
 };
 
+const toSafeFileBase = (value, fallback = "loading-sheet") => {
+  const raw = String(value || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[\\/:*?"<>|]+/g, "-");
+
+  return raw || fallback;
+};
+
 export default function PreviewModal({ sheet, sheets, container, onClose, onUpdate }) {
   const sheetsList = sheets || (sheet ? [sheet] : []);
   const isCombined = sheetsList.length > 1;
@@ -41,6 +51,9 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const previewRef = useRef(null);
+  const previewWidth = showImages ? 1120 : 1040;
+  const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark || "export"}`;
+  const safeFilename = toSafeFileBase(filename);
 
   /* 
    * Robust Export Strategy:
@@ -57,8 +70,8 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
     iframe.style.position = 'fixed';
     iframe.style.left = '-9999px';
     iframe.style.top = '0';
-    iframe.style.width = '1200px'; 
-    iframe.style.height = '2000px'; // Initial height, will resize to content
+    iframe.style.width = `${previewWidth + 64}px`;
+    iframe.style.height = '2000px';
     iframe.style.border = 'none';
     document.body.appendChild(iframe);
 
@@ -115,32 +128,56 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
         });
       }));
 
+      const exportNode = mountPoint.firstElementChild;
+      const exportWidth = Math.ceil(exportNode.scrollWidth);
+      const exportHeight = Math.ceil(exportNode.scrollHeight);
+
+      iframe.style.width = `${exportWidth}px`;
+      iframe.style.height = `${exportHeight}px`;
+
       // 4. Capture - Target the content specifically to avoid whitespace
-      const canvas = await html2canvas(mountPoint.firstElementChild, {
-        scale: 2, 
+      const canvas = await html2canvas(exportNode, {
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
+        width: exportWidth,
+        height: exportHeight,
+        windowWidth: exportWidth,
+        windowHeight: exportHeight,
       });
 
       // 5. Save
       if (format === 'pdf') {
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
         const pdf = new jsPDF({
-          orientation: "portrait",
+          orientation: "landscape",
           unit: "px",
           format: "a4"
         });
-        
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${filename}.pdf`);
+        const pdfPageHeight = pdf.internal.pageSize.getHeight();
+        const scaledImageHeight = (canvas.height * pdfWidth) / canvas.width;
+
+        let heightLeft = scaledImageHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, scaledImageHeight);
+        heightLeft -= pdfPageHeight;
+
+        while (heightLeft > 0) {
+          position -= pdfPageHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, scaledImageHeight);
+          heightLeft -= pdfPageHeight;
+        }
+
+        pdf.save(`${safeFilename}.pdf`);
         toast.success("PDF generated successfully");
       } else {
         const link = document.createElement("a");
-        link.download = `${filename}.png`;
+        link.download = `${safeFilename}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
         toast.success("Image downloaded");
@@ -155,24 +192,12 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
     }
   };
 
-  const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark || 'export'}`;
-
   const handleDownloadPDF = () => performExport('pdf');
   const handleDownloadImage = () => performExport('image');
 
   const handleDownloadExcel = async () => {
     try {
       setLoading(true);
-
-      const toSafeFileBase = (value) => {
-        const raw = String(value || "")
-          .trim()
-          .replace(/\s+/g, "_")
-          .replace(/[\\/:*?"<>|]+/g, "-");
-        return raw || "loading-sheet";
-      };
-
-      const safeFileBase = toSafeFileBase(filename);
 
       const columns = isCombined
         ? [
@@ -411,7 +436,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Preview");
-      XLSX.writeFile(wb, `${safeFileBase}.xlsx`);
+      XLSX.writeFile(wb, `${safeFilename}.xlsx`);
 
       toast.success("Excel downloaded");
     } catch (error) {
@@ -492,10 +517,10 @@ CONTAINER: ${container.containerCode}`;
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-5xl rounded-lg shadow-xl flex flex-col h-[90vh]">
+    <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-2 md:p-4">
+      <div className="bg-white w-full max-w-[98vw] xl:max-w-[96vw] rounded-lg shadow-xl flex flex-col h-[95vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50 rounded-t-lg">
+        <div className="flex flex-col gap-3 px-4 py-4 border-b border-slate-200 shrink-0 bg-slate-50 rounded-t-lg lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="flex items-center gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-800">{mainTitle}</h2>
@@ -505,7 +530,7 @@ CONTAINER: ${container.containerCode}`;
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               onClick={() => setShowImages(!showImages)}
               className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors flex items-center gap-2"
@@ -545,19 +570,21 @@ CONTAINER: ${container.containerCode}`;
         </div>
 
         {/* Content Container - Gray background for preview, but internal content is white */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50">
-            <div 
-            ref={previewRef} 
-            className="mx-auto relative shadow-sm origin-top"
-            style={{ 
-              backgroundColor: colors.white, 
-              color: colors.slate900, 
-              padding: '24px', // Reduced padding
-              width: '800px',  // Fixed optimized width
-              margin: '0 auto',
-              fontFamily: 'Arial, sans-serif'
-            }}
-          >
+        <div className="flex-1 overflow-auto bg-slate-50 p-3 md:p-6">
+          <div className="mx-auto w-fit min-w-full">
+            <div
+              ref={previewRef}
+              className="relative mx-auto shadow-sm origin-top"
+              style={{
+                backgroundColor: colors.white,
+                color: colors.slate900,
+                padding: '24px',
+                width: `${previewWidth}px`,
+                maxWidth: 'none',
+                margin: '0 auto',
+                fontFamily: 'Arial, sans-serif'
+              }}
+            >
             {/* Professional Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${colors.slate900}`, paddingBottom: '16px', marginBottom: '24px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -731,6 +758,7 @@ CONTAINER: ${container.containerCode}`;
                 CBM: {globalTotals.tCbm.toFixed(3)} | WT: {globalTotals.tWt.toFixed(2)} KG<br/>
                 CONTAINER: {container.containerCode}
               </div>
+            </div>
             </div>
           </div>
         </div>
