@@ -140,6 +140,7 @@ const loadingSheetService = {
         tCbm: parseInt(item.ctn || 0) * parseFloat(item.cbm || 0),
         wt: parseFloat(item.wt) || 0,
         tWt: parseInt(item.ctn || 0) * parseFloat(item.wt || 0),
+        rate: parseFloat(item.rate) || 0,
       }));
 
       await prisma.loadingItem.createMany({

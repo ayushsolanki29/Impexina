@@ -30,6 +30,7 @@ const exportService = {
       { header: 'T.CBM', key: 'tCbm', width: 12 },
       { header: 'WT', key: 'wt', width: 12 },
       { header: 'T.WT', key: 'tWt', width: 12 },
+      { header: 'Rate', key: 'rate', width: 12 },
     ];
 
     const data = sheet.items.map(item => ({
@@ -43,7 +44,8 @@ const exportService = {
       cbm: item.cbm,
       tCbm: item.tCbm,
       wt: item.wt,
-      tWt: item.tWt
+      tWt: item.tWt,
+      rate: item.rate || 0
     }));
 
     return await ExcelExporter.generateBuffer({
@@ -76,6 +78,7 @@ const exportService = {
       { header: 'Unit', key: 'unit', width: 10 },
       { header: 'T.CBM', key: 'tCbm', width: 12 },
       { header: 'T.WT', key: 'tWt', width: 12 },
+      { header: 'Rate', key: 'rate', width: 12 },
     ];
 
     const workbookSheets = [];
@@ -92,7 +95,8 @@ const exportService = {
             tPcs: item.tPcs,
             unit: item.unit,
             tCbm: item.tCbm,
-            tWt: item.tWt
+            tWt: item.tWt,
+            rate: item.rate || 0
           });
         });
       });
@@ -148,6 +152,7 @@ const exportService = {
       { header: 'T.CBM', key: 'tCbm', width: 12 },
       { header: 'WT', key: 'wt', width: 12 },
       { header: 'T.WT', key: 'tWt', width: 12 },
+      { header: 'Rate', key: 'rate', width: 12 },
     ];
 
     const workbookSheets = container.loadingSheets.map(sheet => ({
@@ -158,7 +163,8 @@ const exportService = {
         ...item,
         tPcs: (item.ctn || 0) * (item.pcs || 0),
         tCbm: (item.ctn || 0) * (item.cbm || 0),
-        tWt: (item.ctn || 0) * (item.wt || 0)
+        tWt: (item.ctn || 0) * (item.wt || 0),
+        rate: item.rate || 0
       }))
     }));
 
@@ -224,12 +230,13 @@ const exportService = {
 
       // --- TABLE ---
       const tableTop = doc.y;
-      const colWidths = [180, 100, 60, 60, 70, 60, 60, 60, 60];
-      const headers = ['DESCRIPTION / PARTICULAR', 'ITEM NO.', 'CTN', 'PCS', 'T.PCS', 'UNIT', 'CBM', 'T.CBM', 'T.WT'];
+      const colWidths = [150, 90, 48, 48, 58, 52, 52, 62, 58, 58];
+      const headers = ['DESCRIPTION / PARTICULAR', 'ITEM NO.', 'CTN', 'PCS', 'T.PCS', 'UNIT', 'CBM', 'T.CBM', 'T.WT', 'RATE'];
       const startX = 40;
+      const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
       // Header Background
-      doc.rect(startX, tableTop, 710, 25).fill('#0f172a');
+      doc.rect(startX, tableTop, tableWidth, 25).fill('#0f172a');
 
       let x = startX;
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
@@ -252,7 +259,7 @@ const exportService = {
           doc.addPage({ margin: 40, layout: 'landscape' });
           y = 40;
           // Redraw header on new page
-          doc.rect(startX, y, 710, 25).fill('#0f172a');
+          doc.rect(startX, y, tableWidth, 25).fill('#0f172a');
           let pageX = startX;
           doc.fillColor('#ffffff').font('Helvetica-Bold');
           headers.forEach((header, i) => {
@@ -264,7 +271,7 @@ const exportService = {
         }
 
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
-        doc.rect(startX, y, 710, 25).fill(bgColor);
+        doc.rect(startX, y, tableWidth, 25).fill(bgColor);
 
         let rowX = startX;
         doc.fillColor('#1e293b');
@@ -279,6 +286,7 @@ const exportService = {
           item.cbm.toFixed(3),
           item.tCbm.toFixed(3),
           item.tWt.toFixed(2),
+          (item.rate || 0).toFixed(2),
         ];
 
         rowData.forEach((data, i) => {
@@ -287,7 +295,7 @@ const exportService = {
         });
 
         // Cell borders (light)
-        doc.rect(startX, y, 710, 25).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+        doc.rect(startX, y, tableWidth, 25).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
 
         totalCTN += item.ctn;
         totalTPCS += item.tPcs;
@@ -298,7 +306,7 @@ const exportService = {
       });
 
       // --- TOTALS ROW ---
-      doc.rect(startX, y, 710, 30).fill('#1e293b');
+      doc.rect(startX, y, tableWidth, 30).fill('#1e293b');
       doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10);
 
       let footX = startX;
@@ -315,6 +323,8 @@ const exportService = {
       footX += colWidths[6] + colWidths[7];
 
       doc.text(totalTWT.toFixed(2), footX + 5, y + 10, { width: colWidths[8] - 10, align: 'center' });
+      footX += colWidths[8];
+      doc.text('-', footX + 5, y + 10, { width: colWidths[9] - 10, align: 'center' });
 
       // Footer
       doc.fontSize(8).font('Helvetica-Oblique').fillColor('#94a3b8').text(

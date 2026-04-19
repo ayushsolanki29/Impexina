@@ -48,10 +48,13 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
     ? new Date(container.loadingDate).toLocaleDateString("en-GB")
     : "-";
   const [showImages, setShowImages] = useState(true);
+  const [showRate, setShowRate] = useState(true);
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const previewRef = useRef(null);
-  const previewWidth = showImages ? 1120 : 1040;
+  const previewWidth = showImages
+    ? (showRate ? 1210 : 1130)
+    : (showRate ? 1130 : 1050);
   const filename = isCombined ? `full-container-${container.containerCode}` : `loading-sheet-${sheet?.shippingMark || "export"}`;
   const safeFilename = toSafeFileBase(filename);
 
@@ -214,6 +217,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
             { key: "tCbm", label: "TOTAL CBM", type: "dec3" },
             { key: "wt", label: "WT", type: "dec2" },
             { key: "tWt", label: "TOTAL WT", type: "dec2" },
+            ...(showRate ? [{ key: "rate", label: "RATE", type: "dec2" }] : []),
           ]
         : [
             { key: "no", label: "NO.", type: "int" },
@@ -228,6 +232,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
             { key: "tCbm", label: "TOTAL CBM", type: "dec3" },
             { key: "wt", label: "WT", type: "dec2" },
             { key: "tWt", label: "TOTAL WT", type: "dec2" },
+            ...(showRate ? [{ key: "rate", label: "RATE", type: "dec2" }] : []),
           ];
 
       const headerRow = columns.map((c) => c.label);
@@ -240,6 +245,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
           const pcs = parseInt(item.pcs) || 0;
           const cbm = parseFloat(item.cbm) || 0;
           const wt = parseFloat(item.wt) || 0;
+          const rate = parseFloat(item.rate) || 0;
 
           const rowObj = {
             sheetMark: s.shippingMark || "",
@@ -255,6 +261,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
             tCbm: ctn * cbm,
             wt,
             tWt: ctn * wt,
+            rate,
           };
 
           rows.push(columns.map((c) => rowObj[c.key]));
@@ -332,6 +339,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
             { wch: 12 },
             { wch: 10 },
             { wch: 12 },
+            { wch: 12 },
           ]
         : [
             { wch: 6 },
@@ -345,6 +353,7 @@ export default function PreviewModal({ sheet, sheets, container, onClose, onUpda
             { wch: 10 },
             { wch: 12 },
             { wch: 10 },
+            { wch: 12 },
             { wch: 12 },
           ];
 
@@ -538,6 +547,13 @@ CONTAINER: ${container.containerCode}`;
               {showImages ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
               {showImages ? "Images On" : "Images Off"}
             </button>
+            <button
+              onClick={() => setShowRate(!showRate)}
+              className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors flex items-center gap-2"
+            >
+              {showRate ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {showRate ? "Rate On" : "Rate Off"}
+            </button>
             <div className="w-px h-6 bg-slate-200 mx-2" />
             <button
               onClick={handleDownloadExcel}
@@ -645,6 +661,7 @@ CONTAINER: ${container.containerCode}`;
                         <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.CBM</th>
                         <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '50px' }}>WT</th>
                         <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>T.WT</th>
+                        {showRate && <th style={{ borderRight: `1px solid ${colors.slate300}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '70px' }}>RATE</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -680,6 +697,7 @@ CONTAINER: ${container.containerCode}`;
                           <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText }}>{((item.ctn || 0) * (item.cbm || 0)).toFixed(3)}</td>
                           <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center' }}>{item.wt}</td>
                           <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText }}>{((item.ctn || 0) * (item.wt || 0)).toFixed(2)}</td>
+                          {showRate && <td style={{ borderRight: `1px solid ${colors.slate200}`, padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{(parseFloat(item.rate) || 0).toFixed(2)}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -694,6 +712,7 @@ CONTAINER: ${container.containerCode}`;
                         <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.blueText, fontSize: '13px', backgroundColor: colors.white }}>{sheetTotals.tCbm.toFixed(3)}</td>
                         <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>
                         <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', textAlign: 'center', fontWeight: 'bold', color: colors.orangeText, fontSize: '13px', backgroundColor: colors.white }}>{sheetTotals.tWt.toFixed(2)}</td>
+                        {showRate && <td style={{ borderLeft: `1px solid ${colors.slate200}`, padding: '10px', backgroundColor: colors.slate100 }}></td>}
                       </tr>
                     </tfoot>
                   </table>

@@ -82,6 +82,7 @@ export default function LoadingSheetPage() {
       unit: "PCS",
       cbm: 0,
       wt: 0,
+      rate: 0,
     },
   ]);
   const [markSuggestions, setMarkSuggestions] = useState([]);
@@ -332,7 +333,11 @@ export default function LoadingSheetPage() {
       setClientId(sheet.clientId || "");
     }
 
-    setItems(sheet.items.length > 0 ? sheet.items : [createEmptyItem()]);
+    setItems(
+      sheet.items.length > 0
+        ? sheet.items.map((item) => ({ ...item, rate: item.rate ?? 0 }))
+        : [createEmptyItem()]
+    );
     markSaved();
   };
 
@@ -356,6 +361,7 @@ export default function LoadingSheetPage() {
     unit: "PCS",
     cbm: 0,
     wt: 0,
+    rate: 0,
   });
 
   const focusItemCell = (rowIndex, colKey) => {
@@ -628,6 +634,7 @@ export default function LoadingSheetPage() {
         "Total CBM",
         "WT",
         "Total WT",
+        "Rate",
       ];
 
       const wsData = [
@@ -650,6 +657,7 @@ export default function LoadingSheetPage() {
           const pcs = parseInt(it.pcs) || 0;
           const cbm = parseFloat(it.cbm) || 0;
           const wt = parseFloat(it.wt) || 0;
+          const rate = parseFloat(it.rate) || 0;
           return [
             idx + 1,
             it.particular || "",
@@ -663,6 +671,7 @@ export default function LoadingSheetPage() {
             ctn * cbm,
             wt,
             ctn * wt,
+            rate,
           ];
         }),
         [],
@@ -679,6 +688,7 @@ export default function LoadingSheetPage() {
           Number(totals.tCbm.toFixed(3)),
           "",
           Number(totals.tWt.toFixed(2)),
+          "",
         ],
       ];
 
@@ -686,10 +696,10 @@ export default function LoadingSheetPage() {
 
       // Merges
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
         { s: { r: 1, c: 4 }, e: { r: 1, c: 7 } },
-        { s: { r: 1, c: 8 }, e: { r: 1, c: 11 } },
+        { s: { r: 1, c: 8 }, e: { r: 1, c: 12 } },
       ];
 
       ws["!cols"] = [
@@ -705,6 +715,7 @@ export default function LoadingSheetPage() {
         { wch: 12 },
         { wch: 10 },
         { wch: 12 },
+        { wch: 12 },
       ];
 
       const border = {
@@ -717,7 +728,7 @@ export default function LoadingSheetPage() {
       const numFmtForCol = (col) => {
         if ([4, 5, 6].includes(col)) return "#,##0";
         if ([8, 9].includes(col)) return "#,##0.000";
-        if ([10, 11].includes(col)) return "#,##0.00";
+        if ([10, 11, 12].includes(col)) return "#,##0.00";
         return "#,##0";
       };
 
@@ -727,7 +738,7 @@ export default function LoadingSheetPage() {
       };
 
       // Title row style
-      for (let c = 0; c <= 11; c += 1) {
+      for (let c = 0; c <= 12; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -737,8 +748,8 @@ export default function LoadingSheetPage() {
       ws["!rows"] = [{ hpt: 26 }];
 
       // Header row style (r=3)
-      for (let c = 0; c <= 11; c += 1) {
-        const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+      for (let c = 0; c <= 12; c += 1) {
+        const isNumber = [4, 5, 6, 8, 9, 10, 11, 12].includes(c);
         setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -751,8 +762,8 @@ export default function LoadingSheetPage() {
       const firstDataRow = 4;
       const lastDataRow = firstDataRow + validItems.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 11; c += 1) {
-          const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+        for (let c = 0; c <= 12; c += 1) {
+          const isNumber = [4, 5, 6, 8, 9, 10, 11, 12].includes(c);
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 1 },
@@ -763,8 +774,8 @@ export default function LoadingSheetPage() {
 
       // Totals row style
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 11; c += 1) {
-        const isNumber = [4, 5, 6, 8, 9, 10, 11].includes(c);
+      for (let c = 0; c <= 12; c += 1) {
+        const isNumber = [4, 5, 6, 8, 9, 10, 11, 12].includes(c);
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -1427,7 +1438,7 @@ export default function LoadingSheetPage() {
                               className="w-full px-4 py-3 text-left bg-blue-50 hover:bg-blue-100 flex items-center gap-2 text-blue-700 font-bold"
                             >
                               <Plus className="w-5 h-5" />
-                              Add "{clientName}" as New Client
+                              Add &quot;{clientName}&quot; as New Client
                             </button>
                           )}
                       </div>
@@ -1454,6 +1465,7 @@ export default function LoadingSheetPage() {
                     <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Total CBM</th>
                     <th className="px-3 py-4 text-right align-middle min-w-[100px] border-b border-slate-100">WT</th>
                     <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Total WT</th>
+                    <th className="px-3 py-4 text-right align-middle min-w-[120px] border-b border-slate-100">Rate</th>
                     <th className="min-w-[100px] border-b border-slate-100"></th>
                   </tr>
                 </thead>
@@ -1666,6 +1678,21 @@ export default function LoadingSheetPage() {
                       <td className="px-2 py-1.5 border-b border-slate-50 text-right align-middle font-bold text-orange-600 bg-orange-50/30">
                         {(item.ctn * item.wt || 0).toFixed(2)}
                       </td>
+                      <td className="px-2 py-1.5 border-b border-slate-50 align-middle">
+                        <input
+                          type="number"
+                          data-row={idx}
+                          data-col="rate"
+                          value={item.rate ?? 0}
+                          onChange={(e) =>
+                            updateItem(idx, "rate", e.target.value)
+                          }
+                          className="w-full px-2 py-2 text-sm text-right bg-slate-50 border border-slate-100/60 hover:border-slate-300 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none rounded-lg font-normal text-slate-500 transition-all"
+                          placeholder="0"
+                          step="0.01"
+                          onKeyDown={(e) => handleKeyDown(e, idx)}
+                        />
+                      </td>
                       <td className="px-2 py-1.5 border-b border-slate-50 text-center align-middle">
                         <button
                           onClick={() => removeItem(idx)}
@@ -1703,6 +1730,7 @@ export default function LoadingSheetPage() {
                     <td className="px-2 py-2 border-l border-slate-200 text-right font-bold text-orange-700 text-base shadow-sm bg-white">
                       {totals.tWt.toFixed(2)}
                     </td>
+                    <td className="border-l border-slate-200 bg-slate-100"></td>
                     <td className="border-l border-slate-200 bg-slate-100"></td>
                   </tr>
                 </tfoot>
