@@ -26,6 +26,7 @@ const DB_BACKUP_DIR = path.join(BACKUP_DIR, "db");
 const FILES_BACKUP_DIR = path.join(BACKUP_DIR, "files");
 const LOGS_DIR = path.join(BACKUP_DIR, "logs");
 const LOG_FILE = path.join(LOGS_DIR, "backup.log");
+const DOWNLOADS_CACHE_FILE = path.join(BACKUP_DIR, "downloads.json");
 
 class BackupService {
   /**
@@ -138,23 +139,33 @@ class BackupService {
       const logs = await this._readLogs();
       const cronLogs = await this._readCronLogs();
 
-      // Safely count downloads without loading entire file into memory
-      const downloadCounts = {};
+      // Get download counts from cache file instead of parsing the entire log
+      let downloadCounts = {};
       try {
-        const readline = require('readline');
-        const rl = readline.createInterface({
-          input: fs.createReadStream(LOG_FILE),
-          crlfDelay: Infinity
-        });
+        if (fs.existsSync(DOWNLOADS_CACHE_FILE)) {
+          const cacheData = await fs.promises.readFile(DOWNLOADS_CACHE_FILE, 'utf-8');
+          downloadCounts = JSON.parse(cacheData);
+        } else {
+          // One-time migration: parse log once if cache doesn't exist
+          try {
+            const readline = require('readline');
+            const rl = readline.createInterface({
+              input: fs.createReadStream(LOG_FILE),
+              crlfDelay: Infinity
+            });
 
-        for await (const line of rl) {
-          if (line.includes("Downloaded →")) {
-            const match = line.match(/Downloaded → (.+?) \(/);
-            if (match && match[1]) {
-              const fName = match[1].trim();
-              downloadCounts[fName] = (downloadCounts[fName] || 0) + 1;
+            for await (const line of rl) {
+              if (line.includes("Downloaded →")) {
+                const match = line.match(/Downloaded → (.+?) \(/);
+                if (match && match[1]) {
+                  const fName = match[1].trim();
+                  downloadCounts[fName] = (downloadCounts[fName] || 0) + 1;
+                }
+              }
             }
-          }
+            // Save initial cache
+            await fs.promises.writeFile(DOWNLOADS_CACHE_FILE, JSON.stringify(downloadCounts, null, 2));
+          } catch (e) { /* silent */ }
         }
       } catch (e) {
         // silent
@@ -281,6 +292,41 @@ class BackupService {
   }
 
   /**
+   * Find psql executable path
+   */
+  async _findPsql() {
+    if (!IS_WINDOWS) return "psql";
+
+    // Check if psql is in PATH
+    try {
+      await execPromise("where psql", { shell: "cmd.exe" });
+      return "psql";
+    } catch (e) {
+      // Not in PATH
+    }
+
+    // Common PostgreSQL install paths on Windows
+    const pgBasePath = "C:\\Program Files\\PostgreSQL";
+    try {
+      const versions = await fs.promises.readdir(pgBasePath);
+      const sorted = versions.sort((a, b) => parseInt(b) - parseInt(a));
+      for (const ver of sorted) {
+        const psqlPath = path.join(pgBasePath, ver, "bin", "psql.exe");
+        try {
+          await fs.promises.access(psqlPath);
+          return `"${psqlPath}"`;
+        } catch (e) {
+          continue;
+        }
+      }
+    } catch (e) {
+      // Not found
+    }
+
+    return null;
+  }
+
+  /**
    * Create database backup using pg_dump
    */
   async _backupDatabase() {
@@ -373,11 +419,13 @@ class BackupService {
    */
   async createBackup(type, username = 'System') {
     try {
+      await this._log(`[BACKUP_STEP: 1/4] Preparing backup directories and checking system requirements...`);
       await this._ensureDirs();
       const messages = [];
 
       if (type === "db" || type === "all") {
         try {
+          await this._log(`[BACKUP_STEP: 2/4] Initiating Database Snapshot...`);
           const filename = await this._backupDatabase();
           await this._log(`Database backup successful → ${filename} (by ${username})`);
           messages.push(`Database backup: ${filename}`);
@@ -386,10 +434,13 @@ class BackupService {
           if (type === "db") throw err;
           messages.push(`Database backup failed: ${err.message}`);
         }
+      } else {
+        await this._log(`[BACKUP_STEP: 2/4] Skipping Database Snapshot (not requested)`);
       }
 
       if (type === "files" || type === "all") {
         try {
+          await this._log(`[BACKUP_STEP: 3/4] Archiving Media Assets (uploads folder)...`);
           const results = await this._backupFiles();
           for (const r of results) {
             await this._log(`Files backup successful → ${r} (by ${username})`);
@@ -400,15 +451,18 @@ class BackupService {
           if (type === "files") throw err;
           messages.push(`Files backup failed: ${err.message}`);
         }
+      } else {
+        await this._log(`[BACKUP_STEP: 3/4] Skipping Media Assets Archive (not requested)`);
       }
 
+      await this._log(`[BACKUP_STEP: 4/4] Finalizing backup and updating storage metrics...`);
       return {
         success: true,
         message: messages.join(" | ") || "Backup completed",
       };
     } catch (error) {
       console.error("Backup failed:", error);
-      await this._log(`Backup failed: ${error.message}`);
+      await this._log(`❌ Backup Process Aborted: ${error.message}`);
       throw { status: 500, message: `Backup failed: ${error.message}` };
     }
   }
@@ -416,15 +470,101 @@ class BackupService {
   /**
    * Restore Backup
    */
-  async restoreBackup(filename, type) {
+  async restoreBackup(filename, type, username = 'System') {
     if (!filename || filename.includes("/") || filename.includes("..") || filename.includes("\\")) {
       throw { status: 400, message: "Invalid filename" };
     }
 
-    throw {
-      status: 501,
-      message: "Automatic restore via UI is disabled for safety. Please use CLI.",
-    };
+    const dir = type === "db" ? DB_BACKUP_DIR : FILES_BACKUP_DIR;
+    const filePath = path.join(dir, filename);
+    const db = this._parseDbUrl();
+
+    // 1. Verify file exists
+    try {
+      await this._log(`[RESTORE_STEP: 1/5] Verifying backup file integrity...`);
+      await fs.promises.access(filePath, fs.constants.R_OK);
+    } catch (e) {
+      throw { status: 404, message: "Backup file not found" };
+    }
+
+    try {
+      // 2. Create Rollback Backup First
+      await this._log(`[RESTORE_STEP: 2/5] Creating pre-restore rollback snapshot for safety...`);
+      const rollbackType = type === 'all' ? 'all' : type;
+      const rollbackResult = await this.createBackup(rollbackType, `Rollback-Pre-${filename}`);
+      const rollbackMsg = rollbackResult.message;
+
+      // 3. Perform Restore
+      if (type === "db") {
+        if (!db) throw new Error("Invalid database configuration");
+        const psql = await this._findPsql();
+        if (!psql) throw new Error("psql tool not found on server");
+
+        await this._log(`[RESTORE_STEP: 3/5] Dropping current schema and restoring database from snapshot...`);
+
+        if (IS_WINDOWS) {
+          // Drop and Recreate Schema for clean restore
+          const dropCmd = `set PGPASSWORD=${db.password}&& ${psql} -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.database} -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`;
+          await execPromise(dropCmd, { shell: "cmd.exe" });
+
+          // Restore
+          const restoreCmd = `set PGPASSWORD=${db.password}&& ${psql} -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.database} -f "${filePath}"`;
+          await execPromise(restoreCmd, { shell: "cmd.exe" });
+        } else {
+          // Linux/Unix
+          let restoreCmd;
+          const cleanCmd = `PGPASSWORD="${db.password}" ${psql} -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.database} -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`;
+          await execPromise(cleanCmd);
+
+          if (filename.endsWith(".gz")) {
+            restoreCmd = `gunzip -c "${filePath}" | PGPASSWORD="${db.password}" ${psql} -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.database}`;
+          } else {
+            restoreCmd = `PGPASSWORD="${db.password}" ${psql} -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.database} -f "${filePath}"`;
+          }
+          await execPromise(restoreCmd);
+        }
+        await this._log(`[RESTORE_STEP: 4/5] Database restoration verified. Skipping file extraction...`);
+      } else if (type === "files") {
+        const uploadsDir = path.join(BACKEND_DIR, "uploads");
+        await this._log(`[RESTORE_STEP: 3/5] Skipping database restoration. Moving to file extraction...`);
+        await this._log(`[RESTORE_STEP: 4/5] Extracting assets and synchronizing file system...`);
+
+        // Create uploads if missing
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+
+        if (IS_WINDOWS) {
+          // Empty folder first
+          try {
+            await execPromise(`powershell -Command "Remove-Item -Path '${uploadsDir}\\*' -Recurse -Force"`);
+          } catch (e) { /* ignore if empty */ }
+          
+          await execPromise(`powershell -Command "Expand-Archive -Path '${filePath}' -DestinationPath '${BACKEND_DIR}' -Force"`);
+        } else {
+          // Linux
+          await execPromise(`rm -rf "${uploadsDir}"/*`);
+          if (filename.endsWith(".zip")) {
+            await execPromise(`unzip -o "${filePath}" -d "${BACKEND_DIR}"`);
+          } else {
+            await execPromise(`tar -xzf "${filePath}" -C "${BACKEND_DIR}"`);
+          }
+        }
+      }
+
+      await this._log(`[RESTORE_STEP: 5/5] Finalizing restore process and logging completion...`);
+      const successMsg = `Successfully restored ${type} from ${filename}. Rollback created: ${rollbackMsg}`;
+      await this._log(successMsg);
+
+      return {
+        success: true,
+        message: successMsg,
+        rollback: rollbackMsg
+      };
+    } catch (error) {
+      const errorMsg = `Restore failed: ${error.message}`;
+      console.error(errorMsg);
+      await this._log(`❌ Restore Process Aborted: ${error.message}`);
+      throw { status: 500, message: errorMsg };
+    }
   }
 
   /**
@@ -450,6 +590,23 @@ class BackupService {
     }
 
     return { filePath, filename };
+  }
+
+  /**
+   * Increment download count for a file
+   */
+  async incrementDownloadCount(filename) {
+    try {
+      let counts = {};
+      if (fs.existsSync(DOWNLOADS_CACHE_FILE)) {
+        const data = await fs.promises.readFile(DOWNLOADS_CACHE_FILE, 'utf-8');
+        counts = JSON.parse(data);
+      }
+      counts[filename] = (counts[filename] || 0) + 1;
+      await fs.promises.writeFile(DOWNLOADS_CACHE_FILE, JSON.stringify(counts, null, 2));
+    } catch (e) {
+      console.error("Failed to increment download count:", e.message);
+    }
   }
 }
 

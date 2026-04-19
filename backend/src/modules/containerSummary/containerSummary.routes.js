@@ -22,6 +22,12 @@ router.post(
   containerSummaryController.createSummary
 );
 
+// Get all containers (flat, paginated) with filters
+router.get("/containers/all", containerSummaryController.getAllContainers);
+
+// Get filter options for containers
+router.get("/containers/filter-options", containerSummaryController.getContainerFilterOptions);
+
 // Get all summaries (with pagination)
 router.get(
   "/",
@@ -46,6 +52,12 @@ router.get(
 
 // Get single summary
 router.get("/:id", containerSummaryController.getSummaryById);
+
+// Toggle active/inactive for a single container row
+router.patch("/:id/containers/:containerId/toggle-active", containerSummaryController.toggleContainerActive);
+
+// Toggle active/inactive
+router.patch("/:id/toggle-active", containerSummaryController.toggleSummaryActive);
 
 // Update summary
 router.patch(

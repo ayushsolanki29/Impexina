@@ -5,6 +5,7 @@ import * as XLSX from "xlsx-js-style";
 
 /* ─── Toggleable financial columns ─────────────────────────── */
 const FINANCIAL_COLS = [
+    { key: "dollar", label: "Dollar ($)" },
     { key: "dollarRate", label: "Rate" },
     { key: "inr", label: "INR" },
     { key: "duty", label: "Duty" },
@@ -64,7 +65,7 @@ function fmtDate(d) {
 export default function ContainerSummaryPreview({ summary, containers, onClose }) {
     /* Which financial/tracking cols are visible */
     const [visible, setVisible] = useState(
-        Object.fromEntries([...FINANCIAL_COLS, ...TRACKING_COLS].map(c => [c.key, true]))
+        Object.fromEntries([...FINANCIAL_COLS, ...TRACKING_COLS].map(c => [c.key, c.key !== "dollar"]))
     );
     const [showSettings, setShowSettings] = useState(true);
     const printRef = useRef(null);
@@ -90,7 +91,6 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
         { key: "ctn", label: "CTN", always: true },
         { key: "loadingDate", label: "LOADING", always: true },
         { key: "eta", label: "ETA", always: true },
-        { key: "dollar", label: "DOLLAR", always: true },
         ...FINANCIAL_COLS,
         { key: "shippingLine", label: "LINE", always: true },
         { key: "bl", label: "BL", always: true },

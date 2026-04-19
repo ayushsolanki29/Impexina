@@ -110,6 +110,7 @@ const containerSummaryService = {
                 deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
                 shipper: container.shipper || "",
                 workflowStatus: container.workflowStatus || "",
+                isActive: container.isActive !== false,
               };
             }),
           },
@@ -145,6 +146,223 @@ const containerSummaryService = {
       };
     } catch (error) {
       console.error("Error creating summary:", error);
+      throw error;
+    }
+  },
+
+  // Toggle active/inactive for a single container
+  toggleContainerActive: async (summaryId, containerId, userId, userName) => {
+    try {
+      const container = await prisma.containerInSummary.findFirst({
+        where: { id: containerId, summaryId },
+      });
+      if (!container) throw new Error("Container not found");
+
+      const updated = await prisma.containerInSummary.update({
+        where: { id: containerId },
+        data: { isActive: !container.isActive },
+      });
+
+      await prisma.summaryActivity.create({
+        data: {
+          summaryId,
+          userId,
+          type: "UPDATED",
+          field: "containerIsActive",
+          oldValue: { containerId, isActive: container.isActive },
+          newValue: { containerId, isActive: updated.isActive },
+          note: `Container ${container.containerCode || containerId} marked as ${updated.isActive ? "active" : "inactive"}`,
+        },
+      });
+
+      return updated;
+    } catch (error) {
+      console.error("Error toggling container active:", error);
+      throw error;
+    }
+  },
+
+  // Toggle active/inactive
+  toggleSummaryActive: async (summaryId, userId, userName) => {
+    try {
+      const summary = await prisma.containerSummary.findUnique({ where: { id: summaryId } });
+      if (!summary) throw new Error("Summary not found");
+
+      const updated = await prisma.containerSummary.update({
+        where: { id: summaryId },
+        data: { isActive: !summary.isActive, updatedBy: userName },
+      });
+
+      await prisma.summaryActivity.create({
+        data: {
+          summaryId,
+          userId,
+          type: "UPDATED",
+          field: "isActive",
+          oldValue: { isActive: summary.isActive },
+          newValue: { isActive: updated.isActive },
+          note: `Summary marked as ${updated.isActive ? "active" : "inactive"}`,
+        },
+      });
+
+      return updated;
+    } catch (error) {
+      console.error("Error toggling summary active:", error);
+      throw error;
+    }
+  },
+
+  // Get all containers (flat list) with pagination + filters
+  getAllContainers: async (query = {}) => {
+    const {
+      page = 1,
+      limit = 20,
+      search = "",
+      status = "",
+      month = "",
+      shippingLine = "",
+      containerCode = "",
+      origin = "",
+      dateFrom = "",
+      dateTo = "",
+    } = query;
+
+    try {
+      const skip = (page - 1) * limit;
+      const where = {};
+
+      if (search) {
+        where.OR = [
+          { containerCode: { contains: search, mode: "insensitive" } },
+          { bl: { contains: search, mode: "insensitive" } },
+          { containerNoField: { contains: search, mode: "insensitive" } },
+          { shippingLine: { contains: search, mode: "insensitive" } },
+          { invoiceNo: { contains: search, mode: "insensitive" } },
+          { shipper: { contains: search, mode: "insensitive" } },
+          { location: { contains: search, mode: "insensitive" } },
+          { summary: { month: { contains: search, mode: "insensitive" } } },
+        ];
+      }
+
+      // Only include containers from active summaries, and only active containers
+      where.summary = { ...(where.summary || {}), isActive: true };
+      where.isActive = true;
+
+      // Multi-value filters (comma-separated)
+      if (status) {
+        const vals = status.split(",").map((v) => v.trim()).filter(Boolean);
+        if (vals.length) where.status = { in: vals };
+      }
+      if (shippingLine) {
+        const vals = shippingLine.split(",").map((v) => v.trim()).filter(Boolean);
+        if (vals.length) where.shippingLine = { in: vals };
+      }
+      if (containerCode) {
+        const vals = containerCode.split(",").map((v) => v.trim()).filter(Boolean);
+        if (vals.length) where.containerCode = { in: vals };
+      }
+      if (origin) {
+        const vals = origin.split(",").map((v) => v.trim()).filter(Boolean);
+        if (vals.length) where.origin = { in: vals };
+      }
+      if (month) {
+        const vals = month.split(",").map((v) => v.trim()).filter(Boolean);
+        if (vals.length) where.summary = { month: { in: vals } };
+      }
+      if (dateFrom || dateTo) {
+        where.loadingDate = {};
+        if (dateFrom) where.loadingDate.gte = new Date(dateFrom);
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          where.loadingDate.lte = to;
+        }
+      }
+
+      const [containers, total] = await Promise.all([
+        prisma.containerInSummary.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            summary: { select: { month: true, id: true, createdBy: true } },
+          },
+          orderBy: { loadingDate: "desc" },
+        }),
+        prisma.containerInSummary.count({ where }),
+      ]);
+
+      // Aggregate stats for filtered set
+      const agg = await prisma.containerInSummary.aggregate({
+        where,
+        _sum: { dollar: true, finalAmount: true, ctn: true, duty: true, gst: true },
+        _count: { id: true },
+      });
+
+      // Status breakdown
+      const statusBreakdown = await prisma.containerInSummary.groupBy({
+        by: ["status"],
+        where,
+        _count: { id: true },
+      });
+
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        containers: containers.map((c) => ({
+          ...c,
+          month: c.summary?.month,
+          monthId: c.summary?.id,
+          summaryCreatedBy: c.summary?.createdBy,
+          summary: undefined,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        stats: {
+          totalContainers: agg._count.id,
+          totalValue: agg._sum.dollar || 0,
+          totalFinalAmount: agg._sum.finalAmount || 0,
+          totalCTN: agg._sum.ctn || 0,
+          totalDuty: agg._sum.duty || 0,
+          totalGST: agg._sum.gst || 0,
+          statusBreakdown: statusBreakdown.reduce((acc, s) => {
+            acc[s.status] = s._count.id;
+            return acc;
+          }, {}),
+        },
+      };
+    } catch (error) {
+      console.error("Error getting all containers:", error);
+      throw error;
+    }
+  },
+
+  // Get unique filter values for containers
+  getContainerFilterOptions: async () => {
+    try {
+      const [origins, shippingLines, containerCodes, statuses, summaries] = await Promise.all([
+        prisma.containerInSummary.findMany({ select: { origin: true }, distinct: ["origin"], where: { origin: { not: null, not: "" } } }),
+        prisma.containerInSummary.findMany({ select: { shippingLine: true }, distinct: ["shippingLine"], where: { shippingLine: { not: null, not: "" } } }),
+        prisma.containerInSummary.findMany({ select: { containerCode: true }, distinct: ["containerCode"], where: { containerCode: { not: "" } } }),
+        prisma.containerInSummary.findMany({ select: { status: true }, distinct: ["status"], where: { status: { not: null, not: "" } } }),
+        prisma.containerSummary.findMany({ select: { month: true }, where: { isActive: true }, orderBy: { createdAt: "desc" } }),
+      ]);
+
+      return {
+        origins: origins.map((o) => o.origin).filter(Boolean).sort(),
+        shippingLines: shippingLines.map((s) => s.shippingLine).filter(Boolean).sort(),
+        containerCodes: containerCodes.map((c) => c.containerCode).filter(Boolean).sort(),
+        statuses: statuses.map((s) => s.status).filter(Boolean).sort(),
+        months: summaries.map((s) => s.month).filter(Boolean),
+      };
+    } catch (error) {
+      console.error("Error getting filter options:", error);
       throw error;
     }
   },
@@ -431,6 +649,7 @@ const containerSummaryService = {
               deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
               shipper: container.shipper || "",
               workflowStatus: container.workflowStatus || "",
+              isActive: container.isActive !== false,
             };
           }),
         });

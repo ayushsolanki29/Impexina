@@ -3,6 +3,60 @@ const containerSummaryService = require("./containerSummary.service");
 const XLSX = require("xlsx");
 
 const containerSummaryController = {
+  // Get all containers (flat, paginated)
+  getAllContainers: async (req, res) => {
+    try {
+      const {
+        page = 1, limit = 20,
+        search = "", status = "", month = "",
+        shippingLine = "", containerCode = "", origin = "",
+        dateFrom = "", dateTo = "",
+      } = req.query;
+
+      const result = await containerSummaryService.getAllContainers({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        search, status, month, shippingLine, containerCode, origin, dateFrom, dateTo,
+      });
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  // Get filter options
+  getContainerFilterOptions: async (req, res) => {
+    try {
+      const result = await containerSummaryService.getContainerFilterOptions();
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  // Toggle active/inactive for a single container in a summary
+  toggleContainerActive: async (req, res) => {
+    try {
+      const { id, containerId } = req.params;
+      const result = await containerSummaryService.toggleContainerActive(id, containerId, req.user.id, req.user.name);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  // Toggle active/inactive for a summary
+  toggleSummaryActive: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await containerSummaryService.toggleSummaryActive(id, req.user.id, req.user.name);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
   // Create new summary
   createSummary: async (req, res) => {
     try {

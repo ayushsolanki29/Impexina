@@ -1,486 +1,283 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Search,
-  Filter,
-  Download,
-  Calendar,
-  DollarSign,
-  Package,
-  Ship,
-  FileText,
-  Eye,
-  Edit,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-  BarChart3,
-  Grid,
-  List,
-  RefreshCw,
-  Loader2,
-  Users,
-  Box,
-  Truck,
-  Waves,
-  X,
-  ChevronRight,
-  Home,
-  BarChart,
-  Percent,
-  Layers,
-  Database,
-  MoreVertical,
-  ChevronsUpDown,
-  Check,
-  FileSpreadsheet
+  Search, Calendar, DollarSign, Package, Ship, FileText, Eye,
+  ChevronDown, ChevronUp, CheckCircle, Clock, TrendingUp, BarChart3,
+  Grid, List, RefreshCw, Loader2, Users, Box, Truck, Waves, X,
+  ChevronRight, Home, Percent, Database, ChevronsUpDown, Check,
+  FileSpreadsheet, ChevronLeft, MoreHorizontal,
 } from "lucide-react";
 import API from "@/lib/api";
 
-// Define types for better type safety
-
-
-// Reusable Combobox Component
-const Combobox = ({ value, onChange, options, placeholder }) => {
+// Multi-select dropdown
+const MultiSelect = ({ value = [], onChange, options, placeholder }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const wrapperRef = React.useRef(null);
-
+  const ref = useRef(null);
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  const filteredOptions = options.filter(opt =>
-    opt?.toLowerCase().includes(search.toLowerCase())
-  );
-
+  const toggle = (opt) => onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+  const label = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value.length} selected`;
   return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg flex items-center justify-between cursor-pointer bg-white hover:border-blue-400 transition-all text-sm"
-      >
-        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>
-          {value || placeholder}
-        </span>
-        <ChevronsUpDown className="w-4 h-4 text-gray-400" />
+    <div className="relative w-full" ref={ref}>
+      <div onClick={() => setIsOpen(!isOpen)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg flex items-center justify-between cursor-pointer bg-white hover:border-blue-400 transition-all text-sm">
+        <span className={value.length > 0 ? "text-gray-900 font-medium truncate" : "text-gray-400"}>{label}</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {value.length > 0 && <button onClick={(e) => { e.stopPropagation(); onChange([]); }} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>}
+          <ChevronsUpDown className="w-4 h-4 text-gray-400" />
+        </div>
       </div>
-
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
-          <div className="p-2 border-b border-gray-100">
-            <input
-              type="text"
-              className="w-full px-2 py-1 text-sm outline-none placeholder:text-gray-300"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
-          </div>
-
-          <div className="overflow-y-auto flex-1">
-            {filteredOptions.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => {
-                  onChange(opt);
-                  setIsOpen(false);
-                  setSearch('');
-                }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${value === opt ? 'bg-gray-50 font-bold text-blue-600' : 'text-gray-700'
-                  }`}
-              >
-                {opt}
-                {value === opt && <Check className="w-3 h-3" />}
-              </button>
-            ))}
-
-            {filteredOptions.length === 0 && (
-              <div className="px-3 py-2 text-xs text-gray-400 text-center">
-                No options found
-              </div>
-            )}
-          </div>
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-56 overflow-y-auto">
+          {options.map((opt) => (
+            <button key={opt} onClick={() => toggle(opt)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between">
+              <span className={value.includes(opt) ? "text-blue-600 font-semibold" : "text-gray-700"}>{opt}</span>
+              {value.includes(opt) && <Check className="w-3 h-3 text-blue-600" />}
+            </button>
+          ))}
+          {options.length === 0 && <div className="px-3 py-2 text-xs text-gray-400 text-center">No options</div>}
         </div>
       )}
     </div>
   );
 };
+
+// Pagination component
+const Pagination = ({ pagination, onPageChange, onLimitChange }) => {
+  const { page, totalPages, total, limit, hasNextPage, hasPrevPage } = pagination;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
+
+  const pages = [];
+  const delta = 2;
+  for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) pages.push(i);
+
+  const btnBase = "h-9 min-w-[36px] px-2 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed";
+  const btnDefault = `${btnBase} border-gray-200 bg-white hover:bg-gray-50 text-gray-700`;
+  const btnActive = `${btnBase} border-blue-600 bg-blue-600 text-white`;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 border-t border-gray-100">
+      <div className="flex items-center gap-3 text-sm text-gray-600">
+        <span>Showing <span className="font-semibold text-gray-900">{from}–{to}</span> of <span className="font-semibold text-gray-900">{total}</span></span>
+        <select value={limit} onChange={(e) => onLimitChange(Number(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+          {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+        </select>
+      </div>
+      <div className="flex items-center gap-1">
+        {/* First */}
+        <button onClick={() => onPageChange(1)} disabled={!hasPrevPage} className={btnDefault}>
+          <ChevronLeft className="w-3.5 h-3.5" /><ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+        {/* Prev */}
+        <button onClick={() => onPageChange(page - 1)} disabled={!hasPrevPage} className={btnDefault}>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {pages[0] > 1 && (
+          <>
+            <button onClick={() => onPageChange(1)} className={btnDefault}>1</button>
+            {pages[0] > 2 && <span className="px-1 text-gray-400 text-sm">…</span>}
+          </>
+        )}
+
+        {pages.map((p) => (
+          <button key={p} onClick={() => onPageChange(p)} className={p === page ? btnActive : btnDefault}>{p}</button>
+        ))}
+
+        {pages[pages.length - 1] < totalPages && (
+          <>
+            {pages[pages.length - 1] < totalPages - 1 && <span className="px-1 text-gray-400 text-sm">…</span>}
+            <button onClick={() => onPageChange(totalPages)} className={btnDefault}>{totalPages}</button>
+          </>
+        )}
+
+        {/* Next */}
+        <button onClick={() => onPageChange(page + 1)} disabled={!hasNextPage} className={btnDefault}>
+          <ChevronRight className="w-4 h-4" />
+        </button>
+        {/* Last */}
+        <button onClick={() => onPageChange(totalPages)} disabled={!hasNextPage} className={btnDefault}>
+          <ChevronRight className="w-3.5 h-3.5" /><ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function ContainerDashboard() {
   const router = useRouter();
-  const [containers, setContainers] = useState([]);
-  const [summaries, setSummaries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [viewMode, setViewMode] = useState("grid");
-  const [sortConfig, setSortConfig] = useState({
-    key: "loadingDate",
-    direction: "desc"
-  });
-  const [filters, setFilters] = useState({
-    search: "",
-    status: "",
-    month: "",
-    shippingLine: "",
-    containerCode: "",
-    origin: "",
-    dateFrom: "",
-    dateTo: "",
-  });
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [stats, setStats] = useState({
-    totalContainers: 0,
-    totalValue: 0,
-    totalFinalAmount: 0,
-    loadedCount: 0,
-    inseaCount: 0,
-    deliveredCount: 0,
-    uniqueMonths: 0,
-    uniqueShippingLines: 0,
-    totalCTN: 0,
-    totalDuty: 0,
-    totalGST: 0,
-    averageDollar: 0,
-    averageFinalAmount: 0,
-  });
-  const [exporting, setExporting] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const searchParams = useSearchParams();
 
-  // Load dashboard data
-  const loadDashboardData = useCallback(async () => {
+  const [containers, setContainers] = useState([]);
+  const [filterOptions, setFilterOptions] = useState({ origins: [], shippingLines: [], containerCodes: [], statuses: [], months: [] });
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("grid");
+  const [sortConfig, setSortConfig] = useState({ key: "loadingDate", direction: "desc" });
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1, hasNextPage: false, hasPrevPage: false });
+  const [stats, setStats] = useState({ totalContainers: 0, totalValue: 0, totalFinalAmount: 0, totalCTN: 0, totalDuty: 0, totalGST: 0, statusBreakdown: {} });
+
+  const parseArr = (key) => {
+    const val = searchParams.get(key);
+    return val ? val.split(",").map(decodeURIComponent).filter(Boolean) : [];
+  };
+
+  const [filters, setFilters] = useState({
+    search: searchParams.get("search") || "",
+    status: parseArr("status"),
+    month: parseArr("month"),
+    shippingLine: parseArr("shippingLine"),
+    containerCode: parseArr("containerCode"),
+    origin: parseArr("origin"),
+    dateFrom: searchParams.get("dateFrom") || "",
+    dateTo: searchParams.get("dateTo") || "",
+  });
+
+  const syncURL = (f, p = 1) => {
+    const params = new URLSearchParams();
+    if (f.search) params.set("search", f.search);
+    ["status", "month", "shippingLine", "containerCode", "origin"].forEach((k) => {
+      if (f[k]?.length) params.set(k, f[k].map(encodeURIComponent).join(","));
+    });
+    if (f.dateFrom) params.set("dateFrom", f.dateFrom);
+    if (f.dateTo) params.set("dateTo", f.dateTo);
+    if (p > 1) params.set("page", p);
+    window.history.replaceState(null, "", params.toString() ? `?${params}` : window.location.pathname);
+  };
+
+  const updateFilter = (key, value) => {
+    setFilters((prev) => {
+      const next = { ...prev, [key]: value };
+      syncURL(next, 1);
+      return next;
+    });
+    setPagination((p) => ({ ...p, page: 1 }));
+  };
+
+  const clearFilters = () => {
+    const empty = { search: "", status: [], month: [], shippingLine: [], containerCode: [], origin: [], dateFrom: "", dateTo: "" };
+    setFilters(empty);
+    setPagination((p) => ({ ...p, page: 1 }));
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const hasActiveFilters = filters.search || filters.status.length || filters.month.length ||
+    filters.shippingLine.length || filters.containerCode.length || filters.origin.length ||
+    filters.dateFrom || filters.dateTo;
+
+  const fetchContainers = useCallback(async (f, page, limit) => {
     setLoading(true);
     try {
-      const summariesResponse = await API.get("/container-summaries", {
-        page: 1,
-        limit: 100,
-      });
-
-      if (summariesResponse.data.success) {
-        const summariesData = summariesResponse.data.data.summaries || [];
-        setSummaries(summariesData);
-
-        const allContainers = [];
-        const containerPromises = summariesData.map(async (summary) => {
-          try {
-            const summaryDetail = await API.get(`/container-summaries/${summary.id}`);
-            if (summaryDetail.data.success && summaryDetail.data.data.containers) {
-              summaryDetail.data.data.containers.forEach((container) => {
-                allContainers.push({
-                  ...container,
-                  month: summary.month,
-                  monthId: summary.id,
-                  summaryStatus: summary.status,
-                  summaryCreated: summary.createdAt,
-                  summaryUpdated: summary.updatedAt,
-                  summaryCreatedBy: summary.createdBy,
-                });
-              });
-            }
-          } catch (error) {
-            console.error(`Error loading summary ${summary.id}:`, error);
-          }
+      const params = {
+        page, limit,
+        search: f.search,
+        status: f.status.join(","),
+        month: f.month.join(","),
+        shippingLine: f.shippingLine.join(","),
+        containerCode: f.containerCode.join(","),
+        origin: f.origin.join(","),
+        dateFrom: f.dateFrom,
+        dateTo: f.dateTo,
+      };
+      const res = await API.get("/container-summaries/containers/all", { params });
+      if (res.data.success) {
+        setContainers(res.data.data.containers || []);
+        setPagination(res.data.data.pagination);
+        setStats({
+          totalContainers: res.data.data.stats.totalContainers,
+          totalValue: res.data.data.stats.totalValue,
+          totalFinalAmount: res.data.data.stats.totalFinalAmount,
+          totalCTN: res.data.data.stats.totalCTN,
+          totalDuty: res.data.data.stats.totalDuty,
+          totalGST: res.data.data.stats.totalGST,
+          statusBreakdown: res.data.data.stats.statusBreakdown || {},
         });
-
-        await Promise.all(containerPromises);
-
-        allContainers.sort(
-          (a, b) => new Date(b.loadingDate || 0).getTime() - new Date(a.loadingDate || 0).getTime()
-        );
-
-        setContainers(allContainers);
-        calculateStats(allContainers);
-      } else {
-        toast.error("Failed to load summaries");
       }
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-      toast.error("Failed to load dashboard data");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load containers");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
-
-  const calculateStats = (containerList) => {
-    if (!containerList || containerList.length === 0) {
-      setStats({
-        totalContainers: 0,
-        totalValue: 0,
-        totalFinalAmount: 0,
-        loadedCount: 0,
-        inseaCount: 0,
-        deliveredCount: 0,
-        uniqueMonths: 0,
-        uniqueShippingLines: 0,
-        totalCTN: 0,
-        totalDuty: 0,
-        totalGST: 0,
-        averageDollar: 0,
-        averageFinalAmount: 0,
-      });
-      return;
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const res = await API.get("/container-summaries/containers/filter-options");
+      if (res.data.success) setFilterOptions(res.data.data);
+    } catch (err) {
+      console.error("Failed to load filter options", err);
     }
+  }, []);
 
-    const uniqueMonths = [...new Set(containerList.map((c) => c.month))].filter(Boolean);
-    const uniqueShippingLines = [...new Set(containerList.map((c) => c.shippingLine))].filter(Boolean);
+  useEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
+  useEffect(() => { fetchContainers(filters, pagination.page, pagination.limit); }, [filters, pagination.page, pagination.limit]);
 
-    const newStats = containerList.reduce(
-      (acc, container) => {
-        const dollar = parseFloat(container.dollar?.toString() || "0");
-        const finalAmount = parseFloat(container.finalAmount?.toString() || "0");
-        const ctn = parseInt(container.ctn?.toString() || "0");
-        const duty = parseFloat(container.duty?.toString() || "0");
-        const gst = parseFloat(container.gst?.toString() || "0");
-
-        return {
-          totalContainers: acc.totalContainers + 1,
-          totalValue: acc.totalValue + dollar,
-          totalFinalAmount: acc.totalFinalAmount + finalAmount,
-          loadedCount: acc.loadedCount + (container.status === "Loaded" ? 1 : 0),
-          inseaCount: acc.inseaCount + (container.status === "Insea" ? 1 : 0),
-          deliveredCount: acc.deliveredCount + (container.status === "Delivered" ? 1 : 0),
-          totalCTN: acc.totalCTN + ctn,
-          totalDuty: acc.totalDuty + duty,
-          totalGST: acc.totalGST + gst,
-        };
-      },
-      {
-        totalContainers: 0,
-        totalValue: 0,
-        totalFinalAmount: 0,
-        loadedCount: 0,
-        inseaCount: 0,
-        deliveredCount: 0,
-        totalCTN: 0,
-        totalDuty: 0,
-        totalGST: 0,
-      }
-    );
-
-    setStats({
-      ...newStats,
-      uniqueMonths: uniqueMonths.length,
-      uniqueShippingLines: uniqueShippingLines.length,
-      averageDollar: newStats.totalContainers > 0 ? newStats.totalValue / newStats.totalContainers : 0,
-      averageFinalAmount: newStats.totalContainers > 0 ? newStats.totalFinalAmount / newStats.totalContainers : 0,
-    });
+  const handlePageChange = (p) => {
+    setPagination((prev) => ({ ...prev, page: p }));
+    syncURL(filters, p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
+    const main = document.querySelector("main");
+    if (main) main.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSort = (key) => {
-    setSortConfig((prev) => ({
-      key,
-      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
-    }));
+  const handleLimitChange = (l) => {
+    setPagination((prev) => ({ ...prev, limit: l, page: 1 }));
+    syncURL(filters, 1);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Loaded":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "Insea":
-        return "bg-sky-50 text-sky-700 border-sky-200";
-      case "Delivered":
-        return "bg-violet-50 text-violet-700 border-violet-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "Loaded":
-        return <CheckCircle className="w-4 h-4" />;
-      case "Insea":
-        return <Waves className="w-4 h-4" />;
-      case "Delivered":
-        return <Truck className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case "Insea":
-        return "In Sea";
-      default:
-        return status;
-    }
-  };
-
-  // Memoized filtered and sorted containers
-  const { filteredContainers, sortedContainers } = useMemo(() => {
-    const filtered = containers.filter((container) => {
-      const searchLower = filters.search.toLowerCase();
-      const matchesSearch =
-        !filters.search ||
-        container.containerCode?.toLowerCase().includes(searchLower) ||
-        container.bl?.toLowerCase().includes(searchLower) ||
-        container.containerNoField?.toLowerCase().includes(searchLower) ||
-        container.shippingLine?.toLowerCase().includes(searchLower) ||
-        container.month?.toLowerCase().includes(searchLower) ||
-        container.invoiceNo?.toLowerCase().includes(searchLower) ||
-        container.shipper?.toLowerCase().includes(searchLower) ||
-        container.location?.toLowerCase().includes(searchLower);
-
-      const matchesStatus = !filters.status || container.status === filters.status;
-      const matchesMonth = !filters.month || container.month === filters.month;
-      const matchesShippingLine = !filters.shippingLine || container.shippingLine === filters.shippingLine;
-      const matchesContainerCode = !filters.containerCode || container.containerCode === filters.containerCode;
-      const matchesOrigin = !filters.origin || container.origin === filters.origin;
-
-      let matchesDate = true;
-      if (filters.dateFrom || filters.dateTo) {
-        const loadingDate = container.loadingDate ? new Date(container.loadingDate).getTime() : 0;
-        if (filters.dateFrom) {
-          const fromTime = new Date(filters.dateFrom).getTime();
-          if (loadingDate < fromTime) matchesDate = false;
-        }
-        if (filters.dateTo) {
-          const toTime = new Date(filters.dateTo).setHours(23, 59, 59, 999);
-          if (loadingDate > toTime) matchesDate = false;
-        }
-      }
-
-      return matchesSearch && matchesStatus && matchesMonth && matchesShippingLine && matchesContainerCode && matchesOrigin && matchesDate;
-    });
-
-    const sorted = [...filtered].sort((a, b) => {
-      let aValue = a[sortConfig.key];
-      let bValue = b[sortConfig.key];
-
-      if (sortConfig.key === "loadingDate" || sortConfig.key === "eta") {
-        aValue = new Date(aValue || 0).getTime();
-        bValue = new Date(bValue || 0).getTime();
-      }
-
-      if (["dollar", "inr", "finalAmount", "ctn", "totalDuty", "gst"].includes(sortConfig.key)) {
-        aValue = parseFloat(String(aValue || "0"));
-        bValue = parseFloat(String(bValue || "0"));
-      }
-
-      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+  const sortedContainers = useMemo(() => {
+    return [...containers].sort((a, b) => {
+      let aVal = a[sortConfig.key], bVal = b[sortConfig.key];
+      if (["loadingDate", "eta"].includes(sortConfig.key)) { aVal = new Date(aVal || 0).getTime(); bVal = new Date(bVal || 0).getTime(); }
+      if (["dollar", "finalAmount", "ctn", "totalDuty", "gst"].includes(sortConfig.key)) { aVal = parseFloat(aVal || 0); bVal = parseFloat(bVal || 0); }
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
+  }, [containers, sortConfig]);
 
-    return { filteredContainers: filtered, sortedContainers: sorted };
-  }, [containers, filters, sortConfig]);
-
-  // Memoized unique values for filters
-  const uniqueValues = useMemo(() => {
-    const months = [...new Set(containers.map((c) => c.month))].filter(Boolean);
-    months.sort((a, b) => {
-      const [monthA, yearA] = a.split(" ");
-      const [monthB, yearB] = b.split(" ");
-      const dateA = new Date(`${monthA} 1, ${yearA}`).getTime();
-      const dateB = new Date(`${monthB} 1, ${yearB}`).getTime();
-      return dateB - dateA;
-    });
-
-    const shippingLines = [...new Set(containers.map((c) => c.shippingLine).filter(Boolean))].sort();
-    const containerCodes = [...new Set(containers.map((c) => c.containerCode).filter(Boolean))].sort();
-    const origins = [...new Set(containers.map((c) => c.origin).filter(Boolean))].sort();
-
-    return { months, shippingLines, containerCodes, origins };
-  }, [containers]);
+  const handleSort = (key) => setSortConfig((p) => ({ key, direction: p.key === key && p.direction === "asc" ? "desc" : "asc" }));
+  const toggleRowExpand = (id) => setExpandedRows((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const exportToExcel = async () => {
     setExporting(true);
     try {
-      await API.download(
-        "/container-summaries/export/all/excel",
-        {},
-        `containers_master_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-      toast.success("Excel Export completed successfully");
-    } catch (error) {
-      console.error("Error exporting summaries to Excel:", error);
-      toast.error("Failed to export Excel");
-    } finally {
-      setExporting(false);
-    }
+      await API.download("/container-summaries/export/all/excel", {}, `containers_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success("Export completed");
+    } catch { toast.error("Export failed"); } finally { setExporting(false); }
   };
 
-  const toggleRowExpand = (index) => {
-    setExpandedRows((prev) => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(index)) {
-        newExpanded.delete(index);
-      } else {
-        newExpanded.add(index);
-      }
-      return newExpanded;
-    });
-  };
+  const fmt = (n) => new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  const fmtN = (n) => new Intl.NumberFormat("en-IN").format(n || 0);
+  const fmtDate = (d) => { if (!d) return "-"; try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; } };
 
-  const formatNumber = (num) => {
-    return new Intl.NumberFormat("en-IN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
+  const statusColor = (s) => ({ Loaded: "bg-emerald-50 text-emerald-700 border-emerald-200", Insea: "bg-sky-50 text-sky-700 border-sky-200", Delivered: "bg-violet-50 text-violet-700 border-violet-200" }[s] || "bg-gray-50 text-gray-700 border-gray-200");
+  const statusIcon = (s) => ({ Loaded: <CheckCircle className="w-4 h-4" />, Insea: <Waves className="w-4 h-4" />, Delivered: <Truck className="w-4 h-4" /> }[s] || <Clock className="w-4 h-4" />);
+  const statusText = (s) => s === "Insea" ? "In Sea" : s;
 
-  const formatCurrency = (num) => {
-    return new Intl.NumberFormat("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
-  };
+  const loadedCount = stats.statusBreakdown["Loaded"] || 0;
+  const inseaCount = stats.statusBreakdown["Insea"] || 0;
+  const deliveredCount = stats.statusBreakdown["Delivered"] || 0;
+  const avgDollar = stats.totalContainers > 0 ? stats.totalValue / stats.totalContainers : 0;
+  const avgFinal = stats.totalContainers > 0 ? stats.totalFinalAmount / stats.totalContainers : 0;
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      search: "",
-      status: "",
-      month: "",
-      shippingLine: "",
-      containerCode: "",
-      origin: "",
-      dateFrom: "",
-      dateTo: "",
-    });
-  };
-
-  const hasActiveFilters = Object.values(filters).some(value => value !== "");
-
-  if (loading) {
+  if (loading && containers.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative">
+          <div className="relative w-16 h-16 mx-auto">
             <div className="w-16 h-16 border-4 border-blue-200 rounded-full"></div>
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
           </div>
-          <p className="mt-4 text-gray-600 font-medium">Loading container dashboard...</p>
-          <p className="text-sm text-gray-500 mt-2">Fetching your container data</p>
+          <p className="mt-4 text-gray-600 font-medium">Loading containers...</p>
         </div>
       </div>
     );
@@ -488,832 +285,332 @@ export default function ContainerDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-            <Home className="w-4 h-4" />
-            <ChevronRight className="w-3 h-3" />
-            <span className="font-medium">Dashboard</span>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-blue-600">Container Overview</span>
-          </div>
 
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <Home className="w-4 h-4" /><ChevronRight className="w-3 h-3" />
+            <span>Dashboard</span><ChevronRight className="w-3 h-3" />
+            <span className="text-blue-600 font-medium">Containers</span>
+          </div>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Container Dashboard</h1>
-              <p className="text-gray-600 mt-1">
-                Master view of all containers • {stats.totalContainers} containers across {stats.uniqueMonths} months
+              <p className="text-gray-500 mt-1 text-sm">
+                {hasActiveFilters ? `Filtered view — ${stats.totalContainers} containers` : `All containers — ${stats.totalContainers} total`}
               </p>
             </div>
-
             <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => loadDashboardData()}
-                disabled={loading}
-                className="inline-flex items-center gap-2.5 bg-white border border-slate-200 text-slate-400 p-3 rounded-2xl hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-              >
+              <button onClick={() => fetchContainers(filters, pagination.page, pagination.limit)} disabled={loading} className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-500 p-3 rounded-2xl hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </button>
-              <button
-                onClick={exportToExcel}
-                disabled={exporting || containers.length === 0}
-                className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 transition-all border border-emerald-200 shadow-sm font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {exporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <FileSpreadsheet className="w-4 h-4" />
-                    Export All (Excel)
-                  </>
-                )}
+              <button onClick={exportToExcel} disabled={exporting} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl hover:bg-emerald-100 border border-emerald-200 font-semibold text-sm disabled:opacity-50">
+                {exporting ? <><Loader2 className="w-4 h-4 animate-spin" />Exporting...</> : <><FileSpreadsheet className="w-4 h-4" />Export Excel</>}
               </button>
-              <button
-                onClick={() => router.push("/dashboard/container-summary/create")}
-                className="flex items-center gap-2.5 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 font-semibold text-sm active:scale-95"
-              >
-                <Package className="w-4 h-4" />
-                New Summary
+              <button onClick={() => router.push("/dashboard/container-summary/create")} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 font-semibold text-sm shadow-lg active:scale-95">
+                <Package className="w-4 h-4" />New Summary
               </button>
-            </div>
-          </div>
-
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Total Containers Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Containers</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalContainers}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-gray-500">{stats.uniqueMonths} months</span>
-                    <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-500">{stats.uniqueShippingLines} shipping lines</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <Database className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Financial Overview Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Value</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">${formatCurrency(stats.totalValue)}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-gray-500">
-                      Avg: ${formatCurrency(stats.averageDollar)} per container
-                    </span>
-                  </div>
-                </div>
-                <div className="p-3 bg-emerald-50 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Final Amount Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Final Amount</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">₹{formatCurrency(stats.totalFinalAmount)}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-gray-500">
-                      Avg: ₹{formatCurrency(stats.averageFinalAmount)}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-3 bg-violet-50 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-violet-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Status Overview Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-600 truncate">Status Distribution</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalContainers}</p>
-                </div>
-                <div className="p-3 bg-amber-50 rounded-lg flex-shrink-0">
-                  <BarChart3 className="w-6 h-6 text-amber-600" />
-                </div>
-              </div>
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-                    <span className="text-xs text-gray-600 group-hover:text-emerald-700 transition-colors font-medium">Loaded</span>
-                  </div>
-                  <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 min-w-[24px] text-center">
-                    {stats.loadedCount}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.4)]"></div>
-                    <span className="text-xs text-gray-600 group-hover:text-sky-700 transition-colors font-medium">In Sea</span>
-                  </div>
-                  <span className="text-[11px] font-bold bg-sky-50 text-sky-700 px-2 py-0.5 rounded-md border border-sky-100 min-w-[24px] text-center">
-                    {stats.inseaCount}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.4)]"></div>
-                    <span className="text-xs text-gray-600 group-hover:text-violet-700 transition-colors font-medium">Delivered</span>
-                  </div>
-                  <span className="text-[11px] font-bold bg-violet-50 text-violet-700 px-2 py-0.5 rounded-md border border-violet-100 min-w-[24px] text-center">
-                    {stats.deliveredCount}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Secondary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gray-50 rounded-lg">
-                  <Box className="w-4 h-4 text-gray-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total CTN</p>
-                  <p className="text-lg font-semibold text-gray-900">{formatNumber(stats.totalCTN)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 rounded-lg">
-                  <Percent className="w-4 h-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Duty</p>
-                  <p className="text-lg font-semibold text-gray-900">₹{formatCurrency(stats.totalDuty)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Users className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total GST</p>
-                  <p className="text-lg font-semibold text-gray-900">₹{formatCurrency(stats.totalGST)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-sky-50 rounded-lg">
-                  <Ship className="w-4 h-4 text-sky-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Shipping Lines</p>
-                  <p className="text-lg font-semibold text-gray-900">{stats.uniqueShippingLines}</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Filter Containers</h2>
-              <p className="text-sm text-gray-600">Refine your container view</p>
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Total Containers</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{fmtN(stats.totalContainers)}</p>
+                <p className="text-xs text-gray-400 mt-1">Page {pagination.page} of {pagination.totalPages}</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-xl"><Database className="w-5 h-5 text-blue-600" /></div>
             </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Total Value</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">${fmt(stats.totalValue)}</p>
+                <p className="text-xs text-gray-400 mt-1">Avg ${fmt(avgDollar)} / container</p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-xl"><DollarSign className="w-5 h-5 text-emerald-600" /></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Final Amount</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">&#8377;{fmt(stats.totalFinalAmount)}</p>
+                <p className="text-xs text-gray-400 mt-1">Avg &#8377;{fmt(avgFinal)} / container</p>
+              </div>
+              <div className="p-3 bg-violet-50 rounded-xl"><TrendingUp className="w-5 h-5 text-violet-600" /></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-sm font-medium text-gray-500">Status Breakdown</p>
+              <div className="p-3 bg-amber-50 rounded-xl"><BarChart3 className="w-5 h-5 text-amber-600" /></div>
+            </div>
+            <div className="space-y-2">
+              {[["Loaded", loadedCount, "bg-emerald-500", "bg-emerald-50 text-emerald-700 border-emerald-100"],
+                ["In Sea", inseaCount, "bg-sky-500", "bg-sky-50 text-sky-700 border-sky-100"],
+                ["Delivered", deliveredCount, "bg-violet-500", "bg-violet-50 text-violet-700 border-violet-100"]].map(([label, count, dot, badge]) => (
+                <div key={label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${dot}`}></div><span className="text-xs text-gray-600 font-medium">{label}</span></div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${badge}`}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-3">
+        {/* Secondary stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: "Total CTN", value: fmtN(stats.totalCTN), icon: <Box className="w-4 h-4 text-gray-600" />, bg: "bg-gray-50" },
+            { label: "Total Duty", value: `\u20B9${fmt(stats.totalDuty)}`, icon: <Percent className="w-4 h-4 text-amber-600" />, bg: "bg-amber-50" },
+            { label: "Total GST", value: `\u20B9${fmt(stats.totalGST)}`, icon: <Users className="w-4 h-4 text-purple-600" />, bg: "bg-purple-50" },
+            { label: "Showing", value: `${sortedContainers.length} / ${pagination.total}`, icon: <Ship className="w-4 h-4 text-sky-600" />, bg: "bg-sky-50" },
+          ].map(({ label, value, icon, bg }) => (
+            <div key={label} className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 ${bg} rounded-lg`}>{icon}</div>
+                <div><p className="text-xs text-gray-500">{label}</p><p className="text-base font-semibold text-gray-900">{value}</p></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Filters</h2>
+              {hasActiveFilters && <p className="text-xs text-blue-600 mt-0.5">Active filters applied</p>}
+            </div>
+            <div className="flex items-center gap-2">
               {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
-                >
-                  <X className="w-4 h-4" />
-                  Clear Filters
+                <button onClick={clearFilters} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 border border-gray-200 rounded-lg hover:border-red-200 transition-colors">
+                  <X className="w-3.5 h-3.5" />Clear
                 </button>
               )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 rounded-lg transition-all ${viewMode === "grid"
-                    ? "bg-blue-100 text-blue-600"
-                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                    }`}
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-2 rounded-lg transition-all ${viewMode === "table"
-                    ? "bg-blue-100 text-blue-600"
-                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                    }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-1 border border-gray-200 rounded-lg p-1">
+                <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded transition-all ${viewMode === "grid" ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}><Grid className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode("table")} className={`p-1.5 rounded transition-all ${viewMode === "table" ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}><List className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {/* Search Bar */}
+          <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search by container code, BL, container no, shipping line..."
-                value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input type="text" placeholder="Search container code, BL, shipping line, invoice..." value={filters.search} onChange={(e) => updateFilter("search", e.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
             </div>
-
-            {/* Advanced Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="">All Status</option>
-                <option value="Loaded">Loaded</option>
-                <option value="Insea">In Sea</option>
-                <option value="Delivered">Delivered</option>
-              </select>
-
-              <select
-                value={filters.month}
-                onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value }))}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="">All Months</option>
-                {uniqueValues.months.map((month) => (
-                  <option key={month} value={month}>{month}</option>
-                ))}
-              </select>
-
-              <select
-                value={filters.shippingLine}
-                onChange={(e) => setFilters(prev => ({ ...prev, shippingLine: e.target.value }))}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="">All Shipping Lines</option>
-                {uniqueValues.shippingLines.map((line) => (
-                  <option key={line} value={line}>{line}</option>
-                ))}
-              </select>
-
-              <select
-                value={filters.containerCode}
-                onChange={(e) => setFilters(prev => ({ ...prev, containerCode: e.target.value }))}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="">All Container Codes</option>
-                {uniqueValues.containerCodes.map((code) => (
-                  <option key={code} value={code}>{code}</option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <input
-                  type="date"
-                  className="bg-transparent text-xs font-semibold outline-none text-gray-700"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-                />
-                <span className="text-gray-300">/</span>
-                <input
-                  type="date"
-                  className="bg-transparent text-xs font-semibold outline-none text-gray-700"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
-                />
+            {/* Row 1 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MultiSelect value={filters.status} onChange={(v) => updateFilter("status", v)} options={filterOptions.statuses} placeholder="All Status" />
+              <MultiSelect value={filters.month} onChange={(v) => updateFilter("month", v)} options={filterOptions.months} placeholder="All Months" />
+              <MultiSelect value={filters.shippingLine} onChange={(v) => updateFilter("shippingLine", v)} options={filterOptions.shippingLines} placeholder="All Shipping Lines" />
+              <MultiSelect value={filters.containerCode} onChange={(v) => updateFilter("containerCode", v)} options={filterOptions.containerCodes} placeholder="All Container Codes" />
+            </div>
+            {/* Row 2 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MultiSelect value={filters.origin} onChange={(v) => updateFilter("origin", v)} options={filterOptions.origins} placeholder="All Origins" />
+              <div className="flex items-center gap-2 col-span-1 lg:col-span-3">
+                <div className="flex-1 relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input type="date" className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700" value={filters.dateFrom} onChange={(e) => updateFilter("dateFrom", e.target.value)} />
+                </div>
+                <span className="text-gray-400 flex-shrink-0">—</span>
+                <div className="flex-1 relative">
+                  <input type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700" value={filters.dateTo} onChange={(e) => updateFilter("dateTo", e.target.value)} />
+                </div>
               </div>
-
-              <div className="lg:col-span-1">
-                <Combobox
-                  options={uniqueValues.origins}
-                  value={filters.origin}
-                  onChange={(val) => setFilters(prev => ({ ...prev, origin: val }))}
-                  placeholder="All Origins"
-                />
-              </div>
-
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
-              >
-                <Filter className="w-4 h-4" />
-                More Filters
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <div className="text-sm">
-              <span className="text-gray-900 font-medium">{sortedContainers.length}</span>
-              <span className="text-gray-600"> containers found • </span>
-              <span className="text-gray-900 font-medium">{filteredContainers.length}</span>
-              <span className="text-gray-600"> match your filters</span>
-            </div>
-
-            <div className="text-sm text-gray-500">
-              Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         </div>
 
-        {/* Content Section */}
-        {sortedContainers.length === 0 ? (
+        {/* Content */}
+        {loading ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 flex items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">Loading containers...</p>
+            </div>
+          </div>
+        ) : sortedContainers.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {containers.length === 0 ? "No containers found" : "No matching containers"}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {containers.length === 0
-                  ? "Start by creating your first container summary to see data here."
-                  : "Try adjusting your filters or search terms to find what you're looking for."}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={clearFilters}
-                  className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Clear All Filters
-                </button>
-                <button
-                  onClick={() => router.push("/dashboard/container-summary/create")}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create New Summary
-                </button>
-              </div>
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><FileText className="w-8 h-8 text-gray-400" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No containers found</h3>
+            <p className="text-gray-500 text-sm mb-6">{hasActiveFilters ? "Try adjusting your filters." : "Create your first container summary."}</p>
+            <div className="flex gap-3 justify-center">
+              {hasActiveFilters && <button onClick={clearFilters} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Clear Filters</button>}
+              <button onClick={() => router.push("/dashboard/container-summary/create")} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">Create Summary</button>
             </div>
           </div>
         ) : viewMode === "table" ? (
-          /* Table View */
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    {[
-                      { key: "containerNo", label: "#" },
-                      { key: "month", label: "Month" },
-                      { key: "containerCode", label: "Container" },
-                      { key: "status", label: "Status" },
-                      { key: "loadingDate", label: "Loading Date" },
-                      { key: "eta", label: "ETA" },
-                      { key: "ctn", label: "CTN" },
-                      { key: "shippingLine", label: "Shipping Line" },
-                      { key: "dollar", label: "Dollar" },
-                      { key: "finalAmount", label: "Final Amount" },
-                      { key: "origin", label: "Origin" },
-                      { key: "location", label: "Location" },
-                      { key: "shipper", label: "Shipper" },
-                      { key: "invoiceNo", label: "Invoice No" },
-                      { key: "workflowStatus", label: "Workflow" },
-                      { key: "actions", label: "" },
-                    ].map((col) => (
-                      <th key={col.key} className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        {col.key !== "actions" ? (
-                          <button
-                            onClick={() => handleSort(col.key)}
-                            className="flex items-center gap-1 hover:text-gray-900 transition-colors"
-                          >
-                            {col.label}
-                            {sortConfig.key === col.key && (
-                              sortConfig.direction === "asc" ?
-                                <ChevronUp className="w-3 h-3" /> :
-                                <ChevronDown className="w-3 h-3" />
-                            )}
+                    {[["containerNo","#"],["month","Month"],["containerCode","Container"],["status","Status"],["loadingDate","Loading Date"],["eta","ETA"],["ctn","CTN"],["shippingLine","Shipping Line"],["dollar","Dollar"],["finalAmount","Final Amount"],["origin","Origin"],["location","Location"],["shipper","Shipper"],["invoiceNo","Invoice No"],["workflowStatus","Workflow"],["actions",""]].map(([key, label]) => (
+                      <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                        {key !== "actions" ? (
+                          <button onClick={() => handleSort(key)} className="flex items-center gap-1 hover:text-gray-900">
+                            {label}{sortConfig.key === key && (sortConfig.direction === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                           </button>
-                        ) : (
-                          col.label
-                        )}
+                        ) : label}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {sortedContainers.map((container, index) => (
-                    <React.Fragment key={`${container.id}-${index}`}>
-                      <tr className={`hover:bg-gray-50 transition-colors ${expandedRows.has(index) ? "bg-blue-50" : ""}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {container.containerNo || index + 1}
-                          </div>
+                <tbody className="divide-y divide-gray-100">
+                  {sortedContainers.map((c, i) => (
+                    <React.Fragment key={c.id}>
+                      <tr className={`hover:bg-gray-50 transition-colors ${expandedRows.has(c.id) ? "bg-blue-50" : ""}`}>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{c.containerNo || i + 1}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.month}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{c.containerCode || "-"}</div>
+                          <div className="text-xs text-gray-400 truncate max-w-[140px]">{c.containerNoField || c.bl || ""}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-900">{container.month}</span>
-                          </div>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${statusColor(c.status)}`}>{statusIcon(c.status)}{statusText(c.status)}</span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {container.containerCode || `Container ${container.containerNo || index + 1}`}
-                            </div>
-                            <div className="text-xs text-gray-500 truncate max-w-xs">
-                              {container.containerNoField || container.bl || "-"}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(container.status)}`}>
-                            {getStatusIcon(container.status)}
-                            {getStatusText(container.status)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(container.loadingDate)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(container.eta)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {container.ctn || 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {container.shippingLine || "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{fmtDate(c.loadingDate)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{fmtDate(c.eta)}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{c.ctn || 0}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.shippingLine || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap"><span className="flex items-center gap-1"><DollarSign className="w-3 h-3 text-emerald-600" />{fmt(c.dollar)}</span></td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">&#8377;{fmt(c.finalAmount)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap"><span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">{c.origin || "N/A"}</span></td>
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.location || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap truncate max-w-[120px]">{c.shipper || "-"}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap uppercase">{c.invoiceNo || "-"}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{c.workflowStatus ? <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-bold uppercase">{c.workflowStatus}</span> : "-"}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3 text-emerald-600" />
-                            {formatCurrency(container.dollar || 0)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          ₹{formatCurrency(container.finalAmount || 0)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                            {container.origin || "N/A"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                          {container.location || "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium truncate max-w-[150px]">
-                          {container.shipper || "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold uppercase">
-                          {container.invoiceNo || "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {container.workflowStatus ? (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] rounded font-bold uppercase">
-                              {container.workflowStatus}
-                            </span>
-                          ) : "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => toggleRowExpand(index)}
-                              className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
-                              title={expandedRows.has(index) ? "Collapse" : "Expand"}
-                            >
-                              {expandedRows.has(index) ? (
-                                <ChevronUp className="w-4 h-4" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => router.push(`/dashboard/container-summary/${container.monthId}/view`)}
-                              className="p-1.5 text-blue-600 hover:text-blue-800 rounded hover:bg-blue-50 transition-colors"
-                              title="View Summary"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
+                            <button onClick={() => toggleRowExpand(c.id)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">{expandedRows.has(c.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+                            <button onClick={() => router.push(`/dashboard/container-summary/${c.monthId}?highlight=${encodeURIComponent(c.containerCode || c.id)}`)} className="p-1.5 text-blue-600 hover:text-blue-800 rounded hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
-
-                      {/* Expanded Row */}
-                      {expandedRows.has(index) && (
-                        <tr className="bg-blue-50">
-                          <td colSpan={11} className="px-6 py-4">
-                            <div className="bg-white rounded-lg border p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Financial Details</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Dollar Rate:</span>
-                                      <span className="text-gray-900 font-medium">{container.dollarRate || 89.7}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">INR:</span>
-                                      <span className="text-gray-900 font-medium">₹{formatCurrency(container.inr || 0)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Duty (16.5%):</span>
-                                      <span className="text-gray-900 font-medium">₹{formatCurrency(container.duty || 0)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">GST (18%):</span>
-                                      <span className="text-gray-900 font-medium">₹{formatCurrency(container.gst || 0)}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Charges</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">DO Charge:</span>
-                                      <span className="text-gray-900 font-medium">₹{formatCurrency(container.doCharge || 58000)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">CFS:</span>
-                                      <span className="text-gray-900 font-medium">₹{formatCurrency(container.cfs || 21830)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Total Duty:</span>
-                                      <span className="text-gray-900 font-semibold">₹{formatCurrency(container.totalDuty || 0)}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Location & Invoice</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Origin Port:</span>
-                                      <span className="text-gray-900 font-bold text-blue-600">{container.origin || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Location/Port:</span>
-                                      <span className="text-gray-900 font-medium">{container.location || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Invoice No:</span>
-                                      <span className="text-gray-900 font-medium">{container.invoiceNo || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Invoice Date:</span>
-                                      <span className="text-gray-900 font-medium">{formatDate(container.invoiceDate) || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Delivery Date:</span>
-                                      <span className="text-gray-900 font-medium">{formatDate(container.deliveryDate) || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Shipper:</span>
-                                      <span className="text-gray-900 font-medium">{container.shipper || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Status:</span>
-                                      <span className="text-gray-900 font-medium">{container.workflowStatus || "-"}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Documents</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">BL No:</span>
-                                      <span className="text-gray-900 font-medium">{container.bl || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">SIMS:</span>
-                                      <span className="text-gray-900 font-medium">{container.sims || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Container No:</span>
-                                      <span className="text-gray-900 font-medium">{container.containerNoField || "-"}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Created By:</span>
-                                      <span className="text-gray-900 font-medium">{container.summaryCreatedBy || "-"}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Actions</h4>
-                                  <div className="space-y-2">
-                                    <button
-                                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}`)}
-                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                      View Summary
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(container.containerCode || "");
-                                        toast.success("Container code copied!");
-                                      }}
-                                      className="w-full px-4 py-2.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 transition-colors"
-                                    >
-                                      Copy Code
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
+                      {expandedRows.has(c.id) && (
+                        <tr className="bg-blue-50"><td colSpan={16} className="px-6 py-4">
+                          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+                            <div><h4 className="font-semibold text-gray-900 mb-2">Financial</h4><div className="space-y-1.5 text-gray-600">
+                              <div className="flex justify-between"><span>Dollar Rate</span><span className="font-medium text-gray-900">{c.dollarRate || 89.7}</span></div>
+                              <div className="flex justify-between"><span>INR</span><span className="font-medium text-gray-900">&#8377;{fmt(c.inr)}</span></div>
+                              <div className="flex justify-between"><span>Duty</span><span className="font-medium text-gray-900">&#8377;{fmt(c.duty)}</span></div>
+                              <div className="flex justify-between"><span>GST</span><span className="font-medium text-gray-900">&#8377;{fmt(c.gst)}</span></div>
+                            </div></div>
+                            <div><h4 className="font-semibold text-gray-900 mb-2">Charges</h4><div className="space-y-1.5 text-gray-600">
+                              <div className="flex justify-between"><span>DO Charge</span><span className="font-medium text-gray-900">&#8377;{fmt(c.doCharge)}</span></div>
+                              <div className="flex justify-between"><span>CFS</span><span className="font-medium text-gray-900">&#8377;{fmt(c.cfs)}</span></div>
+                              <div className="flex justify-between"><span>Total Duty</span><span className="font-semibold text-gray-900">&#8377;{fmt(c.totalDuty)}</span></div>
+                            </div></div>
+                            <div><h4 className="font-semibold text-gray-900 mb-2">Documents</h4><div className="space-y-1.5 text-gray-600">
+                              <div className="flex justify-between"><span>BL No</span><span className="font-medium text-gray-900">{c.bl || "-"}</span></div>
+                              <div className="flex justify-between"><span>SIMS</span><span className="font-medium text-gray-900">{c.sims || "-"}</span></div>
+                              <div className="flex justify-between"><span>Container No</span><span className="font-medium text-gray-900">{c.containerNoField || "-"}</span></div>
+                            </div></div>
+                            <div><h4 className="font-semibold text-gray-900 mb-2">Actions</h4>
+                              <button onClick={() => router.push(`/dashboard/container-summary/${c.monthId}?highlight=${encodeURIComponent(c.containerCode || c.id)}`)} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Eye className="w-3 h-3" />View Summary</button>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                        </td></tr>
                       )}
                     </React.Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
+            <div className="px-6"><Pagination pagination={pagination} onPageChange={handlePageChange} onLimitChange={handleLimitChange} /></div>
           </div>
         ) : (
-          /* Grid View */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sortedContainers.map((container, index) => (
-              <div
-                key={`${container.id}-${index}`}
-                className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300 overflow-hidden group"
-              >
-                {/* Card Header */}
-                <div className="p-5 border-b border-gray-100">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-2 h-2 rounded-full ${container.status === "Loaded" ? "bg-emerald-500" :
-                          container.status === "Insea" ? "bg-sky-500" :
-                            "bg-violet-500"
-                          }`}></div>
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                          {getStatusText(container.status)}
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 truncate">
-                        {container.containerCode || `Container ${container.containerNo || index + 1}`}
-                      </h3>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                        #{container.containerNo || index + 1}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="w-4 h-4" />
-                    {container.month}
-                    <span className="text-gray-400">•</span>
-                    <Ship className="w-4 h-4" />
-                    {container.shippingLine || "No line"}
-                  </div>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-5">
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500">Loading Date</div>
-                      <div className="text-sm font-medium text-gray-900">{formatDate(container.loadingDate)}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500">ETA</div>
-                      <div className="text-sm font-medium text-gray-900">{formatDate(container.eta)}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500">CTN</div>
-                      <div className="text-sm font-semibold text-gray-900">{container.ctn || 0}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500">Container No.</div>
-                      <div className="text-sm font-medium text-gray-900 truncate">{container.containerNoField || "-"}</div>
-                    </div>
-                  </div>
-
-                  {/* Financial Summary */}
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 mb-5">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <div className="text-xs text-gray-600 mb-1">Dollar Amount</div>
-                        <div className="flex items-center justify-center gap-1">
-                          <DollarSign className="w-4 h-4 text-emerald-600" />
-                          <span className="text-lg font-bold text-gray-900">{formatCurrency(container.dollar || 0)}</span>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {sortedContainers.map((c, i) => (
+                <div key={c.id} className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all overflow-hidden">
+                  <div className="p-5 border-b border-gray-100">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-2 h-2 rounded-full ${c.status === "Loaded" ? "bg-emerald-500" : c.status === "Insea" ? "bg-sky-500" : "bg-violet-500"}`}></div>
+                          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{statusText(c.status)}</span>
                         </div>
+                        <h3 className="text-base font-bold text-gray-900 truncate">{c.containerCode || `Container ${c.containerNo || i + 1}`}</h3>
                       </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-600 mb-1">Final Amount</div>
-                        <div className="text-lg font-bold text-gray-900">₹{formatCurrency(container.finalAmount || 0)}</div>
-                      </div>
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded flex-shrink-0">#{c.containerNo || i + 1}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Calendar className="w-3.5 h-3.5" />{c.month}
+                      <span>&bull;</span><Ship className="w-3.5 h-3.5" />{c.shippingLine || "No line"}
                     </div>
                   </div>
-
-                  {/* Quick Info */}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Origin:</span>
-                      <span className="text-gray-900 font-bold text-blue-600">{container.origin || "N/A"}</span>
+                  <div className="p-5">
+                    <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                      <div><p className="text-xs text-gray-400">Loading Date</p><p className="font-medium text-gray-900">{fmtDate(c.loadingDate)}</p></div>
+                      <div><p className="text-xs text-gray-400">ETA</p><p className="font-medium text-gray-900">{fmtDate(c.eta)}</p></div>
+                      <div><p className="text-xs text-gray-400">CTN</p><p className="font-semibold text-gray-900">{c.ctn || 0}</p></div>
+                      <div><p className="text-xs text-gray-400">Container No.</p><p className="font-medium text-gray-900 truncate">{c.containerNoField || "-"}</p></div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Location:</span>
-                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.location || "-"}</span>
+                    <div className="bg-gray-50 rounded-lg p-3 mb-4 grid grid-cols-2 gap-3 text-center">
+                      <div><p className="text-xs text-gray-500 mb-0.5">Dollar</p><p className="font-bold text-gray-900 flex items-center justify-center gap-1"><DollarSign className="w-3.5 h-3.5 text-emerald-600" />{fmt(c.dollar)}</p></div>
+                      <div><p className="text-xs text-gray-500 mb-0.5">Final Amount</p><p className="font-bold text-gray-900">&#8377;{fmt(c.finalAmount)}</p></div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Invoice No:</span>
-                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.invoiceNo || "-"}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Invoice Date:</span>
-                      <span className="text-gray-900 font-medium">{formatDate(container.invoiceDate) || "-"}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Delivery Date:</span>
-                      <span className="text-gray-900 font-medium">{formatDate(container.deliveryDate) || "-"}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Shipper:</span>
-                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.shipper || "-"}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${container.workflowStatus ? "bg-blue-100 text-blue-700" : "text-gray-500"
-                        }`}>
-                        {container.workflowStatus || "-"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">SIMS:</span>
-                      <span className="text-gray-900 font-medium">{container.sims || "-"}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">BL No:</span>
-                      <span className="text-gray-900 font-medium truncate max-w-[120px]">{container.bl || "-"}</span>
+                    <div className="space-y-1.5 text-sm">
+                      {[["Origin", <span className="font-bold text-blue-600">{c.origin || "N/A"}</span>],["Location", c.location || "-"],["Invoice No", c.invoiceNo || "-"],["Shipper", c.shipper || "-"],["BL No", c.bl || "-"]].map(([label, val]) => (
+                        <div key={label} className="flex justify-between items-center">
+                          <span className="text-gray-500">{label}</span>
+                          <span className="font-medium text-gray-900 truncate max-w-[140px] text-right">{val}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-
-                {/* Card Footer */}
-                <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => router.push(`/dashboard/container-summary/${container.monthId}`)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View Summary
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                    <button onClick={() => router.push(`/dashboard/container-summary/${c.monthId}?highlight=${encodeURIComponent(c.containerCode || c.id)}`)} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                      <Eye className="w-4 h-4" />View Summary
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 px-6 mt-4 shadow-sm">
+              <Pagination pagination={pagination} onPageChange={handlePageChange} onLimitChange={handleLimitChange} />
+            </div>
+          </>
         )}
 
-        {/* Footer */}
-        {sortedContainers.length > 0 && (
-          <div className="mt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{sortedContainers.length}</span> containers shown •
-              <span className="mx-2">Total:</span>
-              <span className="font-medium text-gray-900">${formatCurrency(stats.totalValue)}</span>
-              <span className="mx-2">•</span>
-              <span className="font-medium text-gray-900">₹{formatCurrency(stats.totalFinalAmount)}</span>
-            </div>
-
-            <div className="flex items-center gap-3">
+        {/* Footer summary */}
+        {!loading && pagination.total > 0 && (
+          <div className="mt-6 bg-white rounded-xl border border-gray-200 px-6 py-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                <span><span className="font-semibold text-gray-900">{pagination.total}</span> total containers</span>
+                <span className="text-gray-300">|</span>
+                <span>Value: <span className="font-semibold text-gray-900">${fmt(stats.totalValue)}</span></span>
+                <span className="text-gray-300">|</span>
+                <span>Final: <span className="font-semibold text-gray-900">&#8377;{fmt(stats.totalFinalAmount)}</span></span>
+                <span className="text-gray-300">|</span>
+                <span>CTN: <span className="font-semibold text-gray-900">{fmtN(stats.totalCTN)}</span></span>
+              </div>
               <button
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-              >
-                Back to Top
+                onClick={() => {
+                  document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
+                  document.body.scrollTo({ top: 0, behavior: "smooth" });
+                  const main = document.querySelector("main");
+                  if (main) main.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1.5 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0">
+                <ChevronUp className="w-4 h-4" />Back to top
               </button>
-              <div className="text-sm text-gray-500">
-                Data refreshed at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

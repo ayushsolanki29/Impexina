@@ -1,30 +1,27 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import API from "@/lib/api";
 import ContainerSummaryForm from "../_components/ContainerSummaryForm";
+import { toast } from "sonner";
 
 export default function ContainerSummaryPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id;
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
-  const [isEditing, setIsEditing] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
+  useEffect(() => { fetchData(); }, [id]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await API.get(`/container-summaries/${id}`);
-      if (res.data.success) {
-        setSummary(res.data.data);
-      }
+      if (res.data.success) setSummary(res.data.data);
     } catch (error) {
       console.error("Failed to load summary", error);
     } finally {
@@ -47,6 +44,7 @@ export default function ContainerSummaryPage() {
           initialData={summary}
           isEdit={true}
           onCancel={() => router.push("/dashboard/container-summary")}
+          initialSearchParams={searchParams}
         />
       </div>
     </div>

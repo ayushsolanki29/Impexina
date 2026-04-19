@@ -29,6 +29,7 @@ export default function BackupsPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [backups, setBackups] = useState({ db: [], uploads: [], logs: [], cronLogs: [] });
+  const [sectionLoading, setSectionLoading] = useState({ stats: true, db: true, files: true, logs: true, cron: true });
   const [actionLoading, setActionLoading] = useState(null);
   const [logPolling, setLogPolling] = useState(false);
   const [restoreModal, setRestoreModal] = useState(null);
@@ -38,6 +39,7 @@ export default function BackupsPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const pollingRef = useRef(null);
   const logsEndRef = useRef(null);
+  const [currentStep, setCurrentStep] = useState(null); // { label: string, current: number, total: number }
 
   useEffect(() => {
     fetchBackups();
@@ -61,6 +63,19 @@ export default function BackupsPage() {
         const res = await API.get("/backups");
         if (res.data.success) {
           setBackups(res.data.data);
+          
+          // Parse steps from the latest log
+          const latestLog = res.data.data.logs[0];
+          if (latestLog) {
+            const backupMatch = latestLog.match(/\[BACKUP_STEP: (\d+)\/(\d+)\] (.+)/);
+            const restoreMatch = latestLog.match(/\[RESTORE_STEP: (\d+)\/(\d+)\] (.+)/);
+            
+            if (backupMatch) {
+              setCurrentStep({ current: parseInt(backupMatch[1]), total: parseInt(backupMatch[2]), label: backupMatch[3], type: 'backup' });
+            } else if (restoreMatch) {
+              setCurrentStep({ current: parseInt(restoreMatch[1]), total: parseInt(restoreMatch[2]), label: restoreMatch[3], type: 'restore' });
+            }
+          }
         }
       } catch (e) { /* silent */ }
     }, 2000);
@@ -76,28 +91,38 @@ export default function BackupsPage() {
 
   const fetchBackups = async () => {
     try {
-      setActionLoading('refresh');
-      const [res, userRes, settingsRes] = await Promise.all([
-        API.get("/backups"),
+      // 1. Fetch User & Settings first (Fast)
+      const [userRes, settingsRes] = await Promise.all([
         API.get("/auth/me").catch(() => null),
         API.get("/backups/settings").catch(() => null)
       ]);
+      
+      if (userRes?.data?.success) setCurrentUser(userRes.data.data);
+      if (settingsRes?.data?.success) setSchedule(settingsRes.data.data.schedule || 'daily');
+      
+      setLoading(false);
 
-      if (res.data.success) {
-        setBackups(res.data.data);
-      }
-      if (userRes?.data?.success) {
-        setCurrentUser(userRes.data.data);
-      }
-      if (settingsRes?.data?.success) {
-        setSchedule(settingsRes.data.data.schedule || 'daily');
-      }
+      // 2. Fetch Sections "One by One" (or in parallel but update independently)
+      const fetchSection = async (section) => {
+        try {
+          const res = await API.get(`/backups?section=${section}`);
+          if (res.data.success) {
+            setBackups(prev => ({ ...prev, ...res.data.data }));
+          }
+        } finally {
+          setSectionLoading(prev => ({ ...prev, [section]: false }));
+        }
+      };
+
+      fetchSection('stats');
+      fetchSection('db');
+      fetchSection('files');
+      fetchSection('logs');
+      fetchSection('cron');
+
     } catch (error) {
       toast.error("Failed to load backups");
       console.error(error);
-    } finally {
-      setLoading(false);
-      setActionLoading(null);
     }
   };
 
@@ -118,12 +143,35 @@ export default function BackupsPage() {
       setTimeout(() => {
         fetchBackups();
         stopPolling();
+        setCurrentStep(null);
       }, 3000);
     }
   };
 
-  const handleRestore = (filename, type) => {
+  const handleRestore = async (filename, type) => {
     setRestoreModal({ filename, type });
+  };
+
+  const performRestore = async (filename, type) => {
+    setActionLoading('restore');
+    startPolling();
+    try {
+      const res = await API.post("/backups/restore", { filename, type });
+      if (res.data.success) {
+        toast.success(res.data.data?.message || "Restore completed successfully!");
+        setRestoreModal(null);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Restore failed");
+    } finally {
+      setActionLoading(null);
+      await fetchBackups();
+      setTimeout(() => {
+        fetchBackups();
+        stopPolling();
+        setCurrentStep(null);
+      }, 3000);
+    }
   };
 
   const handleDownload = async (filename, type) => {
@@ -181,6 +229,31 @@ export default function BackupsPage() {
           </h1>
           <p className="text-slate-500 mt-1">Manage database snapshots and file system archives.</p>
         </div>
+
+        {/* Stepper Progress */}
+        {currentStep && (
+          <div className="flex-1 max-w-md bg-white border border-blue-100 rounded-xl p-4 shadow-sm animate-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+                {currentStep.type === 'backup' ? 'Backup Process' : 'Restore Process'}
+              </span>
+              <span className="text-xs font-bold text-slate-400">Step {currentStep.current} of {currentStep.total}</span>
+            </div>
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-2">
+              <div 
+                className="h-full bg-blue-500 transition-all duration-1000 ease-in-out"
+                style={{ width: `${(currentStep.current / currentStep.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-[11px] font-medium text-slate-700 truncate italic">
+              {currentStep.label}
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           {!isReadOnly && (
             <Button
@@ -205,7 +278,13 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {backups.storage && (
+      {sectionLoading.stats ? (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-pulse flex gap-6">
+          <div className="w-24 h-12 bg-slate-100 rounded" />
+          <div className="w-48 h-12 bg-slate-100 rounded" />
+          <div className="w-32 h-12 bg-slate-100 rounded" />
+        </div>
+      ) : backups.storage && (
         <div className="flex flex-wrap gap-6 items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 pr-6 border-r border-slate-200">
             <div className="p-2.5 bg-indigo-100 rounded-lg"><HardDrive className="w-5 h-5 text-indigo-600" /></div>
@@ -284,6 +363,7 @@ export default function BackupsPage() {
           actionIcon={<HardDrive className="w-4 h-4 mr-2" />}
           actionClass="bg-blue-600 hover:bg-blue-700"
           actionLoading={actionLoading}
+          sectionLoading={sectionLoading.db}
           onBackup={() => handleCreateBackup('db')}
           onDownload={handleDownload}
           onRestore={handleRestore}
@@ -304,6 +384,7 @@ export default function BackupsPage() {
           actionClass="border-amber-200 text-amber-700 hover:bg-amber-50"
           actionVariant="outline"
           actionLoading={actionLoading}
+          sectionLoading={sectionLoading.files}
           onBackup={() => handleCreateBackup('files')}
           onDownload={handleDownload}
           onRestore={handleRestore}
@@ -357,7 +438,13 @@ export default function BackupsPage() {
           </div>
         </div>
         <div ref={logsEndRef} className="p-4 h-56 overflow-y-auto space-y-1">
-          {(() => {
+          {sectionLoading.logs || sectionLoading.cron ? (
+            <div className="flex flex-col gap-2 animate-pulse">
+               <div className="h-4 bg-slate-800 rounded w-3/4" />
+               <div className="h-4 bg-slate-800 rounded w-1/2" />
+               <div className="h-4 bg-slate-800 rounded w-2/3" />
+            </div>
+          ) : (() => {
             const currentLogs = logTab === 'backup' ? backups.logs : (backups.cronLogs || []);
             return currentLogs.length > 0 ? (
               currentLogs.map((log, i) => (
@@ -422,13 +509,14 @@ export default function BackupsPage() {
         </div>
       )}
 
-      {/* Restore Instructions Modal */}
+      {/* Restore Modal */}
       {restoreModal && (
-        <RestoreCommandsModal
+        <RestoreModal
           filename={restoreModal.filename}
           type={restoreModal.type}
-          backupDir={backups.paths?.backupDir || '/root/apps/backup'}
           onClose={() => setRestoreModal(null)}
+          onConfirm={() => performRestore(restoreModal.filename, restoreModal.type)}
+          isLoading={actionLoading === 'restore'}
         />
       )}
     </div>
@@ -440,7 +528,7 @@ const PER_PAGE = 20;
 function BackupListCard({
   title, subtitle, icon, iconBg, emptyIcon, emptyText,
   files, type, actionLabel, actionIcon, actionClass, actionVariant,
-  actionLoading, onBackup, onDownload, onRestore, disabled
+  actionLoading, sectionLoading, onBackup, onDownload, onRestore, disabled
 }) {
   const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState('');
@@ -519,7 +607,19 @@ function BackupListCard({
 
       {/* File List */}
       <div className="flex-1 overflow-auto max-h-[400px] p-2">
-        {filtered.length === 0 ? (
+        {sectionLoading ? (
+           <div className="space-y-3 p-4 animate-pulse">
+             {[1,2,3].map(i => (
+               <div key={i} className="flex gap-4">
+                 <div className="w-8 h-8 bg-slate-100 rounded-full" />
+                 <div className="flex-1 space-y-2">
+                   <div className="h-3 bg-slate-100 rounded w-1/2" />
+                   <div className="h-2 bg-slate-100 rounded w-1/4" />
+                 </div>
+               </div>
+             ))}
+           </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-10 text-slate-400">
             {emptyIcon}
             <p className="text-sm">{(startDate || endDate) ? 'No backups in this date range' : emptyText}</p>
@@ -588,140 +688,109 @@ function BackupListCard({
   );
 }
 
-function RestoreCommandsModal({ filename, type, backupDir, onClose }) {
-  const [copiedIdx, setCopiedIdx] = useState(null);
+function RestoreModal({ filename, type, onClose, onConfirm, isLoading }) {
+  const [confirmText, setConfirmText] = useState("");
+  const expectedText = "RESTORE";
 
-  const copyToClipboard = (text, idx) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
-  };
-
-  const isGz = filename.endsWith('.gz');
-  const isSql = filename.endsWith('.sql') || filename.endsWith('.sql.gz');
-  const isJson = filename.endsWith('.json');
-
-  let commands = [];
-  let title = '';
-  let warning = '';
-
-  const isWindows = backupDir.includes(':\\') || backupDir.includes(':/');
-  const winTargetObj = '../../backend/';
-  const winTargetObjUploads = '../../backend/uploads';
-  const linuxTargetObj = '/root/apps/impexina/backend/';
-  const linuxTargetObjUploads = '/root/apps/impexina/backend/uploads';
-  const targetObj = isWindows ? winTargetObj : linuxTargetObj;
-  const targetObjUploads = isWindows ? winTargetObjUploads : linuxTargetObjUploads;
-
-  const getRestartCmd = () => isWindows ? `npm run dev` : `pm2 restart impexina-backend`;
-
-  if (type === 'db') {
-    title = 'Restore Database Backup';
-    warning = '⚠️ This will OVERWRITE your current database. Make sure you have a recent backup before restoring.';
-
-    if (isJson) {
-      commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd ${backupDir}/db` },
-        { label: 'Step 2: View the backup contents', cmd: `cat ${filename} | head -100` },
-        { label: 'Note', cmd: `# JSON backups must be restored programmatically via Prisma.\n# Import the JSON data using a custom script.` },
-      ];
-    } else if (isGz) {
-      commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/db"` },
-        { label: 'Step 2: Decompress the backup', cmd: `gunzip -k ${filename}` },
-        { label: 'Step 3: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db -f ${filename.replace('.gz', '')}` },
-        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
-      ];
-    } else if (isSql) {
-      commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/db"` },
-        { label: 'Step 2: Restore to PostgreSQL', cmd: `psql -h localhost -U postgres -d impexina_db -f ${filename}` },
-        { label: 'Step 3: Restart the backend', cmd: getRestartCmd() },
-      ];
-    }
-  } else {
-    title = 'Restore Files Backup';
-    warning = '⚠️ This will OVERWRITE your current uploads folder.';
-
-    const isZip = filename.endsWith('.zip');
-    if (isZip) {
-      commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/files"` },
-        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf ${targetObjUploads}` },
-        { label: 'Step 3: Extract the backup', cmd: `unzip ${filename} -d ${targetObj}` },
-        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
-      ];
-    } else {
-      commands = [
-        { label: 'Step 1: Navigate to backup directory', cmd: `cd "${backupDir}/files"` },
-        { label: 'Step 2: Remove existing uploads (optional)', cmd: `rm -rf ${targetObjUploads}` },
-        { label: 'Step 3: Extract the backup', cmd: `tar -xzf ${filename} -C ${targetObj}` },
-        { label: 'Step 4: Restart the backend', cmd: getRestartCmd() },
-      ];
-    }
-  }
+  const isDb = type === 'db';
+  const title = isDb ? 'Restore Database Backup' : 'Restore Files Backup';
+  const warning = isDb 
+    ? '⚠️ This will OVERWRITE your current database. All current data will be lost and replaced by this backup.'
+    : '⚠️ This will OVERWRITE your current uploads folder. All existing files will be replaced.';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={!isLoading ? onClose : undefined}>
+      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-amber-100 rounded-xl">
-                <Terminal className="w-5 h-5 text-amber-700" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-                <p className="text-sm text-slate-500 font-mono">{filename}</p>
-              </div>
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${isDb ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+              <RotateCcw className="w-5 h-5" />
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+              <p className="text-xs text-slate-500 font-mono truncate max-w-[240px]">{filename}</p>
+            </div>
+          </div>
+          {!isLoading && (
+            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
               <X className="w-5 h-5 text-slate-400" />
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Warning */}
-        <div className="mx-6 mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-amber-800">{warning}</p>
+        {/* content */}
+        <div className="p-6 space-y-5">
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-red-800">Critical Action</p>
+              <p className="text-sm text-red-700 leading-relaxed">{warning}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Commands */}
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-600 font-medium">Run these commands on your server via SSH:</p>
-          {commands.map((step, idx) => (
-            <div key={idx} className="group">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{step.label}</div>
-              <div className="bg-slate-900 rounded-xl overflow-hidden">
-                <div className="flex items-start justify-between p-4">
-                  <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap break-all flex-1 select-all">{step.cmd}</pre>
-                  <button
-                    onClick={() => copyToClipboard(step.cmd, idx)}
-                    className="ml-3 p-1.5 text-slate-500 hover:text-white rounded-lg hover:bg-slate-700 transition-colors flex-shrink-0"
-                    title="Copy command"
-                  >
-                    {copiedIdx === idx ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-blue-700 bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <DatabaseBackup className="w-4 h-4 flex-shrink-0" />
+              <p className="text-xs font-medium">A rollback backup of the current state will be created automatically before restoring.</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Restoration Sequence:</p>
+              <div className="space-y-1.5">
+                {[
+                  "Verify backup file integrity",
+                  "Create safety rollback snapshot",
+                  isDb ? "Wipe current database schema" : "Clear existing media assets",
+                  isDb ? "Import SQL/JSON dump" : "Extract archived assets",
+                  "Finalize and verify system state"
+                ].map((step, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                    <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400">{i + 1}</div>
+                    {step}
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+            
+            <p className="text-sm text-slate-600 pt-2">This process might take a few minutes. To proceed, please type <span className="font-bold text-slate-900 underline">{expectedText}</span> below:</p>
+            
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              disabled={isLoading}
+              placeholder={`Type ${expectedText} here...`}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-center tracking-widest uppercase disabled:opacity-50"
+            />
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400">Always verify your backup before restoring.</p>
-            <Button onClick={onClose} variant="outline">Close</Button>
-          </div>
+        <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col gap-3">
+          <Button 
+            onClick={onConfirm} 
+            disabled={isLoading || confirmText !== expectedText}
+            className={`w-full py-6 rounded-xl font-bold text-lg shadow-lg transition-all ${
+              confirmText === expectedText 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02]' 
+                : 'bg-slate-200 text-slate-400 grayscale'
+            }`}
+          >
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Restoring System...
+              </span>
+            ) : (
+              'Confirm & Start Restore'
+            )}
+          </Button>
+          {!isLoading && (
+            <Button variant="ghost" onClick={onClose} className="text-slate-500 font-medium">
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
     </div>

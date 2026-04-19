@@ -5,10 +5,23 @@ class BackupController {
   // List Backups
   async listBackups(req, res, next) {
     try {
-      const backups = await backupService.listBackups();
+      const { section } = req.query; // 'stats', 'db', 'files', 'logs', 'cron'
+      const data = await backupService.listBackups();
+      
+      if (section) {
+        let result = {};
+        if (section === 'stats') result = { storage: data.storage, paths: data.paths };
+        else if (section === 'db') result = { db: data.db };
+        else if (section === 'files') result = { uploads: data.uploads };
+        else if (section === 'logs') result = { logs: data.logs };
+        else if (section === 'cron') result = { cronLogs: data.cronLogs };
+        
+        return res.status(200).json({ success: true, data: result });
+      }
+
       res.status(200).json({
         success: true,
-        data: backups,
+        data: data,
       });
     } catch (error) {
       next(error);
@@ -65,9 +78,11 @@ class BackupController {
 
       const { filePath } = await backupService.getDownloadPath(type, filename);
       
-      // Log the download
+      // Log the download and increment counter in cache
       const username = user ? (user.name || user.email || 'Unknown User') : 'Unknown User';
       await backupService._log(`Downloaded → ${filename} (by ${username})`);
+      await backupService.incrementDownloadCount(filename);
+
       res.download(filePath, filename, (err) => {
         if (err && !res.headersSent) {
           res.status(500).json({ success: false, message: "Download failed" });

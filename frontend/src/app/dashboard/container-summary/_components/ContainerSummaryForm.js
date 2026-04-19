@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
     Plus,
     Trash2,
@@ -17,7 +17,12 @@ import {
     Download,
     FileSpreadsheet,
     Eye,
-    Calendar
+    Calendar,
+    PowerOff,
+    Power,
+    Search,
+    ExternalLink,
+    Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -70,8 +75,58 @@ export default function ContainerSummaryForm({
     initialData = null,
     isEdit = false,
     isCreate = false,
-    onCancel
+    onCancel,
+    initialSearchParams = null,
 }) {
+    // ── URL-synced filters ──────────────────────────────────────────────
+    const getParam = (key, fallback = "") =>
+        initialSearchParams ? (initialSearchParams.get(key) || fallback) : fallback;
+
+    const [rowFilters, setRowFilters] = useState({
+        search: getParam("search") || (getParam("highlight") ? getParam("highlight") : ""),
+        status: getParam("status"),
+        origin: getParam("origin"),
+        shippingLine: getParam("shippingLine"),
+        showInactive: getParam("showInactive") === "true",
+        dateType: getParam("dateType", "loadingDate"),
+        dateFrom: getParam("dateFrom"),
+        dateTo: getParam("dateTo"),
+    });
+
+    // Container to highlight (from ?highlight= param)
+    const highlightCode = getParam("highlight");
+    const [highlightedIdx, setHighlightedIdx] = useState(null);
+    const highlightRowRef = useRef(null);
+
+    const syncRowFiltersToURL = (f) => {
+        const p = new URLSearchParams();
+        if (f.search) p.set("search", f.search);
+        if (f.status) p.set("status", f.status);
+        if (f.origin) p.set("origin", f.origin);
+        if (f.shippingLine) p.set("shippingLine", f.shippingLine);
+        if (f.showInactive) p.set("showInactive", "true");
+        if (f.dateType && f.dateType !== "loadingDate") p.set("dateType", f.dateType);
+        if (f.dateFrom) p.set("dateFrom", f.dateFrom);
+        if (f.dateTo) p.set("dateTo", f.dateTo);
+        window.history.replaceState(null, "", p.toString() ? `?${p}` : window.location.pathname);
+    };
+
+    const updateRowFilter = (key, value) => {
+        setRowFilters(prev => {
+            const next = { ...prev, [key]: value };
+            syncRowFiltersToURL(next);
+            return next;
+        });
+    };
+
+    const clearRowFilters = () => {
+        const empty = { search: "", status: "", origin: "", shippingLine: "", showInactive: false, dateType: "loadingDate", dateFrom: "", dateTo: "" };
+        setRowFilters(empty);
+        window.history.replaceState(null, "", window.location.pathname);
+    };
+
+    const hasActiveRowFilters = rowFilters.search || rowFilters.status || rowFilters.origin ||
+        rowFilters.shippingLine || rowFilters.dateFrom || rowFilters.dateTo || rowFilters.showInactive;
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
         month: initialData?.month || "",
@@ -100,11 +155,13 @@ export default function ContainerSummaryForm({
     const [showPreview, setShowPreview] = useState(false);
     const [activities, setActivities] = useState([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
-    const [dateFilter, setDateFilter] = useState({
-        from: "",
-        to: "",
-        type: "createdAt"
-    });
+    // legacy dateFilter kept for backward compat — now driven by rowFilters
+    const dateFilter = {
+        from: rowFilters.dateFrom,
+        to: rowFilters.dateTo,
+        type: rowFilters.dateType,
+    };
+    const setDateFilter = () => {}; // no-op, handled via rowFilters
 
     // Fetch global themes on mount
     useEffect(() => {
@@ -120,6 +177,26 @@ export default function ContainerSummaryForm({
         };
         fetchThemes();
     }, []);
+
+    // Scroll to and highlight the container from ?highlight= param
+    useEffect(() => {
+        if (!highlightCode || containers.length === 0) return;
+        const idx = containers.findIndex(
+            c => c.containerCode === highlightCode || c.id === highlightCode
+        );
+        if (idx === -1) return;
+        setHighlightedIdx(idx);
+        // Scroll after a short delay to let the table render
+        setTimeout(() => {
+            const el = document.getElementById(`cs-row-${idx}`);
+            if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }, 300);
+        // Clear highlight after 4s
+        const t = setTimeout(() => setHighlightedIdx(null), 4000);
+        return () => clearTimeout(t);
+    }, [highlightCode, containers]);
 
     // Save global themes when they change
     const syncThemes = async (rules) => {
@@ -191,27 +268,66 @@ export default function ContainerSummaryForm({
 
     const filteredContainers = useMemo(() => {
         const withIndices = containers.map((c, i) => ({ ...c, originalIndex: i }));
-        if (!dateFilter.from && !dateFilter.to) return withIndices;
         return withIndices.filter(c => {
-            let val = c[dateFilter.type];
-            if (!val) return false;
-            val = new Date(val);
-            if (isNaN(val.getTime())) return false;
-            if (dateFilter.from) {
-                const from = new Date(dateFilter.from);
-                from.setHours(0, 0, 0, 0);
-                if (val < from) return false;
+            // Active/inactive
+            const rowActive = c.isActive !== false;
+            if (!rowFilters.showInactive && !rowActive) return false;
+
+            // Search
+            if (rowFilters.search) {
+                const s = rowFilters.search.toLowerCase();
+                const matches =
+                    c.containerCode?.toLowerCase().includes(s) ||
+                    c.bl?.toLowerCase().includes(s) ||
+                    c.containerNoField?.toLowerCase().includes(s) ||
+                    c.shippingLine?.toLowerCase().includes(s) ||
+                    c.origin?.toLowerCase().includes(s) ||
+                    c.invoiceNo?.toLowerCase().includes(s) ||
+                    c.shipper?.toLowerCase().includes(s) ||
+                    c.location?.toLowerCase().includes(s) ||
+                    c.sims?.toLowerCase().includes(s) ||
+                    c.workflowStatus?.toLowerCase().includes(s);
+                if (!matches) return false;
             }
-            if (dateFilter.to) {
-                const to = new Date(dateFilter.to);
-                to.setHours(23, 59, 59, 999);
-                if (val > to) return false;
+
+            // Status
+            if (rowFilters.status && c.status !== rowFilters.status) return false;
+
+            // Origin
+            if (rowFilters.origin && c.origin !== rowFilters.origin) return false;
+
+            // Shipping line
+            if (rowFilters.shippingLine && c.shippingLine !== rowFilters.shippingLine) return false;
+
+            // Date range
+            if (rowFilters.dateFrom || rowFilters.dateTo) {
+                let val = c[rowFilters.dateType];
+                if (!val) return false;
+                val = new Date(val);
+                if (isNaN(val.getTime())) return false;
+                if (rowFilters.dateFrom) {
+                    const from = new Date(rowFilters.dateFrom);
+                    from.setHours(0, 0, 0, 0);
+                    if (val < from) return false;
+                }
+                if (rowFilters.dateTo) {
+                    const to = new Date(rowFilters.dateTo);
+                    to.setHours(23, 59, 59, 999);
+                    if (val > to) return false;
+                }
             }
+
             return true;
         });
-    }, [containers, dateFilter]);
+    }, [containers, rowFilters]);
 
-    const isFiltered = !!(dateFilter.from || dateFilter.to);
+    const isFiltered = !!(rowFilters.search || rowFilters.status || rowFilters.origin ||
+        rowFilters.shippingLine || rowFilters.dateFrom || rowFilters.dateTo || rowFilters.showInactive);
+
+    // Unique values for filter dropdowns — from ALL containers (not filtered)
+    const uniqueStatuses = useMemo(() => [...new Set(containers.map(c => c.status).filter(Boolean))].sort(), [containers]);
+    const uniqueOrigins = useMemo(() => [...new Set(containers.map(c => c.origin).filter(Boolean))].sort(), [containers]);
+    const uniqueShippingLines = useMemo(() => [...new Set(containers.map(c => c.shippingLine).filter(Boolean))].sort(), [containers]);
 
     const totals = useMemo(() => {
         return filteredContainers.reduce((acc, c) => {
@@ -301,6 +417,7 @@ export default function ContainerSummaryForm({
                     workflowStatus: String(c.workflowStatus || ""),
                     sims: String(c.sims || ""),
                     pims: String(c.pims || ""),
+                    isActive: c.isActive !== false,
                 }))
             };
 
@@ -341,6 +458,36 @@ export default function ContainerSummaryForm({
     };
 
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, field: '', containerIdx: null });
+
+    const [togglingContainerId, setTogglingContainerId] = useState(null);
+
+    const handleToggleContainerActive = async (container, idx) => {
+        // Optimistic update
+        const next = [...containers];
+        next[idx] = { ...next[idx], isActive: !(container.isActive !== false) };
+        setContainers(next);
+
+        if (!container.id || !initialData?.id) return; // new unsaved row — just toggle locally
+
+        setTogglingContainerId(container.id);
+        try {
+            const res = await API.patch(`/container-summaries/${initialData.id}/containers/${container.id}/toggle-active`);
+            if (res.data.success) {
+                const updated = [...containers];
+                updated[idx] = { ...updated[idx], isActive: res.data.data.isActive };
+                setContainers(updated);
+                toast.success(res.data.data.isActive ? "Container activated" : "Container deactivated");
+            }
+        } catch (err) {
+            // Revert on error
+            const reverted = [...containers];
+            reverted[idx] = { ...reverted[idx], isActive: container.isActive !== false };
+            setContainers(reverted);
+            toast.error("Failed to update container status");
+        } finally {
+            setTogglingContainerId(null);
+        }
+    };
 
     const handleContextMenu = (e, field, containerIdx = null) => {
         if (!field) return;
@@ -518,6 +665,19 @@ export default function ContainerSummaryForm({
                             </button>
                         )}
 
+                        {/* View in Containers list */}
+                        {!isCreate && initialData?.id && (
+                            <a
+                                href="/dashboard/containers"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded text-[10px] font-bold text-slate-500 transition-all uppercase tracking-wider"
+                            >
+                                <ExternalLink className="w-4 h-4" />
+                                Containers
+                            </a>
+                        )}
+
                         {/* Preview button — always visible */}
                         <button
                             onClick={() => setShowPreview(true)}
@@ -549,61 +709,123 @@ export default function ContainerSummaryForm({
                 </header>
 
                 {/* Filter Bar */}
-                <div className="px-6 py-3 border-b bg-slate-50/50 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <select
-                                value={dateFilter.type}
-                                onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
-                                className="bg-transparent text-[10px] font-black text-slate-500 uppercase tracking-widest outline-none border-none cursor-pointer hover:text-blue-600"
-                            >
-                                <option value="createdAt">By Creation Date</option>
-                                <option value="loadingDate">By Loading Date</option>
-                                <option value="eta">By ETA Date</option>
-                                <option value="invoiceDate">By Invoice Date</option>
-                                <option value="deliveryDate">By Delivery Date</option>
-                            </select>
-                        </div>
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                <div className="px-4 py-2.5 border-b bg-slate-50/50 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Search */}
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm min-w-[200px] flex-1 max-w-xs">
+                            <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                             <input
-                                type="date"
-                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
-                                value={dateFilter.from}
-                                onChange={(e) => setDateFilter(prev => ({ ...prev, from: e.target.value }))}
+                                type="text"
+                                placeholder="Search code, BL, origin, shipper..."
+                                className="bg-transparent text-[11px] font-medium text-slate-700 outline-none w-full placeholder:text-slate-300"
+                                value={rowFilters.search}
+                                onChange={e => updateRowFilter("search", e.target.value)}
                             />
-                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">to</span>
-                            <input
-                                type="date"
-                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
-                                value={dateFilter.to}
-                                onChange={(e) => setDateFilter(prev => ({ ...prev, to: e.target.value }))}
-                            />
-                            {(dateFilter.from || dateFilter.to) && (
-                                <button
-                                    onClick={() => setDateFilter(prev => ({ ...prev, from: "", to: "" }))}
-                                    className="ml-1 p-0.5 text-slate-300 hover:text-red-500 transition-colors"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
+                            {rowFilters.search && (
+                                <button onClick={() => updateRowFilter("search", "")} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X className="w-3 h-3" /></button>
                             )}
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                        {filteredContainers.length < containers.length && (
-                            <div className="flex items-center gap-2 py-1 px-3 bg-blue-50 text-blue-600 rounded-full border border-blue-100 animate-in fade-in slide-in-from-right-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]" />
-                                Showing {filteredContainers.length} of {containers.length} Rows
-                            </div>
+                        {/* Status */}
+                        <select
+                            value={rowFilters.status}
+                            onChange={e => updateRowFilter("status", e.target.value)}
+                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.status ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
+                        >
+                            <option value="">All Status</option>
+                            {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+
+                        {/* Origin */}
+                        <select
+                            value={rowFilters.origin}
+                            onChange={e => updateRowFilter("origin", e.target.value)}
+                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.origin ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
+                        >
+                            <option value="">All Origins</option>
+                            {uniqueOrigins.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+
+                        {/* Shipping Line */}
+                        <select
+                            value={rowFilters.shippingLine}
+                            onChange={e => updateRowFilter("shippingLine", e.target.value)}
+                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.shippingLine ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
+                        >
+                            <option value="">All Lines</option>
+                            {uniqueShippingLines.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+
+                        {/* Date type + range */}
+                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <select
+                                value={rowFilters.dateType}
+                                onChange={e => updateRowFilter("dateType", e.target.value)}
+                                className="bg-transparent text-[10px] font-black text-slate-500 uppercase tracking-widest outline-none cursor-pointer hover:text-blue-600"
+                            >
+                                <option value="loadingDate">Loading</option>
+                                <option value="eta">ETA</option>
+                                <option value="invoiceDate">Invoice</option>
+                                <option value="deliveryDate">Delivery</option>
+                                <option value="createdAt">Created</option>
+                            </select>
+                            <input
+                                type="date"
+                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
+                                value={rowFilters.dateFrom}
+                                onChange={e => updateRowFilter("dateFrom", e.target.value)}
+                            />
+                            <span className="text-[10px] font-black text-slate-300">—</span>
+                            <input
+                                type="date"
+                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-28"
+                                value={rowFilters.dateTo}
+                                onChange={e => updateRowFilter("dateTo", e.target.value)}
+                            />
+                            {(rowFilters.dateFrom || rowFilters.dateTo) && (
+                                <button onClick={() => { updateRowFilter("dateFrom", ""); updateRowFilter("dateTo", ""); }} className="text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
+                            )}
+                        </div>
+
+                        {/* Show inactive toggle */}
+                        <button
+                            onClick={() => updateRowFilter("showInactive", !rowFilters.showInactive)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm ${rowFilters.showInactive ? "bg-amber-50 border-amber-300 text-amber-700" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"}`}
+                        >
+                            <PowerOff className="w-3 h-3" />
+                            {rowFilters.showInactive ? "Hiding Active" : "Show Inactive"}
+                        </button>
+
+                        {/* Clear all */}
+                        {hasActiveRowFilters && (
+                            <button
+                                onClick={clearRowFilters}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all shadow-sm"
+                            >
+                                <X className="w-3 h-3" />
+                                Clear All
+                            </button>
                         )}
-                        <div className="hidden sm:block">Filter View Only — Saving preserves all {containers.length} rows</div>
+
+                        {/* Result count */}
+                        <div className="ml-auto flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                            {isFiltered && (
+                                <div className="flex items-center gap-2 py-1 px-3 bg-blue-50 text-blue-600 rounded-full border border-blue-100">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    {filteredContainers.length} / {containers.length} rows
+                                </div>
+                            )}
+                            {!isFiltered && (
+                                <span className="hidden sm:block text-slate-300">Filter View Only — Saving preserves all {containers.length} rows</span>
+                            )}
+                        </div>
                     </div>
                 </div>
 
 
                 {/* Workspace */}
-                <main className="flex-1 overflow-auto bg-slate-50/20">
+                <main className="flex-1 overflow-auto bg-slate-50/20 relative">
                     <div className="min-w-fit">
                         <table className="w-full border-collapse text-[11px]">
                             <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
@@ -666,8 +888,20 @@ export default function ContainerSummaryForm({
                                 {filteredContainers.map((c, visibleIdx) => {
                                     const calc = calculateFields(c);
                                     const idx = c.originalIndex;
+                                    const rowActive = c.isActive !== false;
+                                    const isHighlighted = highlightedIdx === idx;
                                     return (
-                                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                        <tr
+                                            key={idx}
+                                            id={`cs-row-${idx}`}
+                                            className={`transition-all duration-500 group ${
+                                                isHighlighted
+                                                    ? "bg-blue-100 ring-2 ring-inset ring-blue-400 animate-pulse"
+                                                    : rowActive
+                                                        ? "hover:bg-slate-50/50"
+                                                        : "bg-slate-100/60 opacity-60 grayscale"
+                                            }`}
+                                        >
                                             <td className="w-10 border-r border-slate-100 bg-slate-50/20">
                                                 {!isFiltered && (
                                                     <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -858,9 +1092,25 @@ export default function ContainerSummaryForm({
 
                                             {(isEdit || isCreate) && (
                                                 <td className="px-2 text-center">
-                                                    <button onClick={() => setContainers(containers.filter((_, i) => i !== idx))} className="p-1.5 text-slate-200 hover:text-red-500 transition-colors" tabIndex={-1}>
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center gap-1 justify-center">
+                                                        <button
+                                                            onClick={() => handleToggleContainerActive(c, idx)}
+                                                            disabled={togglingContainerId === c.id}
+                                                            title={rowActive ? "Deactivate container" : "Activate container"}
+                                                            className={`p-1.5 rounded transition-colors ${rowActive ? "text-slate-300 hover:text-amber-500" : "text-amber-400 hover:text-green-500"}`}
+                                                            tabIndex={-1}
+                                                        >
+                                                            {togglingContainerId === c.id
+                                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                                : rowActive
+                                                                    ? <PowerOff className="w-4 h-4" />
+                                                                    : <Power className="w-4 h-4" />
+                                                            }
+                                                        </button>
+                                                        <button onClick={() => setContainers(containers.filter((_, i) => i !== idx))} className="p-1.5 text-slate-200 hover:text-red-500 transition-colors" tabIndex={-1}>
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             )}
                                         </tr>
