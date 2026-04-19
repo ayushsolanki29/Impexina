@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Save,
@@ -46,9 +46,59 @@ const getImageUrl = (photoPath) => {
   return `${baseUrl}${normalizedPath}`;
 };
 
+const SHEET_SORT_OPTIONS = [
+  { value: "oldest", label: "Oldest First" },
+  { value: "newest", label: "Newest First" },
+  { value: "abc", label: "A to Z" },
+  { value: "z-a", label: "Z to A" },
+  { value: "cbm_desc", label: "Largest CBM" },
+  { value: "cbm_asc", label: "Lowest CBM" },
+];
+
+const getSheetTotalCbm = (sheet) =>
+  (sheet?.items || []).reduce((sum, item) => {
+    const totalCbm =
+      typeof item?.tCbm === "number"
+        ? item.tCbm
+        : (parseInt(item?.ctn) || 0) * (parseFloat(item?.cbm) || 0);
+    return sum + totalCbm;
+  }, 0);
+
+const sortLoadingSheets = (sheets, sortKey) => {
+  const list = [...(sheets || [])];
+
+  const byDate = (sheet) =>
+    new Date(sheet?.createdAt || sheet?.updatedAt || 0).getTime();
+
+  switch (sortKey) {
+    case "newest":
+      return list.sort((a, b) => byDate(b) - byDate(a));
+    case "abc":
+      return list.sort((a, b) =>
+        String(a?.shippingMark || "").localeCompare(String(b?.shippingMark || ""), undefined, {
+          sensitivity: "base",
+        })
+      );
+    case "z-a":
+      return list.sort((a, b) =>
+        String(b?.shippingMark || "").localeCompare(String(a?.shippingMark || ""), undefined, {
+          sensitivity: "base",
+        })
+      );
+    case "cbm_desc":
+      return list.sort((a, b) => getSheetTotalCbm(b) - getSheetTotalCbm(a));
+    case "cbm_asc":
+      return list.sort((a, b) => getSheetTotalCbm(a) - getSheetTotalCbm(b));
+    case "oldest":
+    default:
+      return list.sort((a, b) => byDate(a) - byDate(b));
+  }
+};
+
 export default function LoadingSheetPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const containerId = params.containerId;
 
@@ -91,6 +141,8 @@ export default function LoadingSheetPage() {
   // Direct paste on hover state
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, index: null });
+  const sheetSort = searchParams.get("sheetSort") || "oldest";
+  const sortedLoadingSheets = sortLoadingSheets(loadingSheets, sheetSort);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -285,13 +337,17 @@ export default function LoadingSheetPage() {
 
         // Only load first sheet if we're not currently editing a specific one
         if (!activeSheet && response.data.data.loadingSheets?.length > 0) {
+          const orderedSheets = sortLoadingSheets(
+            response.data.data.loadingSheets || [],
+            searchParams.get("sheetSort") || "oldest",
+          );
           // Check if client name is provided in URL params - try to find matching sheet
           const urlClientName = searchParams.get("client");
-          let sheetToLoad = response.data.data.loadingSheets[0];
+          let sheetToLoad = orderedSheets[0];
 
           if (urlClientName) {
             // Try to find a sheet with matching client name
-            const matchingSheet = response.data.data.loadingSheets.find(
+            const matchingSheet = orderedSheets.find(
               (sheet) => sheet.clientName === urlClientName
             );
             if (matchingSheet) {
@@ -598,6 +654,19 @@ export default function LoadingSheetPage() {
       setShowLeaveConfirm(false);
       goBack();
     }
+  };
+
+  const handleSheetSortChange = (nextSort) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (!nextSort || nextSort === "oldest") {
+      params.delete("sheetSort");
+    } else {
+      params.set("sheetSort", nextSort);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   const handleLeaveWithoutSaving = () => {
@@ -970,8 +1039,11 @@ export default function LoadingSheetPage() {
       {(showPreview || showGlobalPreview) && container && (
         <PreviewModal
           sheet={showPreview ? { ...activeSheet, items } : null}
-          sheets={showGlobalPreview ? loadingSheets : null}
+          sheets={showGlobalPreview ? sortedLoadingSheets : null}
           container={container}
+          sheetSort={sheetSort}
+          sortOptions={SHEET_SORT_OPTIONS}
+          onSheetSortChange={handleSheetSortChange}
           onClose={() => {
             setShowPreview(false);
             setShowGlobalPreview(false);
@@ -1089,7 +1161,7 @@ export default function LoadingSheetPage() {
           </div>
 
           <div className="flex gap-3">
-            {loadingSheets.length > 1 && (
+            {sortedLoadingSheets.length > 1 && (
               <button
                 onClick={() => setShowGlobalPreview(true)}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-lg border border-transparent transition-all active:scale-95"
@@ -1185,13 +1257,31 @@ export default function LoadingSheetPage() {
         </div>
 
         {/* Main Content Info */}
-        {loadingSheets.length > 0 && (
+        {sortedLoadingSheets.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-sm font-bold text-slate-500 uppercase mb-3 px-1">
-              Recent Loading Sheets
-            </h2>
+            <div className="mb-3 flex flex-col gap-3 px-1 md:flex-row md:items-center md:justify-between">
+              <h2 className="text-sm font-bold text-slate-500 uppercase">
+                Recent Loading Sheets
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Order
+                </span>
+                <select
+                  value={sheetSort}
+                  onChange={(e) => handleSheetSortChange(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm outline-none transition-all hover:bg-slate-50 focus:border-blue-400"
+                >
+                  {SHEET_SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
-              {loadingSheets.map((sheet) => (
+              {sortedLoadingSheets.map((sheet) => (
                 <button
                   key={sheet.id}
                   onClick={() => loadSheet(sheet)}

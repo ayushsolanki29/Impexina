@@ -39,7 +39,16 @@ const toSafeFileBase = (value, fallback = "loading-sheet") => {
   return raw || fallback;
 };
 
-export default function PreviewModal({ sheet, sheets, container, onClose, onUpdate }) {
+export default function PreviewModal({
+  sheet,
+  sheets,
+  container,
+  sheetSort = "oldest",
+  sortOptions = [],
+  onSheetSortChange,
+  onClose,
+  onUpdate,
+}) {
   const sheetsList = sheets || (sheet ? [sheet] : []);
   const isCombined = sheetsList.length > 1;
   const mainTitle = isCombined ? "Full Container Preview" : `Preview: ${sheet?.shippingMark}`;
@@ -540,6 +549,24 @@ CONTAINER: ${container.containerCode}`;
           </div>
           
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {isCombined && sortOptions.length > 0 && typeof onSheetSortChange === "function" && (
+              <div className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Order
+                </span>
+                <select
+                  value={sheetSort}
+                  onChange={(e) => onSheetSortChange(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button
               onClick={() => setShowImages(!showImages)}
               className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors flex items-center gap-2"
