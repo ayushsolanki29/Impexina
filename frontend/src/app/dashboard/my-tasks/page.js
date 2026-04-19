@@ -53,7 +53,6 @@ export default function MyTasksPage() {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [completing, setCompleting] = useState(false);
-  const [minChars, setMinChars] = useState(30);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -98,21 +97,9 @@ export default function MyTasksPage() {
     }
   }, [scheduleFilter]);
 
-  const loadMinChars = useCallback(async () => {
-    try {
-      const response = await API.get("/tasks/settings/min-chars");
-      if (response.data.success) {
-        setMinChars(response.data.data.minChars);
-      }
-    } catch (error) {
-      console.error("Error loading min chars:", error);
-    }
-  }, []);
-
   useEffect(() => {
     loadTasks();
-    loadMinChars();
-  }, [loadTasks, loadMinChars]);
+  }, [loadTasks]);
 
   const openCompleteDialog = (task) => {
     setSelectedTask(task);
@@ -121,11 +108,6 @@ export default function MyTasksPage() {
   };
 
   const handleCompleteTask = async () => {
-    if (!completionNote || completionNote.trim().length < minChars) {
-      toast.error(`Completion note must be at least ${minChars} characters`);
-      return;
-    }
-
     try {
       setCompleting(true);
       const response = await API.post(`/tasks/assignments/${selectedTask.id}/complete`, {
@@ -451,8 +433,7 @@ export default function MyTasksPage() {
             <div>
               <h4 className="font-medium text-blue-900">Task Completion Notes</h4>
               <p className="text-sm text-blue-700 mt-1">
-                When completing a task, you must provide a note with at least {minChars} characters 
-                describing what you did. This helps track progress and maintain accountability.
+                When completing a task, provide a note describing what you did. This helps track progress and maintain accountability.
               </p>
             </div>
           </div>
@@ -477,20 +458,12 @@ export default function MyTasksPage() {
               Completion Note <span className="text-red-500">*</span>
             </label>
             <Textarea
-              placeholder={`Describe what you did (minimum ${minChars} characters)...`}
+              placeholder="Describe what you did..."
               value={completionNote}
               onChange={(e) => setCompletionNote(e.target.value)}
               rows={4}
               className="resize-none"
             />
-            <div className="flex justify-between mt-2">
-              <p className={`text-xs ${completionNote.length >= minChars ? "text-emerald-600" : "text-slate-500"}`}>
-                {completionNote.length} / {minChars} characters minimum
-              </p>
-              {completionNote.length >= minChars && (
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-              )}
-            </div>
           </div>
 
           <DialogFooter>
@@ -499,7 +472,7 @@ export default function MyTasksPage() {
             </Button>
             <Button
               onClick={handleCompleteTask}
-              disabled={completing || completionNote.trim().length < minChars}
+              disabled={completing}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {completing ? (

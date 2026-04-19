@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import API from '@/lib/api';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Loader2, RefreshCw, Settings, ChevronLeft, ChevronRight,
     Search, Calendar, ChevronDown, ChevronUp, ExternalLink, History,
@@ -562,9 +562,36 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
 
 export default function BifurcationPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // ── init from URL ──────────────────────────────────────────
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
-    const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
+    const [pagination, setPagination] = useState({
+        page: parseInt(searchParams.get('page') || '1'),
+        totalPages: 1,
+        total: 0,
+    });
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+    const [dateRange, setDateRange] = useState({
+        from: searchParams.get('dateFrom') || '',
+        to: searchParams.get('dateTo') || '',
+    });
+    const [origin, setOrigin] = useState(searchParams.get('origin') || '');
+    const [limit, setLimit] = useState(parseInt(searchParams.get('limit') || '6'));
+
+    // ── sync state → URL ───────────────────────────────────────
+    const syncURL = useCallback((search, from, to, orig, page, lim) => {
+        const p = new URLSearchParams();
+        if (search) p.set('search', search);
+        if (from)   p.set('dateFrom', from);
+        if (to)     p.set('dateTo', to);
+        if (orig)   p.set('origin', orig);
+        if (page > 1) p.set('page', page);
+        if (lim !== 6) p.set('limit', lim);
+        window.history.replaceState(null, '', p.toString() ? `?${p}` : window.location.pathname);
+    }, []);
+
     const [showSettings, setShowSettings] = useState(false);
     const [mixLimit, setMixLimit] = useState(5);
     const [weightVeryHighThreshold, setWeightVeryHighThreshold] = useState(20);
@@ -573,12 +600,7 @@ export default function BifurcationPage() {
     const [cbmHighThreshold, setCbmHighThreshold] = useState(69);
     const [savingSettings, setSavingSettings] = useState(false);
     const [previewContainerCode, setPreviewContainerCode] = useState(null);
-
-    // UI State
     const [expandedContainers, setExpandedContainers] = useState({});
-    const [searchTerm, setSearchTerm] = useState('');
-    const [dateRange, setDateRange] = useState({ from: '', to: '' });
-    const [origin, setOrigin] = useState('');
     const [origins, setOrigins] = useState([]);
     const [locationSuggestions, setLocationSuggestions] = useState({ froms: [], tos: [] });
 
@@ -594,12 +616,13 @@ export default function BifurcationPage() {
         return groups;
     };
 
-    const fetchData = useCallback(async (page = 1) => {
+    const fetchData = useCallback(async (page = 1, lim = limit) => {
         try {
             setLoading(true);
+            syncURL(searchTerm, dateRange.from, dateRange.to, origin, page, lim);
             const params = new URLSearchParams({
                 page,
-                limit: 10,
+                limit: lim,
                 search: searchTerm,
                 dateFrom: dateRange.from,
                 dateTo: dateRange.to,
@@ -623,7 +646,7 @@ export default function BifurcationPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchTerm, dateRange, origin, pagination.page]);
+    }, [searchTerm, dateRange, origin, limit, syncURL]);
 
     // Handle Ctrl+S for global refresh/save trigger
     useEffect(() => {
@@ -753,7 +776,7 @@ export default function BifurcationPage() {
     };
 
     useEffect(() => {
-        fetchData();
+        fetchData(1);
         fetchLocations();
     }, [searchTerm, dateRange.from, dateRange.to, origin]);
 
@@ -874,7 +897,16 @@ export default function BifurcationPage() {
                 </div>
 
                 {/* Main Content: Accordions */}
-                <div className="space-y-4 min-h-[400px]">
+                <div className="space-y-4 min-h-[400px] relative">
+                    {/* Loading overlay for page transitions */}
+                    {loading && data.length > 0 && (
+                        <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[2px] rounded-2xl flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-3">
+                                <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading...</span>
+                            </div>
+                        </div>
+                    )}
                     {loading && data.length === 0 ? (
                         <div className="flex h-64 items-center justify-center">
                             <div className="flex flex-col items-center gap-4">
@@ -1155,38 +1187,91 @@ export default function BifurcationPage() {
                             )}
 
                             {/* Pagination */}
-                            {pagination.totalPages > 1 && (
-                                <div className="flex justify-between items-center bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm mt-8">
-                                    <span className="text-xs font-semibold text-slate-400">
-                                        Page <span className="text-slate-700">{pagination.page}</span> / {pagination.totalPages}
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            onClick={() => fetchData(pagination.page - 1)}
-                                            disabled={pagination.page <= 1}
-                                            className="p-2 border border-slate-100 rounded-xl disabled:opacity-20 hover:bg-slate-50 transition-all font-bold text-slate-600"
-                                        >
-                                            <ChevronLeft className="w-4 h-4" />
-                                        </button>
-                                        <div className="flex items-center gap-1 mx-1">
-                                            {[...Array(pagination.totalPages)].map((_, i) => (
-                                                <button
-                                                    key={i + 1}
-                                                    onClick={() => fetchData(i + 1)}
-                                                    className={`w-8 h-8 rounded-xl font-bold text-xs transition-all ${pagination.page === i + 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-50' : 'text-slate-400 hover:bg-slate-50'}`}
-                                                >
-                                                    {i + 1}
-                                                </button>
-                                            ))}
+                            {pagination.totalPages >= 1 && (
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-sm mt-6">
+                                    {/* Left: count + per-page */}
+                                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                                        <span>
+                                            Page <span className="font-bold text-slate-800">{pagination.page}</span> of <span className="font-bold text-slate-800">{pagination.totalPages}</span>
+                                            {pagination.total > 0 && <> &nbsp;·&nbsp; <span className="font-bold text-slate-800">{pagination.total}</span> containers</>}
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-slate-400">Show</span>
+                                            <select
+                                                value={limit}
+                                                onChange={(e) => {
+                                                    const newLimit = parseInt(e.target.value);
+                                                    setLimit(newLimit);
+                                                    fetchData(1, newLimit);
+                                                }}
+                                                className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 bg-white outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                            >
+                                                {[6, 12, 24, 32, 50].map(n => (
+                                                    <option key={n} value={n}>{n} / page</option>
+                                                ))}
+                                            </select>
                                         </div>
-                                        <button
-                                            onClick={() => fetchData(pagination.page + 1)}
-                                            disabled={pagination.page >= pagination.totalPages}
-                                            className="p-2 border border-slate-100 rounded-xl disabled:opacity-20 hover:bg-slate-50 transition-all font-bold text-slate-600"
-                                        >
-                                            <ChevronRight className="w-4 h-4" />
-                                        </button>
                                     </div>
+
+                                    {/* Right: page buttons */}
+                                    {pagination.totalPages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => fetchData(1)}
+                                                disabled={pagination.page <= 1 || loading}
+                                                className="p-1.5 border border-slate-100 rounded-lg disabled:opacity-20 hover:bg-slate-50 transition-all text-slate-500 flex items-center"
+                                            >
+                                                <ChevronLeft className="w-3.5 h-3.5" /><ChevronLeft className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => fetchData(pagination.page - 1)}
+                                                disabled={pagination.page <= 1 || loading}
+                                                className="p-1.5 border border-slate-100 rounded-lg disabled:opacity-20 hover:bg-slate-50 transition-all text-slate-500"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                            </button>
+
+                                            {/* page numbers with ellipsis */}
+                                            {(() => {
+                                                const pages = [];
+                                                const delta = 2;
+                                                const left = Math.max(1, pagination.page - delta);
+                                                const right = Math.min(pagination.totalPages, pagination.page + delta);
+                                                if (left > 1) {
+                                                    pages.push(<button key={1} onClick={() => fetchData(1)} className="w-8 h-8 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-50">1</button>);
+                                                    if (left > 2) pages.push(<span key="l..." className="px-1 text-slate-300 text-xs">…</span>);
+                                                }
+                                                for (let i = left; i <= right; i++) {
+                                                    pages.push(
+                                                        <button key={i} onClick={() => fetchData(i)} disabled={loading}
+                                                            className={`w-8 h-8 rounded-lg font-bold text-xs transition-all ${pagination.page === i ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
+                                                            {i}
+                                                        </button>
+                                                    );
+                                                }
+                                                if (right < pagination.totalPages) {
+                                                    if (right < pagination.totalPages - 1) pages.push(<span key="r..." className="px-1 text-slate-300 text-xs">…</span>);
+                                                    pages.push(<button key={pagination.totalPages} onClick={() => fetchData(pagination.totalPages)} className="w-8 h-8 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-50">{pagination.totalPages}</button>);
+                                                }
+                                                return pages;
+                                            })()}
+
+                                            <button
+                                                onClick={() => fetchData(pagination.page + 1)}
+                                                disabled={pagination.page >= pagination.totalPages || loading}
+                                                className="p-1.5 border border-slate-100 rounded-lg disabled:opacity-20 hover:bg-slate-50 transition-all text-slate-500"
+                                            >
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => fetchData(pagination.totalPages)}
+                                                disabled={pagination.page >= pagination.totalPages || loading}
+                                                className="p-1.5 border border-slate-100 rounded-lg disabled:opacity-20 hover:bg-slate-50 transition-all text-slate-500 flex items-center"
+                                            >
+                                                <ChevronRight className="w-3.5 h-3.5" /><ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>
