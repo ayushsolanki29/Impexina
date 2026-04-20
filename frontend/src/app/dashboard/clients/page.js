@@ -1,10 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Search, Filter, Download, MoreVertical, FileText, Trash2, Edit, Eye, Mail, RefreshCw, Users, UserPlus, CheckCircle2, MapPin, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Filter, Download, MoreVertical, FileText, Trash2, Edit, Eye, Mail, RefreshCw, Users, UserPlus, CheckCircle2, MapPin, Phone, ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { get, del } from "@/lib/api";
+import { get, del, put } from "@/lib/api";
 
 export default function ClientsPage() {
   const searchParams = useSearchParams();
@@ -22,14 +22,39 @@ export default function ClientsPage() {
   });
   const [selectedClients, setSelectedClients] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [popup, setPopup] = useState(null); // { clientId, field, x, y }
+
+  const TYPE_OPTIONS   = ["LEAD", "CLIENT"];
+  const STATUS_OPTIONS = ["NEW", "CONTACTED", "ACTIVE", "INACTIVE"];
+
+  const handleInlineUpdate = async (clientId, field, value) => {
+    try {
+      await put(`/clients/${clientId}`, { [field]: value });
+      setClients(prev => prev.map(c => c.id === clientId ? { ...c, [field]: value } : c));
+      toast.success(`${field === 'type' ? 'Type' : 'Status'} updated`);
+    } catch {
+      toast.error("Failed to update");
+    }
+    setPopup(null);
+  };
+
+  const openPopup = (e, clientId, field) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopup({ clientId, field, x: rect.left, y: rect.bottom + 4 });
+  };
 
   // Read search parameter from URL on mount
   useEffect(() => {
     const urlSearch = searchParams.get("search");
-    if (urlSearch) {
-      setSearchTerm(urlSearch);
-    }
+    if (urlSearch) setSearchTerm(urlSearch);
   }, [searchParams]);
+
+  useEffect(() => {
+    const close = () => setPopup(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
 
   useEffect(() => {
     fetchClients();
@@ -115,6 +140,28 @@ export default function ClientsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Inline edit popup */}
+      {popup && (
+        <div
+          className="fixed z-[200] bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[130px] animate-in zoom-in-95 duration-100"
+          style={{ left: popup.x, top: popup.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          {(popup.field === 'type' ? TYPE_OPTIONS : STATUS_OPTIONS).map(opt => {
+            const current = clients.find(c => c.id === popup.clientId)?.[popup.field];
+            return (
+              <button
+                key={opt}
+                onClick={() => handleInlineUpdate(popup.clientId, popup.field, opt)}
+                className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-50 flex items-center justify-between ${opt === current ? 'text-blue-600' : 'text-slate-700'}`}
+              >
+                {opt}
+                {opt === current && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* Header */}
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-[1600px] mx-auto px-4 py-6">
@@ -340,22 +387,26 @@ export default function ClientsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${client.type === 'CLIENT' 
-                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                            : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+                        <button
+                          onClick={e => openPopup(e, client.id, 'type')}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border cursor-pointer hover:opacity-80 transition-opacity
+                            ${client.type === 'CLIENT'
+                              ? 'bg-blue-100 text-blue-700 border-blue-200'
+                              : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
                           {client.type}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${client.status === 'ACTIVE' 
-                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                            : client.status === 'NEW' || client.status === 'CONTACTED'
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                            : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                        <button
+                          onClick={e => openPopup(e, client.id, 'status')}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border cursor-pointer hover:opacity-80 transition-opacity
+                            ${client.status === 'ACTIVE'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : client.status === 'NEW' || client.status === 'CONTACTED'
+                              ? 'bg-amber-100 text-amber-700 border-amber-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                           {client.status || 'NEW'}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col text-xs">

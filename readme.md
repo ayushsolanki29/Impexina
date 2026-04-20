@@ -269,6 +269,43 @@ pm2 install pm2-logrotate
 
 ---
 
+## 🛠️ Rapid Deployment (Automated)
+
+The system includes a deployment script to automate updates on the Linux server.
+
+### Setup (Run Once)
+```bash
+chmod +x /app/impexina/deploy.sh
+```
+
+### Deploy Latest Changes
+Run this command from any directory on the server to sync from Git, rebuild frontend, update database, and restart all PM2 processes:
+```bash
+/app/impexina/deploy.sh
+```
+
+---
+
+## 🛡️ System Security & Backups
+
+### Access Control (RBAC)
+*   **Superadmin**: Full system access, including **System Restoration**.
+*   **Admin**: Daily management, backup creation, and downloads.
+*   **Employee**: Read-only access to backups (cannot create/restore/download).
+
+### Automated Backups
+*   Backups run on a configurable schedule (Daily, Weekly, etc.).
+*   **Auto-Delete**: System automatically prunes old backups based on retention settings (1, 3, 5 months) to prevent disk overflow.
+
+### Disaster Recovery
+*   **Restore Safety**: The system automatically creates a "Rollback" snapshot before any restoration begins.
+*   **Superadmin Only**: Only the Superadmin can initiate a restore sequence.
+*   **Anti-Copy**: Confirmation requires manual typing of "RESTORE" to prevent accidental triggers.
+
+---
+
+---
+
 ## 🏁 Notes
 
 This setup is intended for **internal office use only**.
