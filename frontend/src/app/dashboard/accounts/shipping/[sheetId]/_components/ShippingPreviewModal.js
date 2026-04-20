@@ -97,7 +97,10 @@ export default function ShippingPreviewModal({
         "CONT CODE",
         "CTN",
         "LOADING",
-        "FREIGHT (INR)",
+        "RMB/($)",
+        "FRT ($)",
+        "RATE",
+        "FRT (INR)",
         "CHA",
         "FOB",
         "CFS",
@@ -112,7 +115,7 @@ export default function ShippingPreviewModal({
 
       const wsData = [
         ["SHIPPING & LOGISTICS LEDGER"],
-        [sheetName || "", "", "", "", "", "", "", "", "", "", "", "", "", `DATE: ${formatDate(new Date())}`],
+        [sheetName || "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", `DATE: ${formatDate(new Date())}`],
         [],
         header,
         ...safeEntries.map((e, idx) => {
@@ -143,6 +146,9 @@ export default function ShippingPreviewModal({
             e.containerCode || "",
             parseFloat(e.ctn) || 0,
             e.loadingDate ? formatDate(e.loadingDate) : "",
+            parseFloat(e.rmbRate) || 0,
+            parseFloat(e.freightUSD) || 0,
+            parseFloat(e.exchangeRate) || 0,
             freightINR,
             cha,
             fobTerms,
@@ -161,6 +167,9 @@ export default function ShippingPreviewModal({
           "",
           "TOTAL",
           safeStats.totalCTN || 0,
+          "",
+          "",
+          safeStats.totalFreightUSD || 0,
           "",
           safeStats.totalFreightINR || 0,
           safeStats.totalCHA || 0,
@@ -183,6 +192,9 @@ export default function ShippingPreviewModal({
         { wch: 14 },
         { wch: 6 },
         { wch: 12 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 10 },
         { wch: 14 },
         { wch: 10 },
         { wch: 10 },
@@ -197,8 +209,8 @@ export default function ShippingPreviewModal({
       ];
 
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 17 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } },
       ];
 
       const border = {
@@ -214,7 +226,7 @@ export default function ShippingPreviewModal({
       };
 
       // Title style (r=0)
-      for (let c = 0; c <= 14; c += 1) {
+      for (let c = 0; c <= 17; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -224,7 +236,7 @@ export default function ShippingPreviewModal({
       ws["!rows"] = [{ hpt: 26 }];
 
       // Header style (r=3)
-      for (let c = 0; c <= 14; c += 1) {
+      for (let c = 0; c <= 17; c += 1) {
         const isNumber = c >= 2;
         setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
@@ -238,26 +250,26 @@ export default function ShippingPreviewModal({
       const firstDataRow = 4;
       const lastDataRow = firstDataRow + safeEntries.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 14; c += 1) {
+        for (let c = 0; c <= 17; c += 1) {
           const isNumber = c >= 2;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: false },
-            numFmt: isNumber ? "#,##0" : undefined,
+            numFmt: isNumber ? "#,##0.00" : undefined,
           });
         }
       }
 
       // Totals row style
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 14; c += 1) {
+      for (let c = 0; c <= 17; c += 1) {
         const isNumber = c >= 2;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
           border,
           alignment: { horizontal: isNumber ? "right" : "left", vertical: "center" },
-          numFmt: isNumber ? "#,##0" : undefined,
+          numFmt: isNumber ? "#,##0.00" : undefined,
         });
       }
 
@@ -351,6 +363,15 @@ export default function ShippingPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap w-28">
                         Loading
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-20">
+                        RMB/($)
+                      </th>
+                      <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-24">
+                        Frt ($)
+                      </th>
+                      <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-20">
+                        Rate
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-28">
                         Freight (INR)
                       </th>
@@ -424,6 +445,15 @@ export default function ShippingPreviewModal({
                           <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap">
                             {formatDate(e.loadingDate)}
                           </td>
+                          <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap text-slate-500">
+                            {e.rmbRate || "-"}
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap text-blue-600">
+                            $ {formatCurrency(e.freightUSD)}
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap text-slate-500">
+                            {e.exchangeRate || "-"}
+                          </td>
                           <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
                             {"\u20B9"} {formatCurrency(freightINR)}
                           </td>
@@ -471,6 +501,10 @@ export default function ShippingPreviewModal({
                       </td>
                       <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
                         {formatCurrency(safeStats.totalCTN)}
+                      </td>
+                      <td colSpan="2" className="border border-slate-300 px-3 py-2"></td>
+                      <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap text-blue-600">
+                        $ {formatCurrency(safeStats.totalFreightUSD)}
                       </td>
                       <td className="border border-slate-300 px-3 py-2"></td>
                       <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
@@ -548,4 +582,3 @@ export default function ShippingPreviewModal({
     </div>
   );
 }
-

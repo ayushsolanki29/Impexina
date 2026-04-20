@@ -9,7 +9,7 @@ const shippingService = {
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
-    return `Shipping Ledger - ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    return `Container Shipping - ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
   },
 
   // Get all sheets with pagination
@@ -341,6 +341,8 @@ const shippingService = {
         shippingLine,
         blNumber,
         deliveryStatus = "PENDING",
+        rmbRate = 0,
+        exchangeRate = 0,
       } = entryData;
       
       // Calculate local charges
@@ -371,6 +373,8 @@ const shippingService = {
           penalty: parseFloat(penalty) || 0,
           trucking: parseFloat(trucking) || 0,
           loadingUnloading: parseFloat(loadingUnloading) || 0,
+          rmbRate: parseFloat(rmbRate) || 0,
+          exchangeRate: parseFloat(exchangeRate) || 0,
           localCharges,
           totalAmount,
           notes: notes || null,
@@ -416,6 +420,8 @@ const shippingService = {
         shippingLine,
         blNumber,
         deliveryStatus,
+        rmbRate,
+        exchangeRate,
       } = entryData;
       
       // Get current entry to know sheetId
@@ -490,6 +496,8 @@ const shippingService = {
         ...(shippingLine !== undefined && { shippingLine }),
         ...(blNumber !== undefined && { blNumber }),
         ...(deliveryStatus !== undefined && { deliveryStatus }),
+        ...(rmbRate !== undefined && { rmbRate: parseFloat(rmbRate) || 0 }),
+        ...(exchangeRate !== undefined && { exchangeRate: parseFloat(exchangeRate) || 0 }),
         ...(localCharges !== undefined && { localCharges }),
         ...(totalAmount !== undefined && { totalAmount }),
         updatedBy: userId.toString(),
@@ -572,6 +580,8 @@ const shippingService = {
             shippingLine,
             blNumber,
             deliveryStatus = "PENDING",
+            rmbRate = 0,
+            exchangeRate = 0,
           } = entryData;
           
           // Calculate local charges
@@ -602,6 +612,8 @@ const shippingService = {
               penalty: parseFloat(penalty) || 0,
               trucking: parseFloat(trucking) || 0,
               loadingUnloading: parseFloat(loadingUnloading) || 0,
+              rmbRate: parseFloat(rmbRate) || 0,
+              exchangeRate: parseFloat(exchangeRate) || 0,
               localCharges,
               totalAmount,
               notes: notes || null,

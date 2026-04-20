@@ -31,6 +31,8 @@ const entrySchema = Joi.object({
   deliveryDate: Joi.date().optional(),
   freightUSD: Joi.number().min(0).optional(),
   freightINR: Joi.number().min(0).optional(),
+  rmbRate: Joi.number().min(0).optional(),
+  exchangeRate: Joi.number().min(0).optional(),
   usFreight: Joi.number().min(0).optional(),
   cha: Joi.number().min(0).optional(),
   fobTerms: Joi.number().min(0).optional(),

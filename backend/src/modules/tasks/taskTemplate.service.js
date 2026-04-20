@@ -1,19 +1,12 @@
 const { prisma } = require("../../database/prisma");
 
 // System constant - can be overridden via SystemSetting
-const DEFAULT_MIN_COMPLETION_CHARS = 30;
+const DEFAULT_MIN_COMPLETION_CHARS = 1;
 
 class TaskTemplateService {
   // Get minimum completion characters from settings
   async getMinCompletionChars() {
-    try {
-      const setting = await prisma.systemSetting.findUnique({
-        where: { key: "TASK_COMPLETION_MIN_CHARS" },
-      });
-      return setting ? parseInt(setting.value) : DEFAULT_MIN_COMPLETION_CHARS;
-    } catch (error) {
-      return DEFAULT_MIN_COMPLETION_CHARS;
-    }
+    return 1; // Explicitly forced to 1 as per user request to remove 30 char limit
   }
 
   // =====================================================
@@ -530,11 +523,17 @@ class TaskTemplateService {
   // =====================================================
 
   // Complete a task
-  async completeTask(assignmentId, userId, completionNote) {
+  async completeTask(assignmentId, userId, completionNote, status = "COMPLETED") {
     const minChars = await this.getMinCompletionChars();
 
-    if (!completionNote || completionNote.trim().length < minChars) {
-      throw new Error(`Completion note must be at least ${minChars} characters`);
+    if (!completionNote || completionNote.trim().length < 1) {
+      if (status === "BLOCKED" || status === "PENDING") {
+        throw new Error(`Please provide a reason for the ${status} status`);
+      }
+    }
+
+    if (status === "COMPLETED" && completionNote && completionNote.trim().length < minChars) {
+      // This part is now effectively bypassed as minChars is 1
     }
 
     const assignment = await prisma.taskAssignment.findUnique({
@@ -576,8 +575,8 @@ class TaskTemplateService {
         periodStart,
         periodEnd,
         completedById: userId,
-        completionNote: completionNote.trim(),
-        status: "COMPLETED",
+        completionNote: completionNote ? completionNote.trim() : "",
+        status: status || "COMPLETED",
         isOnTime,
       },
       include: {
@@ -730,14 +729,26 @@ class TaskTemplateService {
         periodStart: { gte: periodStart },
         periodEnd: { lte: periodEnd },
       },
+      orderBy: { completedAt: "desc" },
     });
 
     if (completion) {
-      return {
-        status: "COMPLETED",
-        completedAt: completion.completedAt,
-        isOnTime: completion.isOnTime,
-      };
+      const now = new Date();
+      const completedToday = 
+        completion.completedAt.getDate() === now.getDate() &&
+        completion.completedAt.getMonth() === now.getMonth() &&
+        completion.completedAt.getFullYear() === now.getFullYear();
+
+      // If status is COMPLETED, it's done for the whole period
+      // If status is BLOCKED or PENDING, it's only "done" for today (if completed today)
+      if (completion.status === "COMPLETED" || (completedToday && (completion.status === "BLOCKED" || completion.status === "PENDING"))) {
+        return {
+          status: completion.status,
+          completedAt: completion.completedAt,
+          isOnTime: completion.isOnTime,
+          isDoneForToday: true,
+        };
+      }
     }
 
     const now = new Date();

@@ -23,10 +23,10 @@ export default function ShippingRedirect() {
           // 2. Redirect to existing active sheet
           router.replace(`/dashboard/accounts/shipping/${activeSheet.id}`);
         } else {
-          // 3. Create a new "Shipping Matrix Master" sheet if none exists
+          // 3. Create a new "Container Shipping" sheet if none exists
           const newSheetResponse = await API.post("/accounts/shipping/", {
-            name: `Shipping Matrix Master`,
-            description: "Primary Logistics & Container Tracking Ledger",
+            name: `Container Shipping`,
+            description: "Track container costs, freight, duty, and local charges.",
             fiscalYear: "2024-2025",
             tags: ["shipping", "master"]
           });
@@ -51,8 +51,8 @@ export default function ShippingRedirect() {
         <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
           <Ship className="w-8 h-8 text-indigo-600 animate-pulse" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Opening Shipping Matrix</h2>
-        <p className="text-slate-500 text-sm mb-6">Preparing logistics data and container costs...</p>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Container Shipping</h2>
+        <p className="text-slate-500 text-sm mb-6">Track container costs, freight, duty, and local charges.</p>
         <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
           <Loader2 className="w-4 h-4 animate-spin" />
           Synchronizing

@@ -9,8 +9,8 @@ import {
   CalendarDays,
   Repeat,
   Clock,
-  CheckCircle,
   Filter,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -328,17 +328,30 @@ export default function CompletionHistoryPage() {
                         {formatDate(completion.completedAt)}
                       </TableCell>
                       <TableCell>
-                        {completion.isOnTime ? (
-                          <Badge className="bg-emerald-100 text-emerald-700">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            On Time
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Late
-                          </Badge>
-                        )}
+                        <div className="flex flex-col gap-1.5">
+                          {completion.status === "COMPLETED" ? (
+                            <Badge className="bg-emerald-100 text-emerald-700">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Completed
+                            </Badge>
+                          ) : completion.status === "BLOCKED" ? (
+                            <Badge className="bg-rose-100 text-rose-700">
+                              <ShieldAlert className="w-3 h-3 mr-1" />
+                              Blocked
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-100 text-amber-700">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
+                          
+                          {completion.isOnTime ? (
+                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest px-1">On Time</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest px-1">Late</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <p className="text-sm text-slate-600 line-clamp-2">

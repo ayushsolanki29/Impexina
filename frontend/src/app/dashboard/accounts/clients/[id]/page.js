@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical, CheckCircle2, Circle } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical, CheckCircle2, Circle, ChevronUp, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
@@ -106,6 +106,8 @@ export default function ExcelLedgerPage() {
     const [activeTab, setActiveTab] = useState('expense');
     const [showPreview, setShowPreview] = useState(false);
     const [dateRange, setDateRange] = useState({ from: "", to: "", type: "transactionDate" });
+    const [sortBy, setSortBy] = useState("entryDate_asc"); // default: entry date ascending (newest at bottom)
+    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, rowIdx: null, tab: 'expense' });
 
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     const [accountStatus, setAccountStatus] = useState({ status: 'PENDING', manual: false });
@@ -222,17 +224,17 @@ export default function ExcelLedgerPage() {
 
     // Global Keyboard Shortcuts
     useEffect(() => {
-        const handleGlobalKeyDown = (e) => {
+        const handleGlobalKeyDown = async (e) => {
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
-                // Try to save focused row if any
-                const active = document.activeElement;
-                if (active && active.id && active.id.startsWith('cell-')) {
-                    const rowIndex = parseInt(active.id.split('-')[1]);
-                    saveRow(rowIndex);
-                } else {
-                    toast.info("All rows are synced or will auto-save on blur");
-                }
+                // Save all rows in both tabs (same logic as the green check button)
+                const allTxns = transactions;
+                const allTrf = trfTransactions;
+                const saves = [
+                    ...allTxns.map((_, i) => saveRow(i)),
+                    ...allTrf.map((_, i) => saveTrfRow(i)),
+                ];
+                await Promise.allSettled(saves);
             }
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -242,7 +244,7 @@ export default function ExcelLedgerPage() {
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [router]);
+    }, [transactions, trfTransactions, router]);
 
     const fetchContainerInfo = async (code, clientName) => {
         if (!code || !clientName) return null;
@@ -795,11 +797,117 @@ export default function ExcelLedgerPage() {
     const trfTotalPaid = trfTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
     const trfBalance = trfTotalAmount - trfTotalPaid;
 
+    // ── Row reorder ────────────────────────────────────────────
+    const moveRow = (idx, dir) => {
+        const next = [...transactions];
+        const target = dir === 'up' ? idx - 1 : idx + 1;
+        if (target < 0 || target >= next.length) return;
+        [next[idx], next[target]] = [next[target], next[idx]];
+        setTransactions(next);
+        if (sortBy !== 'custom') setSortBy('custom');
+    };
+
+    const moveTrfRow = (idx, dir) => {
+        const next = [...trfTransactions];
+        const target = dir === 'up' ? idx - 1 : idx + 1;
+        if (target < 0 || target >= next.length) return;
+        [next[idx], next[target]] = [next[target], next[idx]];
+        setTrfTransactions(next);
+        if (sortBy !== 'custom') setSortBy('custom');
+    };
+
+    // ── Insert row above/below ─────────────────────────────────
+    const insertRow = (idx, position, tab = 'expense') => {
+        const blank = {
+            id: Date.now() + Math.random(),
+            isNew: true,
+            containerCode: '', particulars: '', deliveryDate: '', quantity: '', weight: '',
+            rate: '', billingType: 'FLAT', amount: '', paid: '', paymentDate: '', paymentMode: '',
+            from: '', to: '', transactionDate: new Date().toISOString().split('T')[0],
+        };
+        const blankTrf = {
+            id: Date.now() + Math.random(),
+            isNew: true,
+            particulars: '', transactionDate: new Date().toISOString().split('T')[0],
+            amount: '', booking: '', rate: '', total: 0, paid: '', paymentDate: '', paymentMode: '',
+        };
+        const insertAt = position === 'above' ? idx : idx + 1;
+        if (tab === 'expense') {
+            const next = [...transactions];
+            next.splice(insertAt, 0, blank);
+            setTransactions(next);
+        } else {
+            const next = [...trfTransactions];
+            next.splice(insertAt, 0, blankTrf);
+            setTrfTransactions(next);
+        }
+        if (sortBy !== 'custom') setSortBy('custom');
+        setContextMenu(m => ({ ...m, visible: false }));
+    };
+
+    // ── Context menu close on outside click ────────────────────
+    useEffect(() => {
+        const close = () => setContextMenu(m => ({ ...m, visible: false }));
+        window.addEventListener('click', close);
+        return () => window.removeEventListener('click', close);
+    }, []);
+
+    // ── Sort helper ────────────────────────────────────────────
+    const applySortToRows = (rows) => {
+        if (sortBy === 'custom') return rows; // manual order preserved
+        const sorted = [...rows];
+        const [field, dir] = sortBy.split("_");
+        const asc = dir === "asc";
+        sorted.sort((a, b) => {
+            let aVal, bVal;
+            if (field === "entryDate") {
+                aVal = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
+                bVal = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
+            } else if (field === "paymentDate") {
+                aVal = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
+                bVal = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
+            } else if (field === "deliveryDate") {
+                aVal = a.deliveryDate ? new Date(a.deliveryDate).getTime() : 0;
+                bVal = b.deliveryDate ? new Date(b.deliveryDate).getTime() : 0;
+            } else {
+                return 0;
+            }
+            return asc ? aVal - bVal : bVal - aVal;
+        });
+        return sorted;
+    };
+
+    const sortedTransactions = applySortToRows(transactions);
+    const sortedTrfTransactions = applySortToRows(trfTransactions);
+
     if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-slate-300" /></div>;
     if (!client) return <div className="p-12 text-center text-slate-500">Client not found</div>;
 
     return (
         <div className="flex flex-col h-screen w-full overflow-hidden bg-white font-sans text-slate-900">
+
+            {/* Context Menu */}
+            {contextMenu.visible && (
+                <div
+                    className="fixed z-[200] bg-white border border-slate-200 rounded-xl shadow-2xl py-1.5 w-44 animate-in zoom-in-95 duration-100"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="px-3 py-1 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 mb-1">Row Actions</div>
+                    <button
+                        onClick={() => insertRow(contextMenu.rowIdx, 'above', contextMenu.tab)}
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                        <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> Add Row Above
+                    </button>
+                    <button
+                        onClick={() => insertRow(contextMenu.rowIdx, 'below', contextMenu.tab)}
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> Add Row Below
+                    </button>
+                </div>
+            )}
 
             {/* Optimized Header with Menu */}
             <div className="flex-none px-6 py-4 border-b border-slate-200 bg-white relative z-50">
@@ -930,6 +1038,24 @@ export default function ExcelLedgerPage() {
                                             </div>
                                         </div>
 
+                                        {/* Sort Section */}
+                                        <div className="p-3 bg-slate-50 rounded-xl space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Sort Order</label>
+                                            <select
+                                                value={sortBy}
+                                                onChange={e => setSortBy(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400 cursor-pointer"
+                                            >
+                                                <option value="custom">Custom Layout (manual)</option>
+                                                <option value="entryDate_asc">Entry Date — Oldest first</option>
+                                                <option value="entryDate_desc">Entry Date — Newest first</option>
+                                                <option value="paymentDate_asc">Payment Date — Ascending</option>
+                                                <option value="paymentDate_desc">Payment Date — Descending</option>
+                                                <option value="deliveryDate_asc">Delivery Date — Ascending</option>
+                                                <option value="deliveryDate_desc">Delivery Date — Descending</option>
+                                            </select>
+                                        </div>
+
                                         {/* Date Filter Section */}
                                         <div className="p-3 bg-slate-50 rounded-xl space-y-2">
                                             <div className="flex items-center justify-between">
@@ -1048,18 +1174,22 @@ export default function ExcelLedgerPage() {
 
                         {/* Data Rows */}
                         <div className="divide-y divide-slate-50 bg-white col-span-14 grid grid-cols-subgrid">
-                            {transactions.map((txn, idx) => (
+                            {sortedTransactions.map((txn, idx) => {
+                                const realIdx = transactions.findIndex(t => t.id === txn.id);
+                                const ri = realIdx >= 0 ? realIdx : idx;
+                                return (
                                 <div
                                     key={txn.id}
+                                    onContextMenu={(e) => { e.preventDefault(); setContextMenu({ visible: true, x: e.clientX, y: e.clientY, rowIdx: ri, tab: 'expense' }); }}
                                     className={`grid grid-cols-subgrid col-span-14 hover:bg-blue-50/40 transition-colors group text-sm ${txn.isNew ? 'bg-blue-50/10' : ''} ${txn.particulars?.startsWith("GST INV") ? 'bg-amber-50/30' : ''}`}
                                 >
                                     <div className="px-2 py-0.5">
                                         <EditableCell
                                             id={`cell-${idx}-containerCode`}
                                             value={txn.containerCode}
-                                            onChange={v => handleUpdateRow(idx, 'containerCode', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'containerCode')}
-                                            onBlur={() => handleContainerBlur(idx, txn.containerCode)}
+                                            onChange={v => handleUpdateRow(ri, 'containerCode', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'containerCode')}
+                                            onBlur={() => handleContainerBlur(ri, txn.containerCode)}
                                             placeholder="--"
                                             className="text-slate-600 font-medium min-w-full"
                                         />
@@ -1069,8 +1199,8 @@ export default function ExcelLedgerPage() {
                                             id={`cell-${idx}-deliveryDate`}
                                             type="date"
                                             value={txn.deliveryDate ? new Date(txn.deliveryDate).toISOString().split('T')[0] : ''}
-                                            onChange={e => handleUpdateRow(idx, 'deliveryDate', e.target.value)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'deliveryDate')}
+                                            onChange={e => handleUpdateRow(ri, 'deliveryDate', e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'deliveryDate')}
                                             className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-[11px] text-slate-400 font-medium rounded transition-all"
                                         />
                                     </div>
@@ -1078,8 +1208,8 @@ export default function ExcelLedgerPage() {
                                         <EditableCell
                                             id={`cell-${idx}-particulars`}
                                             value={txn.particulars}
-                                            onChange={v => handleUpdateRow(idx, 'particulars', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'particulars')}
+                                            onChange={v => handleUpdateRow(ri, 'particulars', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'particulars')}
                                             placeholder="Description"
                                             className="text-slate-900 font-bold min-w-full"
                                         />
@@ -1089,8 +1219,8 @@ export default function ExcelLedgerPage() {
                                             id={`cell-${idx}-quantity`}
                                             value={txn.quantity?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateRow(idx, 'quantity', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'quantity')}
+                                            onChange={v => handleUpdateRow(ri, 'quantity', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'quantity')}
                                             className="text-right text-slate-600 font-semibold min-w-full"
                                         />
                                     </div>
@@ -1099,8 +1229,8 @@ export default function ExcelLedgerPage() {
                                             id={`cell-${idx}-weight`}
                                             value={txn.weight?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateRow(idx, 'weight', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'weight')}
+                                            onChange={v => handleUpdateRow(ri, 'weight', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'weight')}
                                             className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
@@ -1109,18 +1239,17 @@ export default function ExcelLedgerPage() {
                                             id={`cell-${idx}-rate`}
                                             value={txn.rate?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateRow(idx, 'rate', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'rate')}
+                                            onChange={v => handleUpdateRow(ri, 'rate', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'rate')}
                                             className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
-
                                     <div className="px-2 py-0.5">
                                         <select
                                             id={`cell-${idx}-billingType`}
                                             value={txn.billingType || 'FLAT'}
-                                            onChange={e => handleUpdateRow(idx, 'billingType', e.target.value)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'billingType')}
+                                            onChange={e => handleUpdateRow(ri, 'billingType', e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'billingType')}
                                             className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-blue-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-1.5 text-[10px] font-bold text-blue-600 rounded transition-all uppercase tracking-tight"
                                         >
                                             <option value="FLAT">Flat</option>
@@ -1128,26 +1257,23 @@ export default function ExcelLedgerPage() {
                                             <option value="WEIGHT">Weight</option>
                                         </select>
                                     </div>
-
-                                    {/* Total Column with Blue Bg */}
                                     <div className="px-2 py-0.5 bg-blue-50/50 border-x border-blue-100/50 text-right">
                                         <EditableCell
                                             id={`cell-${idx}-amount`}
                                             value={txn.amount}
                                             type="number"
-                                            onChange={v => handleUpdateRow(idx, 'amount', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'amount')}
+                                            onChange={v => handleUpdateRow(ri, 'amount', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'amount')}
                                             className="text-right font-bold text-slate-900 bg-transparent min-w-full"
                                         />
                                     </div>
-
                                     <div className="px-2 py-0.5 text-right">
                                         <EditableCell
                                             id={`cell-${idx}-paid`}
                                             value={txn.paid?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateRow(idx, 'paid', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'paid')}
+                                            onChange={v => handleUpdateRow(ri, 'paid', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'paid')}
                                             className="text-right text-emerald-600 font-bold min-w-full"
                                         />
                                     </div>
@@ -1156,8 +1282,8 @@ export default function ExcelLedgerPage() {
                                             id={`cell-${idx}-paymentDate`}
                                             type="date"
                                             value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''}
-                                            onChange={e => handleUpdateRow(idx, 'paymentDate', e.target.value)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'paymentDate')}
+                                            onChange={e => handleUpdateRow(ri, 'paymentDate', e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'paymentDate')}
                                             className="w-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-[11px] text-slate-400 rounded transition-all"
                                         />
                                     </div>
@@ -1165,8 +1291,8 @@ export default function ExcelLedgerPage() {
                                         <select
                                             id={`cell-${idx}-paymentMode`}
                                             value={txn.paymentMode || ''}
-                                            onChange={e => handleUpdateRow(idx, 'paymentMode', e.target.value)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'paymentMode')}
+                                            onChange={e => handleUpdateRow(ri, 'paymentMode', e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'paymentMode')}
                                             className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all"
                                         >
                                             <option value="">-</option>
@@ -1180,8 +1306,8 @@ export default function ExcelLedgerPage() {
                                         <EditableCell
                                             id={`cell-${idx}-from`}
                                             value={txn.from || ''}
-                                            onChange={v => handleUpdateRow(idx, 'from', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'from')}
+                                            onChange={v => handleUpdateRow(ri, 'from', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'from')}
                                             placeholder="FROM::"
                                             className="text-slate-600 font-medium min-w-full"
                                         />
@@ -1190,22 +1316,27 @@ export default function ExcelLedgerPage() {
                                         <EditableCell
                                             id={`cell-${idx}-to`}
                                             value={txn.to || ''}
-                                            onChange={v => handleUpdateRow(idx, 'to', v)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx, 'to')}
+                                            onChange={v => handleUpdateRow(ri, 'to', v)}
+                                            onKeyDown={(e) => handleKeyDown(e, ri, 'to')}
                                             placeholder="TO::"
                                             className="text-slate-600 font-medium min-w-full"
                                         />
                                     </div>
                                     <div className="px-2 py-0.5 flex items-center justify-center gap-1">
-                                        <button onClick={() => saveRow(idx)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Save Row">
+                                        <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => moveRow(ri, 'up')} disabled={ri === 0} className="p-0.5 text-slate-300 hover:text-blue-500 disabled:opacity-20 transition-colors" title="Move up"><ChevronUp className="w-3 h-3" /></button>
+                                            <button onClick={() => moveRow(ri, 'down')} disabled={ri === transactions.length - 1} className="p-0.5 text-slate-300 hover:text-blue-500 disabled:opacity-20 transition-colors" title="Move down"><ChevronDown className="w-3 h-3" /></button>
+                                        </div>
+                                        <button onClick={() => saveRow(ri)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Save Row">
                                             <Check className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => handleDeleteRow(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
+                                        <button onClick={() => handleDeleteRow(ri)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Add Row Button Area */}
@@ -1236,9 +1367,13 @@ export default function ExcelLedgerPage() {
 
                         {/* TRF Data Rows */}
                         <div className="divide-y divide-amber-50 bg-white col-span-10 grid grid-cols-subgrid">
-                            {trfTransactions.map((txn, idx) => (
+                            {sortedTrfTransactions.map((txn, idx) => {
+                                const realIdx = trfTransactions.findIndex(t => t.id === txn.id);
+                                const ri = realIdx >= 0 ? realIdx : idx;
+                                return (
                                 <div
                                     key={txn.id}
+                                    onContextMenu={(e) => { e.preventDefault(); setContextMenu({ visible: true, x: e.clientX, y: e.clientY, rowIdx: ri, tab: 'trf' }); }}
                                     className={`grid grid-cols-subgrid col-span-10 hover:bg-amber-50/30 transition-colors group text-sm ${txn.isNew ? 'bg-amber-50/10' : ''}`}
                                 >
                                     <div className="px-2 py-1">
@@ -1266,8 +1401,8 @@ export default function ExcelLedgerPage() {
                                             id={`trf-cell-${idx}-amount`}
                                             value={txn.amount?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateTrfRow(idx, 'amount', v)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'amount')}
+                                            onChange={v => handleUpdateTrfRow(ri, 'amount', v)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'amount')}
                                             className="text-right text-slate-600 font-semibold min-w-full"
                                         />
                                     </div>
@@ -1276,8 +1411,8 @@ export default function ExcelLedgerPage() {
                                             id={`trf-cell-${idx}-booking`}
                                             value={txn.booking?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateTrfRow(idx, 'booking', v)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'booking')}
+                                            onChange={v => handleUpdateTrfRow(ri, 'booking', v)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'booking')}
                                             className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
@@ -1286,31 +1421,28 @@ export default function ExcelLedgerPage() {
                                             id={`trf-cell-${idx}-rate`}
                                             value={txn.rate?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateTrfRow(idx, 'rate', v)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'rate')}
+                                            onChange={v => handleUpdateTrfRow(ri, 'rate', v)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'rate')}
                                             className="text-right text-slate-500 min-w-full"
                                         />
                                     </div>
-
-                                    {/* Total Column with Yellow Bg */}
                                     <div className="px-2 py-1 bg-amber-100/50 border-x border-amber-200/50">
                                         <EditableCell
                                             id={`trf-cell-${idx}-total`}
                                             value={txn.total?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateTrfRow(idx, 'total', v)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'total')}
+                                            onChange={v => handleUpdateTrfRow(ri, 'total', v)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'total')}
                                             className="text-right font-bold text-slate-900 bg-transparent min-w-full"
                                         />
                                     </div>
-
                                     <div className="px-2 py-1">
                                         <EditableCell
                                             id={`trf-cell-${idx}-paid`}
                                             value={txn.paid?.toString()}
                                             type="number"
-                                            onChange={v => handleUpdateTrfRow(idx, 'paid', v)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paid')}
+                                            onChange={v => handleUpdateTrfRow(ri, 'paid', v)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'paid')}
                                             className="text-right text-emerald-600 font-bold min-w-full"
                                         />
                                     </div>
@@ -1319,8 +1451,8 @@ export default function ExcelLedgerPage() {
                                             id={`trf-cell-${idx}-paymentDate`}
                                             type="date"
                                             value={txn.paymentDate ? new Date(txn.paymentDate).toISOString().split('T')[0] : ''}
-                                            onChange={e => handleUpdateTrfRow(idx, 'paymentDate', e.target.value)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paymentDate')}
+                                            onChange={e => handleUpdateTrfRow(ri, 'paymentDate', e.target.value)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'paymentDate')}
                                             className="w-full bg-slate-50 border border-slate-100/60 hover:border-amber-300 hover:bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-500/5 outline-none p-2 text-sm text-slate-400 rounded transition-all"
                                         />
                                     </div>
@@ -1328,8 +1460,8 @@ export default function ExcelLedgerPage() {
                                         <select
                                             id={`trf-cell-${idx}-paymentMode`}
                                             value={txn.paymentMode || ''}
-                                            onChange={e => handleUpdateTrfRow(idx, 'paymentMode', e.target.value)}
-                                            onKeyDown={(e) => handleTrfKeyDown(e, idx, 'paymentMode')}
+                                            onChange={e => handleUpdateTrfRow(ri, 'paymentMode', e.target.value)}
+                                            onKeyDown={(e) => handleTrfKeyDown(e, ri, 'paymentMode')}
                                             className="w-full h-full bg-slate-50 border border-slate-100/60 hover:border-amber-300 hover:bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-500/5 outline-none p-2 text-xs font-medium text-slate-500 rounded transition-all"
                                         >
                                             <option value="">-</option>
@@ -1342,15 +1474,20 @@ export default function ExcelLedgerPage() {
                                         </select>
                                     </div>
                                     <div className="px-2 py-1 flex items-center justify-center gap-1">
-                                        <button onClick={() => saveTrfRow(idx)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Save Row">
+                                        <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => moveTrfRow(ri, 'up')} disabled={ri === 0} className="p-0.5 text-slate-300 hover:text-amber-500 disabled:opacity-20 transition-colors" title="Move up"><ChevronUp className="w-3 h-3" /></button>
+                                            <button onClick={() => moveTrfRow(ri, 'down')} disabled={ri === trfTransactions.length - 1} className="p-0.5 text-slate-300 hover:text-amber-500 disabled:opacity-20 transition-colors" title="Move down"><ChevronDown className="w-3 h-3" /></button>
+                                        </div>
+                                        <button onClick={() => saveTrfRow(ri)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Save Row">
                                             <Check className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => handleDeleteTrfRow(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
+                                        <button onClick={() => handleDeleteTrfRow(ri)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" tabIndex={-1} title="Delete Row">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Add TRF Row Button Area */}

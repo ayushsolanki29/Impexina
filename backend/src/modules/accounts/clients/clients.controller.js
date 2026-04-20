@@ -7,7 +7,8 @@ const getClients = async (req, res) => {
       page: req.query.page,
       limit: req.query.limit,
       search: req.query.search,
-      location: req.query.location // Optional location filter
+      location: req.query.location,
+      type: req.query.type,
     };
     const result = await clientsService.getAllClients(filters);
     res.json({ success: true, data: result.clients, pagination: result.pagination });

@@ -365,13 +365,14 @@ const taskTemplateController = {
   completeTask: async (req, res) => {
     try {
       const { id } = req.params;
-      const { completionNote } = req.body;
+      const { completionNote, status } = req.body;
       const userId = req.user.id;
 
       const completion = await taskTemplateService.completeTask(
         id,
         userId,
-        completionNote
+        completionNote,
+        status
       );
 
       res.json({

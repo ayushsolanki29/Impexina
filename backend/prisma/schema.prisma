@@ -1123,6 +1123,8 @@ model ShippingEntry {
   // Freight amounts
   freightUSD Float @default(0)
   freightINR Float @default(0)
+  rmbRate    Float @default(0)
+  exchangeRate Float @default(0)
   usFreight  Float @default(0)
 
   // Local charges (India side)
@@ -1418,6 +1420,7 @@ enum TaskStatus {
   COMPLETED
   OVERDUE
   CANCELLED
+  BLOCKED
 }
 
 // Task Template - Reusable task definitions

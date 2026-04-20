@@ -1,18 +1,28 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Search, Loader2, ArrowLeft, Users, Building2, MapPin, Mail, Phone, ChevronRight, ChevronLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useMemo } from "react";
+import { Search, Loader2, ArrowLeft, Users, MapPin, Package, ChevronRight, ChevronLeft, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { get } from "@/lib/api";
 
 export default function AccountClientsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ totalPages: 1 });
-  const [selectedCity, setSelectedCity] = useState("ALL");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
+  const [pagination, setPagination] = useState({ totalPages: 1, totalItems: 0 });
+  const [selectedCity, setSelectedCity] = useState(searchParams.get("city") || "ALL");
+
+  const syncURL = (s, p, city) => {
+    const params = new URLSearchParams();
+    if (s) params.set("search", s);
+    if (p > 1) params.set("page", p);
+    if (city && city !== "ALL") params.set("city", city);
+    window.history.replaceState(null, "", params.toString() ? `?${params}` : window.location.pathname);
+  };
 
   useEffect(() => {
     fetchClients();
@@ -21,221 +31,267 @@ export default function AccountClientsPage() {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      // Fetch from accounts/clients which now proxies to CRM clients
-      // Or we can fetch directly from /clients if we prefer
-      // The backend service was updated to fetch from prisma.client
-      const res = await get(`/accounts/clts?page=${page}&limit=20&search=${search}`);
+      const res = await get(`/accounts/clts?page=${page}&limit=20&search=${search}&type=CLIENT`);
       if (res.success) {
         setClients(res.data);
         setPagination(res.pagination);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to load clients");
-      console.error(error);
     } finally {
       setLoading(false);
     }
   };
-  const filteredClients = selectedCity === "ALL"
-    ? clients
-    : clients.filter(c => c.city === selectedCity);
 
-  const cities = ["ALL", ...new Set(clients.map(c => c.city).filter(Boolean))];
+  const filteredClients = useMemo(() =>
+    selectedCity === "ALL" ? clients : clients.filter(c => c.city === selectedCity),
+    [clients, selectedCity]
+  );
+
+  const cities = useMemo(() =>
+    ["ALL", ...new Set(clients.map(c => c.city).filter(Boolean))],
+    [clients]
+  );
+
+  const hasFilters = search || selectedCity !== "ALL";
+
+  const clearFilters = () => {
+    setSearch(""); setSelectedCity("ALL"); setPage(1);
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const handleSearch = (val) => {
+    setSearch(val); setPage(1);
+    syncURL(val, 1, selectedCity);
+  };
+
+  const handleCity = (city) => {
+    setSelectedCity(city);
+    syncURL(search, page, city);
+  };
+
+  const handlePage = (p) => {
+    setPage(p);
+    syncURL(search, p, selectedCity);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push("/dashboard/accounts")}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-                title="Back to Accounts"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-blue-600" />
-                  Client Ledgers
-                </h1>
-                <p className="text-sm text-slate-600 mt-1">
-                  Select a client to manage their financial records
-                </p>
+    <div className="p-4 bg-white min-h-screen font-sans antialiased text-slate-800">
+      <div className="max-w-[1400px] mx-auto">
+
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b pb-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/dashboard/accounts")}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Clients</h1>
+                <span className="text-[10px] text-slate-400 font-bold border rounded px-1.5 py-0.5 uppercase">
+                  {pagination.totalItems || 0}
+                </span>
               </div>
-            </div>
-            <div className="w-full md:w-72">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search clients..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+              <p className="text-xs text-slate-500 mt-0.5">Ledger & container tracking</p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-
-        {/* Filter Chips */}
-        {!loading && clients.length > 0 && (
-          <div className="mb-6">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                {cities.map(city => (
-                  <button
-                    key={city}
-                    onClick={() => setSelectedCity(city)}
-                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${selectedCity === city
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                      }`}
-                  >
-                    {city}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className="h-48 bg-slate-100 animate-pulse rounded-xl"
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search client, company, city..."
+                value={search}
+                onChange={e => handleSearch(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all text-sm w-64"
               />
-            ))}
-          </div>
-        ) : filteredClients.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-slate-900">
-              No Clients Found
-            </h3>
-            <p className="text-slate-500 text-sm mb-4">
-              {search || selectedCity !== "ALL"
-                ? "Try adjusting your filters"
-                : "No clients available"}
-            </p>
-            {(search || selectedCity !== "ALL") && (
+            </div>
+
+            {/* City filter pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {cities.map(city => (
+                <button
+                  key={city}
+                  onClick={() => handleCity(city)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border whitespace-nowrap ${
+                    selectedCity === city
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700"
+                  }`}
+                >
+                  {city}
+                </button>
+              ))}
+            </div>
+
+            {hasFilters && (
               <button
-                onClick={() => { setSearch(""); setSelectedCity("ALL") }}
-                className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-widest"
+                onClick={clearFilters}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                title="Clear filters"
               >
-                Reset Filters
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredClients.map(client => (
-              <div
-                key={client.id}
-                onClick={() => router.push(`/dashboard/accounts/clients/${client.id}/containers`)}
-                className="group bg-white p-5 rounded-xl border shadow-sm transition-all hover:shadow-md border-blue-200 cursor-pointer"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 mb-1">
-                      {client.name}
-                    </h3>
-                    <p className="text-sm text-slate-500 line-clamp-1">
-                      {client.companyName || 'No Company Details'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 ml-2">
-                    {client.city && (
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-0.5 bg-slate-50 border border-slate-200 rounded">
-                        {client.city}
-                      </span>
-                    )}
-                    {client.type === 'LEAD' && (
-                      <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-amber-100">
-                        LEAD
-                      </span>
-                    )}
-                  </div>
-                </div>
+        </div>
 
-                <div className="mb-4">
-                  {client.containerCodes && client.containerCodes.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 min-h-[22px]">
-                      {client.containerCodes.slice(0, 5).map(code => (
-                        <span key={code} className="text-[9px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-tighter shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-default">
-                          {code}
-                        </span>
-                      ))}
-                      {client.containerCodes.length > 5 && (
-                        <span className="text-[9px] font-black bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tighter">
-                          +{client.containerCodes.length - 5}
-                        </span>
+        {/* Table */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {/* Table header */}
+          <div className="hidden md:grid grid-cols-[2fr_1fr_3fr_80px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            <div>Client</div>
+            <div>City</div>
+            <div>Containers</div>
+            <div></div>
+          </div>
+
+          {loading ? (
+            <div className="flex h-64 items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+                <span className="text-xs text-slate-400 font-semibold animate-pulse uppercase tracking-widest">Loading...</span>
+              </div>
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-slate-200" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 mb-1">No clients found</h3>
+              <p className="text-slate-400 text-xs mb-4">Try adjusting your filters.</p>
+              {hasFilters && (
+                <button onClick={clearFilters} className="text-xs text-blue-500 font-bold hover:text-blue-700">
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  onClick={() => router.push(`/dashboard/accounts/clients/${client.id}/containers`)}
+                  className="group grid grid-cols-1 md:grid-cols-[2fr_1fr_3fr_80px] gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors cursor-pointer items-center"
+                >
+                  {/* Name */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-slate-900 group-hover:text-white text-slate-700 flex items-center justify-center font-black text-sm transition-all flex-shrink-0">
+                      {client.name?.charAt(0)?.toUpperCase() || "?"}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 text-sm truncate group-hover:text-blue-600 transition-colors">
+                        {client.name}
+                      </p>
+                      {client.companyName && (
+                        <p className="text-[11px] text-slate-400 truncate">{client.companyName}</p>
                       )}
                     </div>
-                  ) : (
-                    <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-slate-50/50 py-1 px-2 rounded border border-dashed border-slate-100 italic">
-                      No Containers Linked
-                    </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="border-t border-slate-100 pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-4 text-[11px] font-medium text-slate-400 uppercase tracking-widest">
-                      {client.phone && <span>PH</span>}
-                      {client.email && <span>EM</span>}
-                    </div>
-                    <div className="flex items-center gap-1 text-blue-600 font-medium text-sm group-hover:gap-2 transition-all">
-                      <span>Open</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
+                  {/* City */}
+                  <div className="flex items-center gap-1.5">
+                    {client.city ? (
+                      <>
+                        <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                        <span className="text-xs text-slate-600 font-medium">{client.city}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </div>
+
+                  {/* Containers */}
+                  <div>
+                    {client.containerCodes?.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {client.containerCodes.slice(0, 20).map(code => (
+                          <span
+                            key={code}
+                            className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tight"
+                          >
+                            {code}
+                          </span>
+                        ))}
+                        {client.containerCodes.length > 20 && (
+                          <span className="text-[9px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded uppercase">
+                            +{client.containerCodes.length - 20}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <Package className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">No containers</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex justify-end">
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* Pagination Controls */}
+        {/* Pagination */}
         {!loading && pagination?.totalPages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-8">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors flex items-center gap-1 text-sm font-medium"
-            >
-              <ChevronLeft className="w-4 h-4" /> Previous
-            </button>
-            <span className="text-sm font-semibold text-slate-700">
-              Page {page} of {pagination.totalPages}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6">
+            <span className="text-xs text-slate-400 font-semibold">
+              Page <span className="text-slate-700">{page}</span> / {pagination.totalPages}
+              &nbsp;·&nbsp; {pagination.totalItems} clients
             </span>
-            <button
-              disabled={page >= pagination.totalPages}
-              onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors flex items-center gap-1 text-sm font-medium"
-            >
-              Next <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page <= 1}
+                onClick={() => handlePage(page - 1)}
+                className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-all text-slate-500"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: Math.min(pagination.totalPages, 7) }, (_, i) => {
+                const total = pagination.totalPages;
+                let p;
+                if (total <= 7) p = i + 1;
+                else if (page <= 4) p = i + 1 <= 5 ? i + 1 : i === 5 ? "…" : total;
+                else if (page >= total - 3) p = i === 0 ? 1 : i === 1 ? "…" : total - 6 + i + 2;
+                else p = i === 0 ? 1 : i === 1 ? "…" : i === 5 ? "…" : i === 6 ? total : page + i - 3;
+                return (
+                  <button
+                    key={i}
+                    disabled={p === "…"}
+                    onClick={() => typeof p === "number" && handlePage(p)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border ${
+                      p === page
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : p === "…"
+                          ? "border-transparent text-slate-300 cursor-default"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                disabled={page >= pagination.totalPages}
+                onClick={() => handlePage(page + 1)}
+                className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-all text-slate-500"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Summary Footer */}
-        {!loading && clients.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-200 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-            {filteredClients.length} {filteredClients.length === 1 ? 'Client' : 'Clients'} Identified • {new Set(filteredClients.map(c => c.city)).size} {new Set(filteredClients.map(c => c.city)).size === 1 ? 'City' : 'Cities'}
-          </div>
-        )}
       </div>
     </div>
   );

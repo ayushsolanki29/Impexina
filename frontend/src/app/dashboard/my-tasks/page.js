@@ -20,6 +20,8 @@ import {
   CalendarRange,
   CalendarCheck,
   ArrowRight,
+  ShieldAlert,
+  PauseCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -52,6 +54,7 @@ export default function MyTasksPage() {
   const [completionNote, setCompletionNote] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [completionStatus, setCompletionStatus] = useState("COMPLETED");
   const [completing, setCompleting] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
@@ -84,8 +87,8 @@ export default function MyTasksPage() {
         const taskList = response.data.data;
         setStats({
           totalTasks: taskList.length,
-          pendingTasks: taskList.filter((t) => t.currentStatus?.status === "PENDING").length,
-          completedTasks: taskList.filter((t) => t.currentStatus?.status === "COMPLETED").length,
+          pendingTasks: taskList.filter((t) => !t.currentStatus?.isDoneForToday && t.currentStatus?.status !== "OVERDUE").length,
+          completedTasks: taskList.filter((t) => t.currentStatus?.isDoneForToday).length,
           overdueTasks: taskList.filter((t) => t.currentStatus?.status === "OVERDUE").length,
         });
       }
@@ -104,14 +107,21 @@ export default function MyTasksPage() {
   const openCompleteDialog = (task) => {
     setSelectedTask(task);
     setCompletionNote("");
+    setCompletionStatus("COMPLETED");
     setShowCompleteDialog(true);
   };
 
   const handleCompleteTask = async () => {
     try {
+      if ((completionStatus === "BLOCKED" || completionStatus === "PENDING") && !completionNote.trim()) {
+        toast.error(`Please provide a reason for the ${completionStatus} status`);
+        return;
+      }
+
       setCompleting(true);
       const response = await API.post(`/tasks/assignments/${selectedTask.id}/complete`, {
         completionNote: completionNote.trim(),
+        status: completionStatus,
       });
 
       if (response.data.success) {
@@ -196,8 +206,12 @@ export default function MyTasksPage() {
     switch (status) {
       case "COMPLETED":
         return { color: "text-emerald-600", bg: "bg-emerald-50", icon: CheckCircle, label: "Completed" };
+      case "BLOCKED":
+        return { color: "text-rose-600", bg: "bg-rose-50", icon: ShieldAlert, label: "Blocked" };
       case "OVERDUE":
         return { color: "text-red-600", bg: "bg-red-50", icon: AlertCircle, label: "Overdue" };
+      case "BLOCKED":
+        return { color: "text-rose-600", bg: "bg-rose-50", icon: ShieldAlert, label: "Blocked" };
       case "PENDING":
       default:
         return { color: "text-amber-600", bg: "bg-amber-50", icon: Clock, label: "Pending" };
@@ -453,17 +467,50 @@ export default function MyTasksPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Completion Note <span className="text-red-500">*</span>
-            </label>
-            <Textarea
-              placeholder="Describe what you did..."
-              value={completionNote}
-              onChange={(e) => setCompletionNote(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Status Update
+              </label>
+              <Select
+                value={completionStatus}
+                onValueChange={setCompletionStatus}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="COMPLETED">Task Complete</SelectItem>
+                  <SelectItem value="BLOCKED">Block</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                {completionStatus === "COMPLETED" ? "Completion Note" : "Reason / Note"}{" "}
+                {(completionStatus === "BLOCKED" || completionStatus === "PENDING") && (
+                  <span className="text-red-500">*</span>
+                )}
+              </label>
+              <Textarea
+                placeholder={
+                  completionStatus === "COMPLETED" 
+                    ? "Describe what you did..." 
+                    : `Explain why this task is ${completionStatus.toLowerCase()}...`
+                }
+                value={completionNote}
+                onChange={(e) => setCompletionNote(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+              {completionStatus === "COMPLETED" && (
+                <p className="text-[10px] text-slate-400 mt-1 italic">
+                  Tip: A short note is sufficient.
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -483,7 +530,7 @@ export default function MyTasksPage() {
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Mark Complete
+                  {completionStatus === "COMPLETED" ? "Mark Complete" : `Mark ${completionStatus.charAt(0) + completionStatus.slice(1).toLowerCase()}`}
                 </>
               )}
             </Button>
@@ -591,16 +638,23 @@ function TaskCard({
   const ScheduleIcon = getScheduleIcon(task.scheduleType);
   const statusInfo = getStatusInfo(task.currentStatus?.status);
   const StatusIcon = statusInfo.icon;
+  const isDone = task.currentStatus?.isDoneForToday;
   const isCompleted = task.currentStatus?.status === "COMPLETED";
   const isOverdue = task.currentStatus?.status === "OVERDUE";
+  const isBlocked = task.currentStatus?.status === "BLOCKED";
+  const isPending = task.currentStatus?.status === "PENDING";
 
   return (
     <div
       className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
         isCompleted
           ? "border-emerald-200 bg-emerald-50/30"
+          : isBlocked
+          ? "border-rose-200 bg-rose-50/30"
           : isOverdue
           ? "border-red-200 bg-red-50/30"
+          : isDone
+          ? "border-slate-200 bg-slate-50/50 opacity-75"
           : "border-slate-200"
       }`}
     >
@@ -616,7 +670,7 @@ function TaskCard({
         {/* Task Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className={`font-semibold truncate ${isCompleted ? "text-slate-500 line-through" : "text-slate-900"}`}>
+            <h3 className={`font-semibold truncate ${isDone ? "text-slate-500 line-through" : "text-slate-900"}`}>
               {task.title}
             </h3>
             {task.isSelfCreated && (
@@ -639,7 +693,7 @@ function TaskCard({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {!isCompleted && (
+          {!isDone && (
             <Button
               size="sm"
               onClick={onComplete}

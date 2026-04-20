@@ -2,10 +2,9 @@ const { prisma } = require("../../../database/prisma");
 
 const AccountClientsService = {
     // Get all clients (Fetch from CRM Clients)
-    getAllClients: async ({ page = 1, limit = 20, search = "", location = "" }) => {
+    getAllClients: async ({ page = 1, limit = 20, search = "", location = "", type = "" }) => {
         const skip = (page - 1) * limit;
 
-        // Build where clause for CRM Client
         const where = {};
         if (search) {
             where.OR = [
@@ -13,6 +12,9 @@ const AccountClientsService = {
                 { companyName: { contains: search, mode: "insensitive" } },
                 { city: { contains: search, mode: "insensitive" } },
             ];
+        }
+        if (type) {
+            where.type = type;
         }
 
         // Fetch clients
