@@ -36,6 +36,11 @@ class BackupController {
           return res.status(400).json({ success: false, message: "Invalid backup type" });
       }
 
+      // RBAC: Only Admin can create backups
+      if (req.user.role !== "ADMIN" && !req.user.isSuper) {
+        return res.status(403).json({ success: false, message: "Forbidden: Only Administrators can create backups" });
+      }
+
       // Pass the user info so we can log it
       const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
       const result = await backupService.createBackup(type, username);
@@ -56,6 +61,11 @@ class BackupController {
          return res.status(400).json({ success: false, message: "Filename and type required" });
       }
 
+      // RBAC: Only Superadmin can restore backups (Admin is not enough)
+      if (!req.user.isSuper) {
+        return res.status(403).json({ success: false, message: "Forbidden: Only the System Superadmin can perform system restoration" });
+      }
+
       const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
       const result = await backupService.restoreBackup(filename, type, username);
       res.status(200).json({
@@ -69,6 +79,11 @@ class BackupController {
   // Download Backup File
   async downloadBackup(req, res, next) {
     try {
+      // RBAC: Only Admin can download backups
+      if (req.user.role !== "ADMIN" && !req.user.isSuper) {
+        return res.status(403).json({ success: false, message: "Forbidden: Only Administrators can download backup files" });
+      }
+
       const { type, filename } = req.params;
       const user = req.user; // User object from auth middleware
       
@@ -106,13 +121,31 @@ class BackupController {
   // Update Backup Cron Settings
   updateSettings(req, res, next) {
     try {
-      const { schedule } = req.body;
+      // RBAC: Only Admin can update settings
+      if (req.user.role !== "ADMIN" && !req.user.isSuper) {
+        return res.status(403).json({ success: false, message: "Forbidden: Only Administrators can modify backup settings" });
+      }
+
+      const { schedule, autoDelete, retentionMonths } = req.body;
       const username = req.user ? (req.user.name || req.user.email || 'Unknown User') : 'System';
-      if (!['daily', 'weekly', 'fortnightly', 'monthly'].includes(schedule)) {
+      
+      const settings = getBackupSettings();
+
+      if (schedule && !['daily', 'weekly', 'fortnightly', 'monthly'].includes(schedule)) {
         return res.status(400).json({ success: false, message: "Invalid schedule option" });
       }
 
-      const success = saveBackupSettings({ schedule }, username);
+      if (retentionMonths && ![1, 3, 5].includes(parseInt(retentionMonths))) {
+        return res.status(400).json({ success: false, message: "Invalid retention period" });
+      }
+
+      const newSettings = {
+        schedule: schedule || settings.schedule,
+        autoDelete: autoDelete !== undefined ? autoDelete : settings.autoDelete,
+        retentionMonths: retentionMonths !== undefined ? parseInt(retentionMonths) : settings.retentionMonths
+      };
+
+      const success = saveBackupSettings(newSettings, username);
       if (success) {
         res.status(200).json({ success: true, message: "Backup schedule updated successfully" });
       } else {

@@ -46,8 +46,12 @@ const getBackupSettings = () => {
   } catch (e) {
     console.error("[CRON] Failed to read settings:", e.message);
   }
-  // Default to daily
-  return { schedule: "daily" };
+  // Default values
+  return { 
+    schedule: "daily",
+    autoDelete: false,
+    retentionMonths: 3
+  };
 };
 
 /**
@@ -118,6 +122,13 @@ const updateBackupCron = (username = 'System') => {
       const result = await backupService.createBackup("all");
       console.log("[CRON] Scheduled backup completed:", result.message);
       await cronLog(`Scheduled backup completed — ${result.message}`);
+
+      // Auto Cleanup if enabled
+      if (settings.autoDelete) {
+        await cronLog(`[CRON] Auto-delete enabled. Starting cleanup...`);
+        const cleanupResult = await backupService.autoCleanUp(settings.retentionMonths);
+        await cronLog(`[CRON] ${cleanupResult.message}`);
+      }
     } catch (error) {
       const msg = error.message || JSON.stringify(error);
       console.error("[CRON] Scheduled backup FAILED:", msg);

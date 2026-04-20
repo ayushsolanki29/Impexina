@@ -36,6 +36,8 @@ export default function BackupsPage() {
   const [logTab, setLogTab] = useState('backup'); // 'backup' | 'cron'
   const [settingsModal, setSettingsModal] = useState(false);
   const [schedule, setSchedule] = useState('daily');
+  const [autoDelete, setAutoDelete] = useState(false);
+  const [retentionMonths, setRetentionMonths] = useState(3);
   const [savingSettings, setSavingSettings] = useState(false);
   const pollingRef = useRef(null);
   const logsEndRef = useRef(null);
@@ -98,7 +100,11 @@ export default function BackupsPage() {
       ]);
       
       if (userRes?.data?.success) setCurrentUser(userRes.data.data);
-      if (settingsRes?.data?.success) setSchedule(settingsRes.data.data.schedule || 'daily');
+      if (settingsRes?.data?.success) {
+        setSchedule(settingsRes.data.data.schedule || 'daily');
+        setAutoDelete(settingsRes.data.data.autoDelete || false);
+        setRetentionMonths(settingsRes.data.data.retentionMonths || 3);
+      }
       
       setLoading(false);
 
@@ -203,9 +209,13 @@ export default function BackupsPage() {
   const handleSaveSettings = async () => {
     try {
       setSavingSettings(true);
-      const res = await API.post("/backups/settings", { schedule });
+      const res = await API.post("/backups/settings", { 
+        schedule, 
+        autoDelete, 
+        retentionMonths 
+      });
       if (res.data.success) {
-        toast.success("Backup schedule updated!");
+        toast.success("Backup settings updated!");
         setSettingsModal(false);
       }
     } catch (error) {
@@ -218,6 +228,7 @@ export default function BackupsPage() {
 
   // Employees and New Joiners are read-only
   const isReadOnly = currentUser?.role === "EMPLOYEE" || currentUser?.role === "NEW_JOINNER";
+  const isSuper = currentUser?.isSuper === true;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-6">
@@ -368,6 +379,7 @@ export default function BackupsPage() {
           onDownload={handleDownload}
           onRestore={handleRestore}
           disabled={isReadOnly}
+          canRestore={isSuper}
         />
 
         <BackupListCard
@@ -389,6 +401,7 @@ export default function BackupsPage() {
           onDownload={handleDownload}
           onRestore={handleRestore}
           disabled={isReadOnly}
+          canRestore={isSuper}
         />
       </div>
 
@@ -498,6 +511,47 @@ export default function BackupsPage() {
                 </div>
                 <p className="text-xs text-slate-500 mt-3">This schedule applies to both database backups and file uploads backups simultaneously.</p>
               </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-800">Auto-Delete Records</label>
+                    <p className="text-xs text-slate-500">Automatically remove old backups to save space.</p>
+                  </div>
+                  <button
+                    onClick={() => setAutoDelete(!autoDelete)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${autoDelete ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoDelete ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {autoDelete && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Retention Period</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 1, label: '1 Month', color: 'text-red-600 border-red-100 bg-red-50 hover:bg-red-100' },
+                        { id: 3, label: '3 Months', color: 'text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100' },
+                        { id: 5, label: '5 Months', color: 'text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100' }
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setRetentionMonths(opt.id)}
+                          className={`px-3 py-2 rounded-lg border-2 text-xs font-bold transition-all ${
+                            retentionMonths === opt.id 
+                              ? (opt.id === 1 ? 'border-red-500 bg-red-100 text-red-700' : 'border-blue-500 bg-blue-100 text-blue-700') 
+                              : 'border-transparent bg-slate-50 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 italic">Records older than the selected period will be permanently deleted from the server.</p>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <Button variant="ghost" onClick={() => setSettingsModal(false)} disabled={savingSettings}>Cancel</Button>
@@ -528,7 +582,7 @@ const PER_PAGE = 20;
 function BackupListCard({
   title, subtitle, icon, iconBg, emptyIcon, emptyText,
   files, type, actionLabel, actionIcon, actionClass, actionVariant,
-  actionLoading, sectionLoading, onBackup, onDownload, onRestore, disabled
+  actionLoading, sectionLoading, onBackup, onDownload, onRestore, disabled, canRestore
 }) {
   const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState('');
@@ -649,7 +703,7 @@ function BackupListCard({
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-400" title="Download" onClick={() => onDownload(file.name, type)} disabled={disabled}>
                     <Download className="w-4 h-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-slate-400" title="Restore" onClick={() => onRestore(file.name, type)} disabled={disabled}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-slate-400" title={canRestore ? "Restore" : "Restore restricted to Superadmin"} onClick={() => onRestore(file.name, type)} disabled={disabled || !canRestore}>
                     <RotateCcw className="w-4 h-4" />
                   </Button>
                 </div>
@@ -693,10 +747,34 @@ function RestoreModal({ filename, type, onClose, onConfirm, isLoading }) {
   const expectedText = "RESTORE";
 
   const isDb = type === 'db';
-  const title = isDb ? 'Restore Database Backup' : 'Restore Files Backup';
-  const warning = isDb 
-    ? '⚠️ This will OVERWRITE your current database. All current data will be lost and replaced by this backup.'
-    : '⚠️ This will OVERWRITE your current uploads folder. All existing files will be replaced.';
+  const title = isDb ? 'Restore Database State' : 'Restore Media Assets';
+  
+  // Format the filename date (e.g., db_2024-03-15-12-00.sql -> 15th March 2024, 12:00 PM)
+  const formatBackupDate = (fname) => {
+    try {
+      const match = fname.match(/(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+      if (!match) return fname;
+      const [_, year, month, day, hour, minute] = match;
+      const date = new Date(year, month - 1, day, hour, minute);
+      
+      const dayNum = parseInt(day);
+      const suffix = ["th", "st", "nd", "rd"][(dayNum % 10 > 3 || Math.floor(dayNum % 100 / 10) === 1) ? 0 : dayNum % 10];
+      
+      return date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).replace(day, day + suffix) + " at " + date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return fname;
+    }
+  };
+
+  const backupDateLabel = formatBackupDate(filename);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={!isLoading ? onClose : undefined}>
@@ -709,7 +787,7 @@ function RestoreModal({ filename, type, onClose, onConfirm, isLoading }) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-              <p className="text-xs text-slate-500 font-mono truncate max-w-[240px]">{filename}</p>
+              <p className="text-[10px] text-slate-400 font-mono truncate max-w-[240px] uppercase tracking-tighter">{filename}</p>
             </div>
           </div>
           {!isLoading && (
@@ -719,50 +797,62 @@ function RestoreModal({ filename, type, onClose, onConfirm, isLoading }) {
           )}
         </div>
 
-        {/* content */}
+        {/* Content */}
         <div className="p-6 space-y-5">
-          <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 flex-shrink-0" />
             <div className="space-y-1">
-              <p className="text-sm font-bold text-red-800">Critical Action</p>
-              <p className="text-sm text-red-700 leading-relaxed">{warning}</p>
+              <p className="text-sm font-black text-rose-900 uppercase tracking-tight">Critical Warning: Data Overwrite</p>
+              <p className="text-sm text-rose-800 leading-relaxed font-medium">
+                You are about to <span className="underline decoration-2">permanently wipe</span> your current {isDb ? 'database records' : 'media assets'} and replace them with the data from:
+                <span className="block mt-2 px-3 py-2 bg-white/50 rounded border border-rose-200 text-rose-950 font-bold italic">
+                  {backupDateLabel}
+                </span>
+              </p>
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-blue-700 bg-blue-50 p-3 rounded-lg border border-blue-100">
               <DatabaseBackup className="w-4 h-4 flex-shrink-0" />
-              <p className="text-xs font-medium">A rollback backup of the current state will be created automatically before restoring.</p>
+              <p className="text-[11px] font-semibold">A safety rollback snapshot will be generated automatically before the wipe begins.</p>
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Restoration Sequence:</p>
-              <div className="space-y-1.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Execution Sequence:</p>
+              <div className="grid grid-cols-1 gap-1.5">
                 {[
-                  "Verify backup file integrity",
-                  "Create safety rollback snapshot",
-                  isDb ? "Wipe current database schema" : "Clear existing media assets",
-                  isDb ? "Import SQL/JSON dump" : "Extract archived assets",
-                  "Finalize and verify system state"
+                  "Create emergency rollback point",
+                  isDb ? "Purge existing PostgreSQL schema" : "Wipe server uploads directory",
+                  "Stream backup data to production",
+                  "Verify structural integrity & logs"
                 ].map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
-                    <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400">{i + 1}</div>
+                  <div key={i} className="flex items-center gap-2 text-[11px] text-slate-600 font-bold">
+                    <Check className="w-3 h-3 text-emerald-500" />
                     {step}
                   </div>
                 ))}
               </div>
             </div>
             
-            <p className="text-sm text-slate-600 pt-2">This process might take a few minutes. To proceed, please type <span className="font-bold text-slate-900 underline">{expectedText}</span> below:</p>
-            
-            <input
-              type="text"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              disabled={isLoading}
-              placeholder={`Type ${expectedText} here...`}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-center tracking-widest uppercase disabled:opacity-50"
-            />
+            <div className="pt-4 space-y-3 border-t border-slate-100">
+              <p className="text-xs text-slate-600 leading-snug">
+                To confirm you understand that current data will be <span className="text-rose-600 font-black">LOST</span>, please manually type the word <span className="font-black text-slate-900 px-1.5 py-0.5 bg-slate-100 rounded">{expectedText}</span> below. 
+                <span className="block mt-1 text-[10px] text-slate-400 italic">(Copy-paste is disabled for safety)</span>
+              </p>
+              
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                onContextMenu={(e) => e.preventDefault()}
+                autoFocus
+                disabled={isLoading}
+                placeholder={`TYPE ${expectedText} TO PROCEED`}
+                className="w-full px-4 py-4 rounded-xl border-2 border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-black text-center tracking-[0.2em] uppercase disabled:opacity-50 text-xl"
+              />
+            </div>
           </div>
         </div>
 
@@ -771,25 +861,25 @@ function RestoreModal({ filename, type, onClose, onConfirm, isLoading }) {
           <Button 
             onClick={onConfirm} 
             disabled={isLoading || confirmText !== expectedText}
-            className={`w-full py-6 rounded-xl font-bold text-lg shadow-lg transition-all ${
+            className={`w-full py-7 rounded-xl font-black text-lg shadow-xl transition-all ${
               confirmText === expectedText 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02]' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-blue-200' 
                 : 'bg-slate-200 text-slate-400 grayscale'
             }`}
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Restoring System...
+                Executing Restore Sequence...
               </span>
             ) : (
               'Confirm & Start Restore'
             )}
           </Button>
           {!isLoading && (
-            <Button variant="ghost" onClick={onClose} className="text-slate-500 font-medium">
-              Cancel
-            </Button>
+            <button onClick={onClose} className="text-slate-500 font-bold text-sm hover:text-slate-800 transition-colors py-2">
+              Cancel Restoration
+            </button>
           )}
         </div>
       </div>
