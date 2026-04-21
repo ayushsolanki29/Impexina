@@ -1,24 +1,19 @@
 "use client";
+
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Calendar,
-  Save,
-  Trash2,
-  Printer,
-  PlusCircle,
-  Calculator,
+import { 
+  ArrowLeft, 
+  Eye, 
+  PlusCircle, 
+  Trash2, 
+  Save, 
+  Loader2, 
   Search,
-  X,
-  Check,
-  Package,
-  Filter,
-  Lock,
-  Eye,
-  Edit,
+  FileText
 } from "lucide-react";
+import Link from "next/link";
 import { kavyaAPI } from "@/services/kavya.service";
 import KavyaPreviewModal from "./_components/KavyaPreviewModal";
 
@@ -30,15 +25,18 @@ export default function KavyaSheetPage() {
   const [sheet, setSheet] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isEditingSheet, setIsEditingSheet] = useState(false);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [containerFilter, setContainerFilter] = useState("");
+  // Sheet edit state
+  const [editSheet, setEditSheet] = useState({
+    title: "",
+    description: "",
+    openingBalance: 0,
+  });
 
-  // New Entry Form
-  const [entry, setEntry] = useState({
+  // New entry state
+  const [newEntry, setNewEntry] = useState({
     containerCode: "",
     loadingDate: "",
     deliveryDate: "",
@@ -47,96 +45,83 @@ export default function KavyaSheetPage() {
     rateCbmWeight: "",
     cbmKg: "",
     dutyFvb: "",
-    total: 0,
     paid: "",
     paymentDate: "",
   });
 
-  // Edit Sheet Form
-  const [editSheet, setEditSheet] = useState({
-    title: "",
-    description: "",
-    tags: [],
-    isLocked: false,
-    status: "ACTIVE",
-    openingBalance: 0,
-  });
-
   const loadSheetData = useCallback(async () => {
     try {
-      const data = await kavyaAPI.getSheet(sheetId);
-      setSheet(data.data.data);
-      setEditSheet({
-        title: data.data.data.title,
-        description: data.data.data.description || "",
-        tags: data.data.data.tags || [],
-        isLocked: data.data.data.isLocked || false,
-        status: data.data.data.status,
-        openingBalance: data.data.data.openingBalance || 0,
-      });
-    } catch (error) {
-      toast.error(error.message || "Failed to load sheet");
-    }
-  }, [sheetId]);
-
-  const generateDefaultTitle = useCallback(async () => {
-    try {
-      const data = await kavyaAPI.generateDefaultTitle();
-      setEditSheet((prev) => ({ ...prev, title: data.data.data.title }));
-    } catch (error) {
-      console.error("Failed to generate title:", error);
-    }
-  }, []);
-
-  const loadEntries = useCallback(async () => {
-    try {
       setLoading(true);
-      const params = {
-        search,
-        containerCode: containerFilter,
-        page: 1,
-        limit: 1000,
-      };
+      const response = await kavyaAPI.getSheet(sheetId);
+      const data = response.data.data;
+      setSheet(data);
+      setEditSheet({
+        title: data.title || "",
+        description: data.description || "",
+        openingBalance: data.openingBalance || 0,
+      });
 
-      const data = await kavyaAPI.getSheetEntries(sheetId, params);
-      setEntries(data.data.data.entries || []);
+      const entriesResponse = await kavyaAPI.getSheetEntries(sheetId, { limit: 1000 });
+      setEntries(entriesResponse.data.data.entries || []);
     } catch (error) {
-      toast.error(error.message || "Failed to load entries");
+      toast.error("Failed to load sheet data");
     } finally {
       setLoading(false);
     }
-  }, [sheetId, search, containerFilter]);
+  }, [sheetId]);
 
-  // Handle Add Entry
-  const handleAddEntry = useCallback(async (e) => {
-    if (e && typeof e.preventDefault === 'function') {
-      e.preventDefault();
+  useEffect(() => {
+    if (sheetId && sheetId !== "new") {
+      loadSheetData();
+    } else if (sheetId === "new") {
+      setEditSheet({ title: "New Kavya Sheet", description: "", openingBalance: 0 });
+      setLoading(false);
     }
+  }, [sheetId, loadSheetData]);
 
-    // Validate numeric fields to ensure they're >= 0
-    const rateCbmWeight = parseFloat(entry.rateCbmWeight) || 0;
-    const cbmKg = parseFloat(entry.cbmKg) || 0;
-    const dutyFvb = parseFloat(entry.dutyFvb) || 0;
-    const paid = parseFloat(entry.paid) || 0;
-
-    if (rateCbmWeight < 0 || cbmKg < 0 || dutyFvb < 0 || paid < 0) {
-      return toast.error("Numeric fields must be greater than or equal to 0");
+  const handleSaveSheet = async () => {
+    setIsSaving(true);
+    try {
+      if (sheetId === "new") {
+        const response = await kavyaAPI.createSheet({
+          ...editSheet,
+          openingBalance: parseFloat(editSheet.openingBalance) || 0,
+          month: new Date().getMonth() + 1,
+          year: new Date().getFullYear(),
+        });
+        toast.success("Sheet created successfully");
+        router.push(`/dashboard/accounts/kavya/${response.data.data.id}`);
+      } else {
+        await kavyaAPI.updateSheet(sheetId, {
+          ...editSheet,
+          openingBalance: parseFloat(editSheet.openingBalance) || 0,
+        });
+        toast.success("Sheet updated successfully");
+        loadSheetData();
+      }
+    } catch (error) {
+      toast.error("Failed to save sheet");
+    } finally {
+      setIsSaving(false);
     }
+  };
 
+  const handleAddEntry = async () => {
+    if (!newEntry.containerCode && !newEntry.particular) {
+      toast.error("Container Code or Particular is required");
+      return;
+    }
     try {
       const entryData = {
-        ...entry,
-        rateCbmWeight: rateCbmWeight,
-        cbmKg: cbmKg,
-        dutyFvb: dutyFvb,
-        paid: paid,
+        ...newEntry,
+        rateCbmWeight: parseFloat(newEntry.rateCbmWeight) || 0,
+        cbmKg: parseFloat(newEntry.cbmKg) || 0,
+        dutyFvb: parseFloat(newEntry.dutyFvb) || 0,
+        paid: parseFloat(newEntry.paid) || 0,
       };
-
       await kavyaAPI.addEntry(sheetId, entryData);
-      toast.success("Entry added successfully");
-
-      // Reset form
-      setEntry({
+      toast.success("Entry added");
+      setNewEntry({
         containerCode: "",
         loadingDate: "",
         deliveryDate: "",
@@ -145,997 +130,431 @@ export default function KavyaSheetPage() {
         rateCbmWeight: "",
         cbmKg: "",
         dutyFvb: "",
-        total: 0,
         paid: "",
         paymentDate: "",
       });
-
-      loadEntries();
       loadSheetData();
     } catch (error) {
-      console.error("Add entry error:", error);
-      const responseData = error.response?.data || error.data || {};
-      const errorMessage = responseData.message || error.message || "Failed to add entry";
-      const errors = responseData.errors || [];
-      if (errors && Array.isArray(errors) && errors.length > 0) {
-        errors.forEach(err => {
-          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
-          toast.error(message);
-        });
-      } else if (errorMessage && errorMessage !== "Failed to add entry") {
-        toast.error(errorMessage);
-      } else {
-        toast.error("Failed to add entry. Please check all fields are valid.");
-      }
+      toast.error("Failed to add entry");
     }
-  }, [sheetId, entry, loadEntries, loadSheetData]);
+  };
 
-  // Load Data
-  useEffect(() => {
-    if (sheetId !== "new") {
-      loadSheetData();
-      loadEntries();
-    } else {
-      generateDefaultTitle();
-      setLoading(false);
-    }
-  }, [sheetId, search, containerFilter, loadSheetData]);
-
-  // Handle Create/Update Sheet
-  const handleSaveSheet = useCallback(async (e) => {
-    if (e && typeof e.preventDefault === 'function') {
-      e.preventDefault();
-    }
-
-    if (!editSheet.title) {
-      return toast.error("Sheet title is required");
-    }
-
+  const handleUpdateEntry = async (entryId, field, value) => {
     try {
-      if (sheetId === "new") {
-        const sheetData = {
-          title: editSheet.title,
-          description: editSheet.description,
-          tags: editSheet.tags,
-          openingBalance: parseFloat(editSheet.openingBalance) || 0,
-          month: new Date().getMonth() + 1,
-          year: new Date().getFullYear(),
-        };
-
-        const response = await kavyaAPI.createSheet(sheetData);
-        toast.success("Sheet created successfully");
-        router.push(`/dashboard/accounts/kavya/${response.data.data.id}`);
-      } else {
-        const sheetData = {
-          title: editSheet.title,
-          description: editSheet.description,
-          tags: editSheet.tags,
-          isLocked: editSheet.isLocked,
-          status: editSheet.status,
-          openingBalance: parseFloat(editSheet.openingBalance) || 0,
-        };
-
-        await kavyaAPI.updateSheet(sheetId, sheetData);
-        toast.success("Sheet updated successfully");
-        setIsEditingSheet(false);
-        loadSheetData();
+      const entry = entries.find(e => e.id === entryId);
+      const updatedData = { ...entry, [field]: value };
+      
+      // Auto-recalculate total
+      if (['rateCbmWeight', 'cbmKg', 'dutyFvb'].includes(field)) {
+        updatedData.total = (parseFloat(updatedData.rateCbmWeight) || 0) + 
+                         (parseFloat(updatedData.cbmKg) || 0) + 
+                         (parseFloat(updatedData.dutyFvb) || 0);
       }
+
+      await kavyaAPI.updateEntry(entryId, updatedData);
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updatedData } : e));
     } catch (error) {
-      console.error("Save sheet error:", error);
-      const responseData = error.response?.data || error.data || {};
-      const errorMessage = responseData.message || error.message || "Failed to save sheet";
-      const errors = responseData.errors || [];
-
-      if (errors && Array.isArray(errors) && errors.length > 0) {
-        errors.forEach(err => {
-          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
-          toast.error(message);
-        });
-      } else if (errorMessage && errorMessage !== "Failed to save sheet") {
-        toast.error(errorMessage);
-      } else {
-        toast.error("Failed to save sheet. Please check all fields are valid.");
-      }
+      toast.error("Failed to update entry");
     }
-  }, [sheetId, editSheet, router, loadSheetData]);
+  };
 
-  // Handle Update Entry
-  const handleUpdateEntry = useCallback(async (entryId, field, value) => {
-    try {
-      const entryToUpdate = entries.find((e) => e.id === entryId);
-      if (!entryToUpdate) return;
-
-      // Validate numeric fields to ensure they're >= 0
-      if (["rateCbmWeight", "cbmKg", "dutyFvb", "paid"].includes(field)) {
-        const numValue = parseFloat(value) || 0;
-        if (numValue < 0) {
-          return toast.error(`${field} must be greater than or equal to 0`);
-        }
-      }
-
-      const updateData = { ...entryToUpdate, [field]: value };
-
-      // Recalculate total if relevant fields changed
-      if (field === "rateCbmWeight" || field === "cbmKg" || field === "dutyFvb") {
-        const rateCbmWeight = field === "rateCbmWeight" ? parseFloat(value) || 0 : entryToUpdate.rateCbmWeight || 0;
-        const cbmKg = field === "cbmKg" ? parseFloat(value) || 0 : entryToUpdate.cbmKg || 0;
-        const dutyFvb = field === "dutyFvb" ? parseFloat(value) || 0 : entryToUpdate.dutyFvb || 0;
-        updateData.total = rateCbmWeight + cbmKg + dutyFvb;
-      }
-
-      // Handle number fields
-      if (["rateCbmWeight", "cbmKg", "dutyFvb", "paid"].includes(field)) {
-        updateData[field] = parseFloat(value) || 0;
-      }
-
-      // Recalculate balance
-      updateData.balance = (updateData.total || 0) - (updateData.paid || 0);
-
-      await kavyaAPI.updateEntry(entryId, updateData);
-
-      setEntries((prev) =>
-        prev.map((e) => (e.id === entryId ? { ...e, ...updateData } : e))
-      );
-
-      toast.success("Entry updated");
-      loadSheetData();
-    } catch (error) {
-      console.error("Update entry error:", error);
-      const responseData = error.response?.data || error.data || {};
-      const errorMessage = responseData.message || error.message || "Failed to update entry";
-      const errors = responseData.errors || [];
-
-      if (errors && Array.isArray(errors) && errors.length > 0) {
-        errors.forEach(err => {
-          const message = err.message || (err.field ? `${err.field}: Invalid value` : "Validation error");
-          toast.error(message);
-        });
-      } else if (errorMessage && errorMessage !== "Failed to update entry") {
-        toast.error(errorMessage);
-      } else {
-        toast.error("Failed to update entry. Please check all fields are valid.");
-      }
-    }
-  }, [entries, loadSheetData]);
-
-  // Handle Delete Entry
-  const handleDeleteEntry = useCallback(async (entryId) => {
-    if (!confirm("Are you sure you want to delete this entry?")) return;
-
+  const handleDeleteEntry = async (entryId) => {
+    if (!confirm("Delete this entry?")) return;
     try {
       await kavyaAPI.deleteEntry(entryId);
       toast.success("Entry deleted");
-      loadEntries();
-      loadSheetData();
+      setEntries(prev => prev.filter(e => e.id !== entryId));
     } catch (error) {
-      toast.error(error.message || "Failed to delete entry");
+      toast.error("Failed to delete entry");
     }
-  }, [loadEntries, loadSheetData]);
+  };
+
+  const stats = useMemo(() => {
+    const totals = entries.reduce((acc, curr) => {
+      acc.rateCbmWeight += parseFloat(curr.rateCbmWeight) || 0;
+      acc.cbmKg += parseFloat(curr.cbmKg) || 0;
+      acc.dutyFvb += parseFloat(curr.dutyFvb) || 0;
+      acc.total += parseFloat(curr.total) || 0;
+      acc.paid += parseFloat(curr.paid) || 0;
+      return acc;
+    }, { rateCbmWeight: 0, cbmKg: 0, dutyFvb: 0, total: 0, paid: 0 });
+
+    const balance = totals.total - totals.paid;
+    const finalBalance = (parseFloat(editSheet.openingBalance) || 0) + balance;
+
+    return { ...totals, balance, finalBalance };
+  }, [entries, editSheet.openingBalance]);
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Escape to go back
+    const onKeyDown = (e) => {
       if (e.key === "Escape") {
-        router.push("/dashboard/accounts");
-        return;
-      }
-
-      // Ctrl+S to save
-      if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-
-        const target = e.target;
-        const isInEntriesTable = target.closest("table");
-
-        if (isInEntriesTable) {
-          // Detect if we are in the "New Entry" row
-          const isNewEntry = target.closest('tr')?.classList.contains('bg-pink-50/30') ||
-            target.placeholder === "Search Container..." ||
-            target.placeholder === "Mark";
-
-          if (isNewEntry && (entry.containerCode || entry.particular)) {
-            handleAddEntry();
-            return;
-          }
-        }
-
-        // If not adding a new entry, trigger sheet save
-        // This handles both creating a new sheet and updating existing sheet info
+        router.push("/dashboard/accounts");
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
         handleSaveSheet();
       }
     };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editSheet, isSaving]);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [sheetId, sheet, editSheet, entry, handleSaveSheet, handleAddEntry, router]);
-
-
-
-
-
-  // Calculate totals
-  const totals = useMemo(() => {
-    if (!sheet) {
-      return {
-        totalRateCbmWeight: 0,
-        totalCbmKg: 0,
-        totalDutyFvb: 0,
-        totalPayable: 0,
-        totalPaid: 0,
-        totalBalance: 0,
-      };
-    }
-
-    const totalRateCbmWeight = entries.reduce((sum, e) => sum + (e.rateCbmWeight || 0), 0);
-    const totalCbmKg = entries.reduce((sum, e) => sum + (e.cbmKg || 0), 0);
-    const totalDutyFvb = entries.reduce((sum, e) => sum + (e.dutyFvb || 0), 0);
-    const totalPayable = entries.reduce((sum, e) => sum + (e.total || 0), 0);
-    const totalPaid = entries.reduce((sum, e) => sum + (e.paid || 0), 0);
-    const totalBalance = totalPayable - totalPaid;
-
-    return {
-      totalRateCbmWeight,
-      totalCbmKg,
-      totalDutyFvb,
-      totalPayable,
-      totalPaid,
-      totalBalance,
-    };
-  }, [entries, sheet]);
-
-  // Get unique containers for filter
-  const containers = useMemo(() => {
-    const unique = [...new Set(entries.map((e) => e.containerCode).filter(Boolean))];
-    return unique.sort();
-  }, [entries]);
-
-  // Final balance (opening balance + balance)
-  const finalBalance = useMemo(() => {
-    const openingBalance = sheet?.openingBalance || 0;
-    return openingBalance + totals.totalBalance;
-  }, [sheet, totals.totalBalance]);
-
-  if (loading && !sheet) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading sheet...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push("/dashboard/accounts")}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-slate-600" />
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">
-                  {sheet?.title || editSheet.title || "New Sheet"}
-                </h1>
-                {sheet && (
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {sheet.description || "Kavya Account Sheet"}
-                  </p>
-                )}
-              </div>
+    <div className="min-h-screen bg-white">
+      {/* Top Bar */}
+      <div className="border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="max-w-[1800px] mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/dashboard/accounts" className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </Link>
+          <div className="flex items-center gap-3">
+             <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider hidden sm:inline">
+              Ctrl+S Save · Esc Back
+            </span>
+            <button
+              onClick={() => setIsPreviewOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 text-sm font-medium"
+            >
+              <Eye className="w-4 h-4" /> Preview
+            </button>
+            <button
+              onClick={handleSaveSheet}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold shadow-md transition-all disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Indigo Banner */}
+      <div className="bg-indigo-600 text-white py-10">
+        <div className="max-w-[1800px] mx-auto px-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-3xl font-black uppercase tracking-tight">
+              {sheet?.title || "Kavya Account"}
+            </h1>
+            <p className="text-indigo-100 text-sm font-medium">
+              Manage containers, shipping marks, and payments for Kavya account.
+            </p>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="bg-indigo-700/50 rounded-lg px-3 py-2 flex items-center gap-3 border border-indigo-500/30">
+              <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider whitespace-nowrap">Title:</span>
+              <input
+                className="bg-transparent border-0 outline-none text-sm font-bold uppercase w-64 placeholder:text-indigo-400"
+                value={editSheet.title}
+                onChange={(e) => setEditSheet({ ...editSheet, title: e.target.value })}
+                placeholder="SHEET TITLE..."
+              />
             </div>
-            <div className="flex items-center gap-2">
-              {sheet && !sheet.isLocked && (
-                <>
-                  <button
-                    onClick={() => setIsPreviewOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 font-medium text-sm shadow-sm"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Preview
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditingSheet(true);
-                      setEditSheet({
-                        title: sheet.title,
-                        description: sheet.description || "",
-                        tags: sheet.tags || [],
-                        isLocked: sheet.isLocked || false,
-                        status: sheet.status,
-                        openingBalance: sheet.openingBalance || 0,
-                      });
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 font-medium text-sm"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit Sheet
-                  </button>
-                </>
-              )}
+            <div className="bg-indigo-700/50 rounded-lg px-3 py-2 flex items-center gap-3 border border-indigo-500/30">
+              <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider whitespace-nowrap">Opening Bal:</span>
+              <input
+                type="number"
+                className="bg-transparent border-0 outline-none text-sm font-bold w-32 placeholder:text-indigo-400"
+                value={editSheet.openingBalance}
+                onChange={(e) => setEditSheet({ ...editSheet, openingBalance: e.target.value })}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Sheet Info Form (Only for new or edit mode) */}
-      {
-        (sheetId === "new" || isEditingSheet) && (
-          <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8">
-              <h2 className="text-xl font-bold text-slate-900 mb-6">
-                {sheetId === "new" ? "Sheet Information" : "Edit Sheet Details"}
-              </h2>
+      {/* Stats Summary */}
+      <div className="max-w-[1800px] mx-auto px-6 -mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 z-20 relative">
+        <div className="bg-white p-5 rounded-xl shadow-lg border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Amount</div>
+            <div className="text-xl font-black text-slate-900">₹{stats.total.toLocaleString("en-IN")}</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-lg border border-slate-100">
+            <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Total Paid</div>
+            <div className="text-xl font-black text-emerald-600">₹{stats.paid.toLocaleString("en-IN")}</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-lg border border-slate-100">
+            <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Sheet Balance</div>
+            <div className="text-xl font-black text-indigo-600">₹{stats.balance.toLocaleString("en-IN")}</div>
+        </div>
+        <div className="bg-amber-500 p-5 rounded-xl shadow-lg border border-amber-400 text-white">
+            <div className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-1">Final Balance</div>
+            <div className="text-xl font-black">₹{stats.finalBalance.toLocaleString("en-IN")}</div>
+        </div>
+      </div>
 
-              <form onSubmit={handleSaveSheet} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 block">
-                      Sheet Title *
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-bold text-slate-900"
-                      value={editSheet.title}
-                      onChange={(e) =>
-                        setEditSheet({ ...editSheet, title: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
+      {/* Table Section */}
+      <div className="max-w-[1800px] mx-auto px-6 py-8 overflow-x-auto">
+        <table className="w-full border-collapse text-sm" style={{ minWidth: "1600px" }}>
+          <thead>
+            <tr className="bg-amber-200 text-slate-900 border border-slate-300">
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-12">SR</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-40">Cont. Code</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-32">Loading</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-32">Delivery</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-40">Ship. Mark</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Particular</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-32 bg-indigo-50/50">Rate-CBM/WT</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-28 bg-indigo-50/50">CBM/KG</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-28 bg-indigo-50/50 text-indigo-800">Duty-FVB</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-32 bg-slate-100">Total</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-32 bg-emerald-50/50 text-emerald-800">Paid</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-32">Pay Date</th>
+              <th className="border border-slate-300 px-2 py-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white">
+            {/* Opening Balance Row */}
+            <tr className="bg-slate-50 border-b border-slate-200 italic text-slate-500">
+                <td className="border border-slate-200 px-3 py-2 text-center">-</td>
+                <td className="border border-slate-200 px-3 py-2 font-bold uppercase" colSpan="4">Opening Balance</td>
+                <td className="border border-slate-200 px-3 py-2"></td>
+                <td className="border border-slate-200 px-3 py-2"></td>
+                <td className="border border-slate-200 px-3 py-2"></td>
+                <td className="border border-slate-200 px-3 py-2"></td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono font-bold text-slate-900">
+                    {parseFloat(editSheet.openingBalance || 0).toLocaleString("en-IN")}
+                </td>
+                <td className="border border-slate-200 px-3 py-2" colSpan="3"></td>
+            </tr>
 
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 block">
-                      Opening Balance
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-bold text-slate-900"
-                      value={editSheet.openingBalance}
-                      onChange={(e) =>
-                        setEditSheet({
-                          ...editSheet,
-                          openingBalance: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 block">
-                    Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-medium text-slate-900"
-                    placeholder="Add a description for this sheet..."
-                    value={editSheet.description}
-                    onChange={(e) =>
-                      setEditSheet({ ...editSheet, description: e.target.value })
-                    }
+            {entries.map((row, idx) => (
+              <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
+                <td className="border border-slate-200 px-3 py-1.5 text-center text-slate-400 font-medium">
+                  {idx + 1}
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 outline-none py-0.5 font-bold text-slate-800 uppercase"
+                    value={row.containerCode || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "containerCode", e.target.value)}
                   />
-                </div>
-
-                <div className="flex gap-4 pt-4">
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-600"
+                    value={row.loadingDate ? new Date(row.loadingDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "loadingDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-600"
+                    value={row.deliveryDate ? new Date(row.deliveryDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "deliveryDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-slate-700 font-medium"
+                    placeholder="Mark"
+                    value={row.shippingMark || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "shippingMark", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-slate-700"
+                    placeholder="Particulars"
+                    value={row.particular || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "particular", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-mono"
+                    value={row.rateCbmWeight || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "rateCbmWeight", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-mono"
+                    value={row.cbmKg || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "cbmKg", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-mono text-indigo-700"
+                    value={row.dutyFvb || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "dutyFvb", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right bg-slate-50 font-black font-mono text-slate-900">
+                  {(parseFloat(row.total) || 0).toLocaleString("en-IN")}
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right bg-emerald-50/20">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-mono font-bold text-emerald-700"
+                    value={row.paid || ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "paid", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-600"
+                    value={row.paymentDate ? new Date(row.paymentDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleUpdateEntry(row.id, "paymentDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-center">
                   <button
-                    type="button"
-                    onClick={() => {
-                      if (sheetId === "new") {
-                        router.push("/dashboard/accounts/kavya");
-                      } else {
-                        setIsEditingSheet(false);
-                        setEditSheet({
-                          title: sheet.title,
-                          description: sheet.description || "",
-                          tags: sheet.tags || [],
-                          isLocked: sheet.isLocked || false,
-                          status: sheet.status,
-                          openingBalance: sheet.openingBalance || 0,
-                        });
-                      }
-                    }}
-                    className="flex-1 py-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 font-bold uppercase text-[10px] tracking-widest"
+                    onClick={() => handleDeleteEntry(row.id)}
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors"
                   >
-                    Cancel
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-4 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 font-bold uppercase text-[10px] tracking-widest"
-                  >
-                    {sheetId === "new" ? "Create Sheet" : "Save Changes"}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 text-center mt-4 flex items-center justify-center gap-4">
-                  <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">S</kbd> to save</span>
-                  <span><kbd className="px-2 py-1 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">Esc</kbd> to go back</span>
-                </p>
-              </form>
-            </div>
-          </div>
-        )
-      }
+                </td>
+              </tr>
+            ))}
 
-      {/* Only show entries if not in create mode */}
-      {
-        sheetId !== "new" && !sheet?.isLocked && (
-          <div className="max-w-7xl mx-auto px-4 py-6">
-            {/* Filters */}
-            <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 p-4 mb-8 shadow-sm">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search by container code, shipping mark, or particular..."
-                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-medium text-slate-600"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-                </div>
+            {/* New Entry Row */}
+            <tr className="bg-indigo-50/30 border-t-2 border-indigo-200">
+              <td className="border border-slate-200 px-3 py-2 text-center">
+                <PlusCircle className="w-4 h-4 text-indigo-400 mx-auto" />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs font-bold uppercase"
+                  placeholder="CONT CODE"
+                  value={newEntry.containerCode}
+                  onChange={(e) => setNewEntry({ ...newEntry, containerCode: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddEntry()}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-indigo-200 rounded px-1 py-1 text-[10px]"
+                  value={newEntry.loadingDate}
+                  onChange={(e) => setNewEntry({ ...newEntry, loadingDate: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-indigo-200 rounded px-1 py-1 text-[10px]"
+                  value={newEntry.deliveryDate}
+                  onChange={(e) => setNewEntry({ ...newEntry, deliveryDate: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs"
+                  placeholder="MARK"
+                  value={newEntry.shippingMark}
+                  onChange={(e) => setNewEntry({ ...newEntry, shippingMark: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs"
+                  placeholder="PARTICULAR"
+                  value={newEntry.particular}
+                  onChange={(e) => setNewEntry({ ...newEntry, particular: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs text-right"
+                  placeholder="0"
+                  value={newEntry.rateCbmWeight}
+                  onChange={(e) => setNewEntry({ ...newEntry, rateCbmWeight: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs text-right"
+                  placeholder="0"
+                  value={newEntry.cbmKg}
+                  onChange={(e) => setNewEntry({ ...newEntry, cbmKg: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs text-right text-indigo-700 font-bold"
+                  placeholder="0"
+                  value={newEntry.dutyFvb}
+                  onChange={(e) => setNewEntry({ ...newEntry, dutyFvb: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2 text-right font-black text-slate-400">
+                ADD
+              </td>
+              <td className="border border-slate-200 px-3 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-indigo-200 rounded px-2 py-1 text-xs text-right text-emerald-700 font-bold"
+                  placeholder="0"
+                  value={newEntry.paid}
+                  onChange={(e) => setNewEntry({ ...newEntry, paid: e.target.value })}
+                />
+              </td>
+              <td className="border border-slate-200 px-3 py-2" colSpan="2">
+                <button
+                  onClick={handleAddEntry}
+                  className="w-full py-1 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-1"
+                >
+                  <PlusCircle className="w-3 h-3" /> ADD ENTRY
+                </button>
+              </td>
+            </tr>
+          </tbody>
+          {/* Footer Totals */}
+          <tfoot>
+            <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+              <td colSpan="6" className="border border-slate-300 px-3 py-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">
+                GRAND TOTAL
+              </td>
+              <td className="border border-slate-300 px-3 py-3 text-right font-mono">
+                {stats.rateCbmWeight.toLocaleString("en-IN")}
+              </td>
+              <td className="border border-slate-300 px-3 py-3 text-right font-mono">
+                {stats.cbmKg.toLocaleString("en-IN")}
+              </td>
+              <td className="border border-slate-300 px-3 py-3 text-right font-mono text-indigo-700">
+                {stats.dutyFvb.toLocaleString("en-IN")}
+              </td>
+              <td className="border border-slate-300 px-3 py-3 text-right font-black font-mono text-lg text-slate-900">
+                ₹{stats.total.toLocaleString("en-IN")}
+              </td>
+              <td className="border border-slate-300 px-3 py-3 text-right font-black font-mono text-lg text-emerald-700">
+                ₹{stats.paid.toLocaleString("en-IN")}
+              </td>
+              <td colSpan="2" className="border border-slate-300 bg-white"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
-                <div className="flex gap-3">
-                  <select
-                    className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-medium text-slate-600"
-                    value={containerFilter}
-                    onChange={(e) => setContainerFilter(e.target.value)}
-                  >
-                    <option value="">All Containers</option>
-                    {containers.map((container) => (
-                      <option key={container} value={container}>
-                        {container}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Totals Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <span className="text-[10px] font-semibold uppercase text-slate-400 tracking-widest block mb-2">
-                  Opening Balance
-                </span>
-                <div className="text-2xl font-bold text-slate-900">
-                  ₹{(sheet?.openingBalance || 0).toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <span className="text-[10px] font-semibold uppercase text-slate-400 tracking-widest block mb-2">
-                  Total Amount
-                </span>
-                <div className="text-2xl font-bold text-slate-900">
-                  ₹{totals.totalPayable.toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <span className="text-[10px] font-semibold uppercase text-emerald-500/60 tracking-widest block mb-2">
-                  Total Paid
-                </span>
-                <div className="text-2xl font-bold text-emerald-600">
-                  ₹{totals.totalPaid.toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-200 bg-amber-50/30">
-                <span className="text-[10px] font-semibold uppercase text-amber-500/60 tracking-widest block mb-2">
-                  Final Balance
-                </span>
-                <div className="text-2xl font-bold text-amber-600">
-                  ₹{finalBalance.toLocaleString()}
-                </div>
-              </div>
-            </div>
-
-            {/* Entries Table */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              {/* Keyboard shortcuts hint */}
-              <div className="px-6 py-3 bg-pink-50/50 border-b border-pink-100">
-                <p className="text-xs text-slate-600 flex items-center gap-4 flex-wrap">
-                  <span className="font-medium">Shortcuts:</span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Tab</kbd>
-                    <span className="text-slate-400">Navigate</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">S</kbd>
-                    <span className="text-slate-400">Save/Add</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono text-[10px]">Esc</kbd>
-                    <span className="text-slate-400">Go back</span>
-                  </span>
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50/50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '50px' }}>
-                        SR
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '120px' }}>
-                        CONT CODE
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '120px' }}>
-                        LOADING DATE
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '120px' }}>
-                        DLY DATE
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '120px' }}>
-                        SHIPPING MARK
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '200px' }}>
-                        PARTICULARS
-                      </th>
-                      <th className="px-3 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '100px' }}>
-                        RATE-CBM/WT
-                      </th>
-                      <th className="px-3 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '80px' }}>
-                        CBM/KG
-                      </th>
-                      <th className="px-3 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '80px' }}>
-                        DUTY-FVB
-                      </th>
-                      <th className="px-3 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '100px' }}>
-                        TOTAL
-                      </th>
-                      <th className="px-3 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '100px' }}>
-                        PAID
-                      </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '120px' }}>
-                        DATE
-                      </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest" style={{ minWidth: '60px' }}>
-                        ACTION
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {/* Opening Balance Row */}
-                    {sheet && (
-                      <tr className="bg-slate-50/50 font-semibold">
-                        <td className="px-3 py-3 text-center text-slate-400">-</td>
-                        <td className="px-3 py-3 text-slate-700" colSpan="4">OPENING BALANCE</td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">
-                          ₹{(sheet.openingBalance || 0).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3"></td>
-                      </tr>
-                    )}
-
-                    {entries.map((row, index) => (
-                      <tr key={row.id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-3 py-3 text-center text-slate-400 font-medium text-xs">
-                          {index + 1}
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none font-semibold text-slate-800 text-sm"
-                            value={row.containerCode || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "containerCode", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="date"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-xs font-medium text-slate-600"
-                            value={
-                              row.loadingDate
-                                ? new Date(row.loadingDate).toISOString().split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "loadingDate", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="date"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-xs font-medium text-slate-600"
-                            value={
-                              row.deliveryDate
-                                ? new Date(row.deliveryDate).toISOString().split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "deliveryDate", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none font-medium text-slate-600 text-sm"
-                            placeholder="Mark"
-                            value={row.shippingMark || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "shippingMark", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none font-medium text-slate-600 text-sm"
-                            placeholder="Particulars"
-                            value={row.particular || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "particular", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-right font-medium text-slate-600 text-sm"
-                            value={row.rateCbmWeight || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "rateCbmWeight", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-right font-medium text-slate-600 text-sm"
-                            value={row.cbmKg || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "cbmKg", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-right font-medium text-slate-600 text-sm"
-                            value={row.dutyFvb || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "dutyFvb", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">
-                          ₹{(row.total || 0).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-full px-2 py-1.5 rounded-lg border border-emerald-50 bg-emerald-50/20 hover:border-emerald-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/5 outline-none text-right font-bold text-emerald-600 text-sm"
-                            value={row.paid || ""}
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "paid", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            type="date"
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-100 bg-transparent hover:border-slate-200 focus:border-pink-400 focus:bg-white focus:ring-4 focus:ring-pink-500/5 outline-none text-xs font-medium text-slate-600"
-                            value={
-                              row.paymentDate
-                                ? new Date(row.paymentDate).toISOString().split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              handleUpdateEntry(row.id, "paymentDate", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            onClick={() => handleDeleteEntry(row.id)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {/* Totals Row */}
-                    <tr className="bg-slate-100 font-bold border-t-2 border-slate-200">
-                      <td className="px-3 py-3 text-slate-700" colSpan="6">
-                        TOTAL
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-900">
-                        ₹{totals.totalRateCbmWeight.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-900">
-                        {totals.totalCbmKg.toFixed(3)}
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-900">
-                        ₹{totals.totalDutyFvb.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-900">
-                        ₹{totals.totalPayable.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right text-emerald-600">
-                        ₹{totals.totalPaid.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3"></td>
-                      <td className="px-3 py-3"></td>
-                    </tr>
-
-                    {/* Balance Row */}
-                    <tr className="bg-amber-50/50 font-bold">
-                      <td className="px-3 py-3 text-right text-slate-700" colSpan="10">
-                        BALANCE
-                      </td>
-                      <td className="px-3 py-3 text-right text-amber-600">
-                        ₹{finalBalance.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3"></td>
-                      <td className="px-3 py-3"></td>
-                    </tr>
-
-                    {/* New Entry Row */}
-                    <tr className="bg-pink-50/30 border-t-2 border-pink-100">
-                      <td className="px-3 py-4 text-center text-pink-400 font-bold">
-                        +
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-bold text-slate-900 text-sm"
-                          placeholder="Container Code"
-                          value={entry.containerCode}
-                          onChange={(e) =>
-                            setEntry({ ...entry, containerCode: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={1}
-                          autoFocus
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-xs font-medium text-slate-700"
-                          value={entry.loadingDate}
-                          onChange={(e) =>
-                            setEntry({ ...entry, loadingDate: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={2}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-xs font-medium text-slate-700"
-                          value={entry.deliveryDate}
-                          onChange={(e) =>
-                            setEntry({ ...entry, deliveryDate: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={3}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-medium text-slate-700 text-sm"
-                          placeholder="Shipping Mark"
-                          value={entry.shippingMark}
-                          onChange={(e) =>
-                            setEntry({ ...entry, shippingMark: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={4}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none font-medium text-slate-700 text-sm"
-                          placeholder="Particulars"
-                          value={entry.particular}
-                          onChange={(e) =>
-                            setEntry({ ...entry, particular: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={5}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-right font-medium text-slate-700 text-sm"
-                          placeholder="0"
-                          value={entry.rateCbmWeight}
-                          onChange={(e) =>
-                            setEntry({ ...entry, rateCbmWeight: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={6}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="number"
-                          step="0.001"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-right font-medium text-slate-700 text-sm"
-                          placeholder="0"
-                          value={entry.cbmKg}
-                          onChange={(e) =>
-                            setEntry({ ...entry, cbmKg: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={7}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-right font-medium text-slate-700 text-sm"
-                          placeholder="0"
-                          value={entry.dutyFvb}
-                          onChange={(e) =>
-                            setEntry({ ...entry, dutyFvb: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={8}
-                        />
-                      </td>
-                      <td className="px-3 py-4 text-right">
-                        <div className="text-sm font-black text-slate-900">
-                          ₹{entry.total.toLocaleString()}
-                        </div>
-                        <div className="text-[10px] font-bold text-pink-400 uppercase tracking-tighter mt-1">
-                          Auto
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/50 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/5 outline-none text-right font-black text-emerald-600 text-sm"
-                          placeholder="0"
-                          value={entry.paid}
-                          onChange={(e) =>
-                            setEntry({ ...entry, paid: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={9}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white focus:ring-4 focus:ring-pink-500/5 focus:border-pink-400 outline-none text-xs font-medium text-slate-700"
-                          value={entry.paymentDate}
-                          onChange={(e) =>
-                            setEntry({ ...entry, paymentDate: e.target.value })
-                          }
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEntry(e);
-                            }
-                          }}
-                          tabIndex={10}
-                        />
-                      </td>
-                      <td className="px-3 py-4 text-center">
-                        <button
-                          onClick={handleAddEntry}
-                          className="p-2 bg-pink-600 text-white rounded-xl hover:bg-pink-700 shadow-lg transition-all active:scale-90"
-                          title="Add Entry"
-                        >
-                          <PlusCircle className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {/* Locked Sheet Message */}
-      {
-        sheet?.isLocked && (
-          <div className="max-w-7xl mx-auto px-6 py-12">
-            <div className="bg-white border border-slate-100 rounded-3xl p-12 text-center shadow-xl">
-              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-100">
-                <Lock className="w-10 h-10 text-amber-500" />
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-3">
-                Sheet is Locked
-              </h3>
-              <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                This sheet has been locked to prevent further edits. You can view
-                the entries but cannot modify them.
-              </p>
-              <button
-                onClick={() => router.push("/dashboard/accounts/kavya")}
-                className="bg-slate-900 text-white px-8 py-4 rounded-2xl hover:bg-slate-800 font-bold uppercase text-[10px] tracking-widest transition-all shadow-xl"
-              >
-                Back to Sheets
-              </button>
-            </div>
-          </div>
-        )
-      }
-      {/* Preview Modal */}
       <KavyaPreviewModal
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         sheet={sheet}
         entries={entries}
-        totals={totals}
-        finalBalance={finalBalance}
+        totals={stats}
+        finalBalance={stats.finalBalance}
       />
-    </div >
+    </div>
   );
 }
