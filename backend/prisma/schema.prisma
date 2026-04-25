@@ -628,14 +628,6 @@ model ContainerInSummary {
   cellStyles       Json?
   sims             String?
   pims             String?
-  
-  // New Fields
-  invoiceNo    String?
-  invoiceDate  DateTime?
-  location     String?
-  deliveryDate DateTime?
-  shipper      String?
-  workflowStatus String? // WHATSAPP, MAIL, SIMS, PIMS, CHECKLIST, LOADING SHEET, BIFURCATION, PACKING LIST, INVOICE, BOE, DUTY CALCULATOR, PURCHASE SELL, WAREHOUSE PLAN, ACCOUNT
 
   isActive Boolean @default(true)
 

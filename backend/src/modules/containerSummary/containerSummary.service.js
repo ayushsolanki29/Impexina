@@ -103,13 +103,6 @@ const containerSummaryService = {
                 sims: container.sims || "",
                 pims: container.pims || "",
                 cellStyles: container.cellStyles || {},
-                // New Fields
-                invoiceNo: container.invoiceNo || "",
-                invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
-                location: container.location || "",
-                deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
-                shipper: container.shipper || "",
-                workflowStatus: container.workflowStatus || "",
                 isActive: container.isActive !== false,
               };
             }),
@@ -237,9 +230,6 @@ const containerSummaryService = {
           { bl: { contains: search, mode: "insensitive" } },
           { containerNoField: { contains: search, mode: "insensitive" } },
           { shippingLine: { contains: search, mode: "insensitive" } },
-          { invoiceNo: { contains: search, mode: "insensitive" } },
-          { shipper: { contains: search, mode: "insensitive" } },
-          { location: { contains: search, mode: "insensitive" } },
           { summary: { month: { contains: search, mode: "insensitive" } } },
         ];
       }
@@ -642,13 +632,6 @@ const containerSummaryService = {
               sims: container.sims || "",
               pims: container.pims || "",
               cellStyles: container.cellStyles || {},
-              // New Fields
-              invoiceNo: container.invoiceNo || "",
-              invoiceDate: container.invoiceDate ? new Date(container.invoiceDate) : null,
-              location: container.location || "",
-              deliveryDate: container.deliveryDate ? new Date(container.deliveryDate) : null,
-              shipper: container.shipper || "",
-              workflowStatus: container.workflowStatus || "",
               isActive: container.isActive !== false,
             };
           }),

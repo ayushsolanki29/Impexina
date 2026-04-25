@@ -67,7 +67,6 @@ const EMPTY_CONTAINER = {
     deliveryDate: "",
     workflowStatus: "",
     sims: "",
-    pims: "",
     cellStyles: {},
 };
 
@@ -409,14 +408,7 @@ export default function ContainerSummaryForm({
                     doCharge: Number(c.doCharge) || 0,
                     cfs: Number(c.cfs) || 0,
                     origin: String(c.origin || ""),
-                    location: String(c.location || ""),
-                    shipper: String(c.shipper || ""),
-                    invoiceNo: String(c.invoiceNo || ""),
-                    invoiceDate: c.invoiceDate || null,
-                    deliveryDate: c.deliveryDate || null,
-                    workflowStatus: String(c.workflowStatus || ""),
                     sims: String(c.sims || ""),
-                    pims: String(c.pims || ""),
                     isActive: c.isActive !== false,
                 }))
             };
@@ -766,8 +758,6 @@ export default function ContainerSummaryForm({
                             >
                                 <option value="loadingDate">Loading</option>
                                 <option value="eta">ETA</option>
-                                <option value="invoiceDate">Invoice</option>
-                                <option value="deliveryDate">Delivery</option>
                                 <option value="createdAt">Created</option>
                             </select>
                             <input
@@ -851,12 +841,6 @@ export default function ContainerSummaryForm({
                                         { label: 'BL Doc', field: 'bl', width: 'min-w-[120px]' },
                                         { label: 'Container No.', field: 'containerNo', width: 'min-w-[120px]' },
                                         { label: 'Origin Port', field: 'origin', width: 'min-w-[130px] text-blue-600 font-bold' },
-                                        { label: 'Location', field: 'location', width: 'min-w-[130px]' },
-                                        { label: 'Shipper', field: 'shipper', width: 'min-w-[150px]' },
-                                        { label: 'Inv No', field: 'invoiceNo', width: 'min-w-[130px]' },
-                                        { label: 'Inv Date', field: 'invoiceDate', width: 'min-w-[120px]' },
-                                        { label: 'Delivery', field: 'deliveryDate', width: 'min-w-[120px]' },
-                                        { label: 'Work Status', field: 'workflowStatus', width: 'min-w-[150px]' },
                                     ].map((h, i) => (
                                         <th
                                             key={i}
@@ -869,17 +853,10 @@ export default function ContainerSummaryForm({
                                     ))}
                                     <th
                                         onContextMenu={(e) => handleContextMenu(e, 'sims')}
-                                        className="px-5 py-4 text-blue-600 border-r border-slate-200 min-w-[130px] font-bold text-left uppercase tracking-widest cursor-default select-none"
+                                        className="px-5 py-4 text-blue-600 border-r border-slate-200 min-w-[160px] font-bold text-left uppercase tracking-widest cursor-default select-none"
                                         style={getStyleForField('sims')}
                                     >
-                                        SIMS
-                                    </th>
-                                    <th
-                                        onContextMenu={(e) => handleContextMenu(e, 'pims')}
-                                        className="px-5 py-4 text-purple-600 border-r border-slate-200 min-w-[130px] font-bold text-left uppercase tracking-widest cursor-default select-none"
-                                        style={getStyleForField('pims')}
-                                    >
-                                        PIMS
+                                        SIMS / PIMS
                                     </th>
                                     {(isEdit || isCreate) && <th className="px-2 py-4 w-12 text-center bg-slate-50"></th>}
                                 </tr>
@@ -1047,45 +1024,15 @@ export default function ContainerSummaryForm({
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'origin', idx)} style={getStyleForCell(idx, 'origin')}>
                                                 <input id={`cs-cell-${idx}-origin`} className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase" value={c.origin || ""} placeholder="ORIGIN" onChange={e => handleContainerChange(idx, 'origin', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'origin')} disabled={!isEdit && !isCreate} />
                                             </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'location', idx)} style={getStyleForCell(idx, 'location')}>
-                                                <input id={`cs-cell-${idx}-location`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.location || ""} placeholder="PORT" onChange={e => handleContainerChange(idx, 'location', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'location')} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'shipper', idx)} style={getStyleForCell(idx, 'shipper')}>
-                                                <input id={`cs-cell-${idx}-shipper`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.shipper || ""} placeholder="SHIPPER" onChange={e => handleContainerChange(idx, 'shipper', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'shipper')} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceNo', idx)} style={getStyleForCell(idx, 'invoiceNo')}>
-                                                <input id={`cs-cell-${idx}-invoiceNo`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600" value={c.invoiceNo || ""} placeholder="INV#" onChange={e => handleContainerChange(idx, 'invoiceNo', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'invoiceNo')} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'invoiceDate', idx)} style={getStyleForCell(idx, 'invoiceDate')}>
-                                                <input id={`cs-cell-${idx}-invoiceDate`} type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.invoiceDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'invoiceDate', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'invoiceDate')} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="px-5 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'deliveryDate', idx)} style={getStyleForCell(idx, 'deliveryDate')}>
-                                                <input id={`cs-cell-${idx}-deliveryDate`} type="date" className="bg-transparent outline-none text-slate-400 font-medium" value={c.deliveryDate?.split('T')[0] || ""} onChange={e => handleContainerChange(idx, 'deliveryDate', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'deliveryDate')} disabled={!isEdit && !isCreate} />
-                                            </td>
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'workflowStatus', idx)} style={getStyleForCell(idx, 'workflowStatus')}>
-                                                <input id={`cs-cell-${idx}-workflowStatus`} className="w-full h-10 px-5 bg-transparent outline-none font-medium text-slate-600 uppercase" value={c.workflowStatus || ""} placeholder="STATUS" onChange={e => handleContainerChange(idx, 'workflowStatus', e.target.value)} onKeyDown={e => handleInputKeyDown(e, idx, 'workflowStatus')} disabled={!isEdit && !isCreate} />
-                                            </td>
 
                                             <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'sims', idx)} style={getStyleForCell(idx, 'sims')}>
                                                 <input
                                                     id={`cs-cell-${idx}-sims`}
                                                     className="w-full h-10 px-5 bg-transparent outline-none font-bold text-blue-600 uppercase placeholder:text-slate-200"
                                                     value={c.sims || ""}
-                                                    placeholder="SIMS"
+                                                    placeholder="SIMS / PIMS"
                                                     onChange={e => handleContainerChange(idx, 'sims', e.target.value)}
                                                     onKeyDown={e => handleInputKeyDown(e, idx, 'sims')}
-                                                    disabled={!isEdit && !isCreate}
-                                                />
-                                            </td>
-
-                                            <td className="p-0 border-r border-slate-100" onContextMenu={(e) => handleContextMenu(e, 'pims', idx)} style={getStyleForCell(idx, 'pims')}>
-                                                <input
-                                                    id={`cs-cell-${idx}-pims`}
-                                                    className="w-full h-10 px-5 bg-transparent outline-none font-bold text-purple-600 uppercase placeholder:text-slate-200"
-                                                    value={c.pims || ""}
-                                                    placeholder="PIMS"
-                                                    onChange={e => handleContainerChange(idx, 'pims', e.target.value)}
-                                                    onKeyDown={e => handleInputKeyDown(e, idx, 'pims')}
                                                     disabled={!isEdit && !isCreate}
                                                 />
                                             </td>

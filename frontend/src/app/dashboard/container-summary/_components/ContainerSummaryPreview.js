@@ -1,7 +1,9 @@
 "use client";
 import React, { useState, useRef } from "react";
-import { X, Printer, Eye, EyeOff, ChevronDown, ChevronUp, Table } from "lucide-react";
+import { X, Printer, Eye, EyeOff, ChevronDown, ChevronUp, Table, Image as ImageIcon, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 /* ─── Toggleable financial columns ─────────────────────────── */
 const FINANCIAL_COLS = [
@@ -19,13 +21,6 @@ const FINANCIAL_COLS = [
 
 const TRACKING_COLS = [
     { key: "origin", label: "Origin" },
-    { key: "location", label: "Port" },
-    { key: "shipper", label: "Shipper" },
-    { key: "invoiceNo", label: "Inv No" },
-    { key: "invoiceDate", label: "Inv Date" },
-    { key: "deliveryDate", label: "Del Date" },
-    { key: "workflowStatus", label: "Status" },
-    { key: "pims", label: "PIMS" },
 ];
 
 /* ─── Helpers ───────────────────────────────────────────────── */
@@ -69,6 +64,8 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
     );
     const [showSettings, setShowSettings] = useState(true);
     const printRef = useRef(null);
+    const tableRef = useRef(null);
+    const [imgLoading, setImgLoading] = useState(false);
 
     const toSafeFileBase = (value) => {
         const raw = String(value || "")
@@ -96,7 +93,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
         { key: "bl", label: "BL", always: true },
         { key: "containerNo", label: "CONTAINER NO.", always: true },
         ...TRACKING_COLS,
-        { key: "sims", label: "SIMS", always: true },
+        { key: "sims", label: "SIMS/PIMS", always: true },
     ];
 
     const visibleCols = allCols.filter(c => c.always || visible[c.key]);
@@ -135,8 +132,6 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
             case "finalAmount": return Number(f.finalAmount) || 0;
             case "loadingDate": return c.loadingDate ? new Date(c.loadingDate).toLocaleDateString("en-GB") : "";
             case "eta": return c.eta ? new Date(c.eta).toLocaleDateString("en-GB") : "";
-            case "invoiceDate": return c.invoiceDate ? new Date(c.invoiceDate).toLocaleDateString("en-GB") : "";
-            case "deliveryDate": return c.deliveryDate ? new Date(c.deliveryDate).toLocaleDateString("en-GB") : "";
             default: return c[col.key] ?? "";
         }
     };
@@ -296,6 +291,114 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
         }
     };
 
+    /* Download as Image (PNG) — builds a fully inline-styled HTML table, no Tailwind needed */
+    const handleDownloadImage = async () => {
+        setImgLoading(true);
+        const iframe = document.createElement("iframe");
+        iframe.style.cssText = "position:fixed;left:-9999px;top:0;border:none;";
+        document.body.appendChild(iframe);
+
+        try {
+            const fileBase = toSafeFileBase(summary?.month || "Container_Summary");
+
+            // ── build inline-styled HTML ──────────────────────────────
+            const thStyle = (isRight) => `
+                padding:6px 10px;
+                background:#fde68a;
+                color:#0f172a;
+                font:700 10px/1.3 Arial,sans-serif;
+                border:1px solid #f59e0b;
+                white-space:nowrap;
+                text-transform:uppercase;
+                letter-spacing:.05em;
+                text-align:${isRight ? "right" : "left"};
+            `;
+            const tdStyle = (isRight, isBold, color, isEven) => `
+                padding:5px 10px;
+                background:${isEven ? "#f8fafc" : "#ffffff"};
+                color:${color || "#334155"};
+                font:${isBold ? "700" : "400"} 10px/1.4 Arial,sans-serif;
+                border:1px solid #e2e8f0;
+                white-space:nowrap;
+                text-align:${isRight ? "right" : "left"};
+            `;
+            const totalTdStyle = (isRight) => `
+                padding:6px 10px;
+                background:#047857;
+                color:#ffffff;
+                font:700 10px/1.3 Arial,sans-serif;
+                border:1px solid #065f46;
+                white-space:nowrap;
+                text-align:${isRight ? "right" : "left"};
+            `;
+
+            const headerHtml = visibleCols.map(col => {
+                const isRight = rightAligned.has(col.key);
+                return `<th style="${thStyle(isRight)}">${col.label}</th>`;
+            }).join("");
+
+            const rowsHtml = containers.map((c, idx) => {
+                const f = calc(c);
+                const isEven = idx % 2 === 1;
+                const cells = visibleCols.map(col => {
+                    const val = cellVal(col, c, idx);
+                    const isRight = rightAligned.has(col.key);
+                    const isBold = ["containerCode", "finalAmount", "totalDuty"].includes(col.key);
+                    const color = col.key === "finalAmount" ? "#047857"
+                        : col.key === "gst" ? "#7c3aed"
+                        : col.key === "eta" ? "#b45309"
+                        : col.key === "sims" ? "#047857"
+                        : null;
+                    return `<td style="${tdStyle(isRight, isBold, color, isEven)}">${val ?? ""}</td>`;
+                }).join("");
+                return `<tr>${cells}</tr>`;
+            }).join("");
+
+            const totalCells = visibleCols.map(col => {
+                const val = totalVal(col);
+                const isRight = rightAligned.has(col.key);
+                return `<td style="${totalTdStyle(isRight)}">${val ?? ""}</td>`;
+            }).join("");
+
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:16px;background:#fff;display:inline-block;">
+                <div style="font:700 14px/1.4 Arial,sans-serif;color:#0f172a;margin-bottom:4px;text-transform:uppercase;">${summary?.month || "Container Summary"}</div>
+                <div style="font:400 10px/1.4 Arial,sans-serif;color:#64748b;margin-bottom:12px;">Impexina Logistics · Generated ${new Date().toLocaleDateString("en-IN")}</div>
+                <table style="border-collapse:collapse;font-family:Arial,sans-serif;">
+                    <thead><tr>${headerHtml}</tr></thead>
+                    <tbody>${rowsHtml}<tr>${totalCells}</tr></tbody>
+                </table>
+            </body></html>`;
+
+            const doc = iframe.contentWindow.document;
+            doc.open(); doc.write(html); doc.close();
+
+            // wait for layout
+            await new Promise(r => setTimeout(r, 200));
+
+            const body = doc.body;
+            const w = body.scrollWidth + 32;
+            const h = body.scrollHeight + 32;
+            iframe.style.width = `${w}px`;
+            iframe.style.height = `${h}px`;
+
+            const canvas = await html2canvas(body, {
+                scale: 2, useCORS: true, backgroundColor: "#ffffff",
+                logging: false, width: w, height: h,
+                windowWidth: w, windowHeight: h,
+            });
+
+            const link = document.createElement("a");
+            link.download = `${fileBase}_${new Date().toISOString().slice(0, 10)}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        } catch (err) {
+            console.error("Image export failed:", err);
+        } finally {
+            document.body.removeChild(iframe);
+            setImgLoading(false);
+        }
+    };
+
     /* Print (invoice-style: no popup, no blank first page) */
     const handlePrint = () => {
         if (!printRef.current || typeof document === "undefined") {
@@ -358,14 +461,8 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
             case "bl": return c.bl || "";
             case "containerNo": return c.containerNo || "";
             case "origin": return c.origin || "";
-            case "location": return c.location || "";
-            case "shipper": return c.shipper || "";
-            case "invoiceNo": return c.invoiceNo || "";
-            case "invoiceDate": return fmtDate(c.invoiceDate);
-            case "deliveryDate": return fmtDate(c.deliveryDate);
-            case "workflowStatus": return c.workflowStatus || "";
             case "sims": return c.sims || "";
-            case "pims": return c.pims || "";
+            case "pims": return c.sims || ""; // merged into sims
             default: return "";
         }
     };
@@ -454,14 +551,24 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                                 Columns
                                 {showSettings ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </button>
-                            {/* Print */}
+                            {/* Excel */}
                             <button
                                 onClick={exportVisibleExcel}
                                 className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg"
                             >
                                 <Table className="w-3.5 h-3.5" />
-                                Excel (Selected)
+                                Excel
                             </button>
+                            {/* Image */}
+                            <button
+                                onClick={() => handleDownloadImage()}
+                                disabled={imgLoading}
+                                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg disabled:opacity-60"
+                            >
+                                {imgLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                                Image
+                            </button>
+                            {/* Print */}
                             <button
                                 onClick={handlePrint}
                                 className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-lg"
@@ -523,7 +630,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
 
                     {/* ── Table Preview ── */}
                     <div className="flex-1 overflow-auto bg-white">
-                        <table className="border-collapse text-[11px] w-full min-w-fit">
+                        <table ref={tableRef} className="border-collapse text-[11px] w-full min-w-fit">
                             <thead className="sticky top-0 z-10">
                                 <tr>
                                     {visibleCols.map((col, i) => (
@@ -628,7 +735,7 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
 
             <style jsx global>{`
                 @media print {
-                    @page { size: A4; margin: 8mm; }
+                    @page { size: A4 landscape; margin: 6mm; }
 
                     body.container-summary-printing > :not(#container-summary-print-root) { display: none !important; }
                     body.container-summary-printing { margin: 0 !important; padding: 0 !important; }
@@ -664,23 +771,23 @@ export default function ContainerSummaryPreview({ summary, containers, onClose }
                     body.container-summary-printing #container-summary-print-root table {
                         border-collapse: collapse;
                         width: 100%;
-                        font-size: 10px;
+                        font-size: 8px;
                     }
 
                     body.container-summary-printing #container-summary-print-root th {
                         background: #fde68a;
                         color: #0f172a;
-                        padding: 5px 8px;
+                        padding: 4px 6px;
                         border: 1px solid #f59e0b;
                         text-align: left;
                         font-weight: 700;
                         white-space: nowrap;
                         text-transform: uppercase;
-                        letter-spacing: 0.05em;
+                        letter-spacing: 0.04em;
                     }
 
                     body.container-summary-printing #container-summary-print-root td {
-                        padding: 4px 8px;
+                        padding: 3px 6px;
                         border: 1px solid #cbd5e1;
                         vertical-align: middle;
                         white-space: nowrap;

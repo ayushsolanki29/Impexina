@@ -455,7 +455,7 @@ export default function ContainerDashboard() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    {[["containerNo","#"],["month","Month"],["containerCode","Container"],["status","Status"],["loadingDate","Loading Date"],["eta","ETA"],["ctn","CTN"],["shippingLine","Shipping Line"],["dollar","Dollar"],["finalAmount","Final Amount"],["origin","Origin"],["location","Location"],["shipper","Shipper"],["invoiceNo","Invoice No"],["workflowStatus","Workflow"],["actions",""]].map(([key, label]) => (
+                    {[["containerNo","#"],["month","Month"],["containerCode","Container"],["status","Status"],["loadingDate","Loading Date"],["eta","ETA"],["ctn","CTN"],["shippingLine","Shipping Line"],["dollar","Dollar"],["finalAmount","Final Amount"],["origin","Origin"],["actions",""]].map(([key, label]) => (
                       <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
                         {key !== "actions" ? (
                           <button onClick={() => handleSort(key)} className="flex items-center gap-1 hover:text-gray-900">
@@ -486,10 +486,6 @@ export default function ContainerDashboard() {
                         <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap"><span className="flex items-center gap-1"><DollarSign className="w-3 h-3 text-emerald-600" />{fmt(c.dollar)}</span></td>
                         <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">&#8377;{fmt(c.finalAmount)}</td>
                         <td className="px-4 py-3 whitespace-nowrap"><span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">{c.origin || "N/A"}</span></td>
-                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.location || "-"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap truncate max-w-[120px]">{c.shipper || "-"}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap uppercase">{c.invoiceNo || "-"}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{c.workflowStatus ? <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-bold uppercase">{c.workflowStatus}</span> : "-"}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1">
                             <button onClick={() => toggleRowExpand(c.id)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">{expandedRows.has(c.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
@@ -513,7 +509,7 @@ export default function ContainerDashboard() {
                             </div></div>
                             <div><h4 className="font-semibold text-gray-900 mb-2">Documents</h4><div className="space-y-1.5 text-gray-600">
                               <div className="flex justify-between"><span>BL No</span><span className="font-medium text-gray-900">{c.bl || "-"}</span></div>
-                              <div className="flex justify-between"><span>SIMS</span><span className="font-medium text-gray-900">{c.sims || "-"}</span></div>
+                              <div className="flex justify-between"><span className="text-blue-600 font-semibold">SIMS/PIMS</span><span className="font-medium text-blue-600">{c.sims || "-"}</span></div>
                               <div className="flex justify-between"><span>Container No</span><span className="font-medium text-gray-900">{c.containerNoField || "-"}</span></div>
                             </div></div>
                             <div><h4 className="font-semibold text-gray-900 mb-2">Actions</h4>
@@ -562,7 +558,7 @@ export default function ContainerDashboard() {
                       <div><p className="text-xs text-gray-500 mb-0.5">Final Amount</p><p className="font-bold text-gray-900">&#8377;{fmt(c.finalAmount)}</p></div>
                     </div>
                     <div className="space-y-1.5 text-sm">
-                      {[["Origin", <span className="font-bold text-blue-600">{c.origin || "N/A"}</span>],["Location", c.location || "-"],["Invoice No", c.invoiceNo || "-"],["Shipper", c.shipper || "-"],["BL No", c.bl || "-"]].map(([label, val]) => (
+                      {[["Origin", <span className="font-bold text-blue-600">{c.origin || "N/A"}</span>],["BL No", c.bl || "-"]].map(([label, val]) => (
                         <div key={label} className="flex justify-between items-center">
                           <span className="text-gray-500">{label}</span>
                           <span className="font-medium text-gray-900 truncate max-w-[140px] text-right">{val}</span>
