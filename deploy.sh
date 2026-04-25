@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-APP_DIR="/apps/impexina"
+APP_DIR="apps/impexina"
 
 # ANSI Color Codes for better visibility
 GREEN='\033[0;32m'
