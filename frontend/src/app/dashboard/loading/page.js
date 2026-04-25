@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, Search, Calendar, MapPin, Package, Loader2, Edit2, Trash2, X,
-  ChevronsUpDown, Check, History, FileSpreadsheet
+  ChevronsUpDown, Check, History, FileSpreadsheet, FileEdit, Truck, PackageCheck,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import API from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -99,31 +100,31 @@ const Combobox = ({ value, onChange, options, placeholder, onAddNew }) => {
 
 export default function LoadingPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Read state from URL
+  const urlPage     = parseInt(searchParams.get('page')      || '1', 10);
+  const urlLimit    = parseInt(searchParams.get('limit')     || '20', 10);
+  const urlSearch   = searchParams.get('search')    || '';
+  const urlOrigin   = searchParams.get('origin')    || '';
+  const urlStart    = searchParams.get('startDate') || '';
+  const urlEnd      = searchParams.get('endDate')   || '';
+  const urlCtn      = searchParams.get('ctn')       || '';
+  const urlStatus   = searchParams.get('status')    || '';
+
   const [containers, setContainers] = useState([]);
   const [aggregates, setAggregates] = useState({ totalCTN: 0, totalCBM: 0, totalWT: 0, totalContainers: 0 });
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingContainer, setEditingContainer] = useState(null);
   const [origins, setOrigins] = useState([]);
 
-  // Pagination & Filter state
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, totalPages: 1, total: 0 });
-  const [filters, setFilters] = useState({
-    search: '',
-    origin: '',
-    startDate: '',
-    endDate: '',
-    ctn: ''
-  });
-
-  // Debounced Search
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [filters.search]);
+  // Local search input (debounced before pushing to URL)
+  const [searchInput, setSearchInput] = useState(urlSearch);
+  const searchDebounceRef = useRef(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -133,52 +134,59 @@ export default function LoadingPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Push updated params to URL
+  const pushParams = useCallback((updates) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v) params.set(k, v);
+      else params.delete(k);
+    });
+    router.push(`${pathname}?${params.toString()}`);
+  }, [searchParams, pathname, router]);
+
+  // Fetch whenever URL params change
   useEffect(() => {
     fetchContainers();
-  }, [pagination.page, debouncedSearch, filters.origin, filters.startDate, filters.endDate, filters.ctn]);
+  }, [urlPage, urlLimit, urlSearch, urlOrigin, urlStart, urlEnd, urlCtn, urlStatus]);
 
   useEffect(() => {
     fetchOrigins();
   }, []);
 
+  // Keep local search input in sync when URL changes externally
+  useEffect(() => {
+    setSearchInput(urlSearch);
+  }, [urlSearch]);
+
   const fetchOrigins = async () => {
     try {
       const response = await API.get('/containers/origins');
-      if (response.data.success) {
-        setOrigins(response.data.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch origins");
-    }
+      if (response.data.success) setOrigins(response.data.data);
+    } catch { console.error("Failed to fetch origins"); }
   };
 
   const fetchContainers = async () => {
     try {
       setLoading(true);
       const params = {
-        page: pagination.page,
-        limit: 20,
-        search: debouncedSearch,
-        origin: filters.origin,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        minCtn: filters.ctn,
-        maxCtn: filters.ctn
+        page: urlPage,
+        limit: urlLimit,
+        search: urlSearch,
+        origin: urlOrigin,
+        startDate: urlStart,
+        endDate: urlEnd,
+        minCtn: urlCtn,
+        maxCtn: urlCtn,
+        status: urlStatus,
       };
-
-      // Remove empty params
       Object.keys(params).forEach(key => !params[key] && delete params[key]);
 
       const response = await API.get('/containers', { params });
-
       if (response.data.success) {
         setContainers(response.data.data.containers || []);
-        // Safely handle aggregates if backend doesn't return them yet (backward compatibility)
         setAggregates(response.data.data.aggregates || { totalCTN: 0, totalCBM: 0, totalWT: 0, totalContainers: 0 });
-        setPagination(prev => ({
-          ...prev,
-          ...response.data.data.pagination
-        }));
+        setTotalPages(response.data.data.pagination?.totalPages || 1);
+        setTotal(response.data.data.pagination?.total || 0);
       }
     } catch (error) {
       console.error('Error fetching containers:', error);
@@ -189,28 +197,30 @@ export default function LoadingPage() {
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 on filter
+    if (key === 'search') {
+      setSearchInput(value);
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        pushParams({ search: value, page: null });
+      }, 500);
+    } else {
+      pushParams({ [key]: value, page: null });
+    }
   };
 
   const clearFilters = () => {
-    setFilters({
-      search: '',
-      origin: '',
-      startDate: '',
-      endDate: '',
-      ctn: ''
-    });
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setSearchInput('');
+    const params = new URLSearchParams();
+    if (urlLimit !== 20) params.set('limit', urlLimit);
+    router.push(`${pathname}?${params.toString()}`);
   };
+
+  const hasActiveFilters = urlSearch || urlOrigin || urlStart || urlEnd || urlCtn || urlStatus;
 
   const handleExportAll = async () => {
     try {
       toast.info("Preparing Excel export...");
-      const response = await API.get("/loading-sheets/export/all", {
-        responseType: 'blob'
-      });
-
+      const response = await API.get("/loading-sheets/export/all", { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -298,17 +308,22 @@ export default function LoadingPage() {
   };
 
   // Status Badge Helper
+  const STATUS_CONFIG = {
+    OPEN:      { label: 'Open',      icon: FileEdit,     cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    LOADED:    { label: 'Loaded',    icon: Truck,        cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    DELIVERED: { label: 'Delivered', icon: PackageCheck, cls: 'bg-green-100 text-green-700 border-green-200' },
+    // legacy fallbacks
+    DRAFT:     { label: 'Draft',     icon: FileEdit,     cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    CONFIRMED: { label: 'Confirmed', icon: Check,        cls: 'bg-green-100 text-green-700 border-green-200' },
+  };
+
   const getStatusBadge = (status) => {
-    const styles = {
-      'OPEN': 'bg-blue-100 text-blue-700 border-blue-200',
-      'CLOSED': 'bg-slate-100 text-slate-700 border-slate-200',
-      'SHIPPED': 'bg-green-100 text-green-700 border-green-200',
-      'ARRIVED': 'bg-purple-100 text-purple-700 border-purple-200'
-    };
-    const style = styles[status] || styles['OPEN'];
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['OPEN'];
+    const Icon = cfg.icon;
     return (
-      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${style}`}>
-        {status || 'OPEN'}
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${cfg.cls}`}>
+        <Icon className="w-2.5 h-2.5" />
+        {cfg.label}
       </span>
     );
   };
@@ -466,7 +481,7 @@ export default function LoadingPage() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
               <input
                 type="text"
-                value={filters.search}
+                value={searchInput}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
                 placeholder="Search container code..."
                 className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none transition-all font-medium text-slate-600 placeholder:text-slate-300"
@@ -475,7 +490,7 @@ export default function LoadingPage() {
 
             <Combobox
               options={origins}
-              value={filters.origin}
+              value={urlOrigin}
               onChange={(val) => handleFilterChange('origin', val)}
               placeholder="All Port Origins"
             />
@@ -483,14 +498,14 @@ export default function LoadingPage() {
             <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400 transition-all">
               <input
                 type="date"
-                value={filters.startDate}
+                value={urlStart}
                 onChange={(e) => handleFilterChange('startDate', e.target.value)}
                 className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
               />
               <span className="flex items-center text-slate-200 font-black">/</span>
               <input
                 type="date"
-                value={filters.endDate}
+                value={urlEnd}
                 onChange={(e) => handleFilterChange('endDate', e.target.value)}
                 className="flex-1 px-3 py-2 bg-transparent text-xs font-black text-slate-500 outline-none"
               />
@@ -500,7 +515,7 @@ export default function LoadingPage() {
               <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
               <input
                 type="number"
-                value={filters.ctn}
+                value={urlCtn}
                 onChange={(e) => handleFilterChange('ctn', e.target.value)}
                 placeholder="Search by CTN (exact match)..."
                 className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 outline-none transition-all font-medium text-slate-600 placeholder:text-slate-300"
@@ -508,7 +523,52 @@ export default function LoadingPage() {
             </div>
           </div>
 
-          {(filters.search || filters.origin || filters.startDate || filters.endDate || filters.ctn) && (
+          {/* Status Filter Pills */}
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Status:</span>
+            {[
+              { value: '', label: 'All', icon: null },
+              { value: 'OPEN', label: 'Open', icon: FileEdit, cls: 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100', activeCls: 'bg-amber-500 text-white border-amber-500' },
+              { value: 'LOADED', label: 'Loaded', icon: Truck, cls: 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100', activeCls: 'bg-blue-500 text-white border-blue-500' },
+              { value: 'DELIVERED', label: 'Delivered', icon: PackageCheck, cls: 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100', activeCls: 'bg-green-500 text-white border-green-500' },
+            ].map(({ value, label, icon: Icon, cls, activeCls }) => {
+              const isActive = urlStatus === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => handleFilterChange('status', value)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider border transition-all ${
+                    isActive
+                      ? (activeCls || 'bg-slate-800 text-white border-slate-800')
+                      : (cls || 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50')
+                  }`}
+                >
+                  {Icon && <Icon className="w-3 h-3" />}
+                  {label}
+                </button>
+              );
+            })}
+
+            {/* Per-page selector */}
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Show:</span>
+              {[10, 20, 50].map(n => (
+                <button
+                  key={n}
+                  onClick={() => pushParams({ limit: n, page: null })}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                    urlLimit === n
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {hasActiveFilters && (
             <div className="mt-4 flex justify-end">
               <button
                 onClick={clearFilters}
@@ -611,26 +671,71 @@ export default function LoadingPage() {
               ))}
             </div>
 
-            {/* Pagination Controls */}
-            {pagination.totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 pb-12">
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-1.5 pb-12 flex-wrap">
+                {/* Previous */}
                 <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-                  disabled={pagination.page === 1}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  onClick={() => pushParams({ page: Math.max(1, urlPage - 1) })}
+                  disabled={urlPage === 1}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
-                  Previous
+                  <ChevronLeft className="w-4 h-4" /> Prev
                 </button>
-                <span className="text-sm text-slate-600 font-medium px-4">
-                  Page {pagination.page} of {pagination.totalPages}
+
+                {/* Page numbers with ellipsis */}
+                {(() => {
+                  const pages = [];
+                  const delta = 2;
+                  const left = urlPage - delta;
+                  const right = urlPage + delta;
+
+                  let prev = null;
+                  for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= left && i <= right)) {
+                      if (prev !== null && i - prev > 1) {
+                        pages.push('...' + i);
+                      }
+                      pages.push(i);
+                      prev = i;
+                    }
+                  }
+
+                  return pages.map((p) => {
+                    if (typeof p === 'string') {
+                      return (
+                        <span key={p} className="px-2 py-2 text-slate-400 text-sm select-none">…</span>
+                      );
+                    }
+                    const isActive = p === urlPage;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => pushParams({ page: p })}
+                        className={`w-9 h-9 rounded-xl text-sm font-bold border transition-all ${
+                          isActive
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  });
+                })()}
+
+                {/* Next */}
+                <button
+                  onClick={() => pushParams({ page: Math.min(totalPages, urlPage + 1) })}
+                  disabled={urlPage >= totalPages}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <span className="text-xs text-slate-400 font-medium ml-2">
+                  {total} total
                 </span>
-                <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
-                  disabled={pagination.page >= pagination.totalPages}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                >
-                  Next
-                </button>
               </div>
             )}
           </>

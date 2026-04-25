@@ -20,6 +20,9 @@ import {
   ChevronDown,
   Upload,
   FileSpreadsheet,
+  FileEdit,
+  Truck,
+  PackageCheck,
 } from "lucide-react";
 import API from "@/lib/api";
 import { toast } from "sonner";
@@ -110,6 +113,8 @@ export default function LoadingSheetPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [showGlobalPreview, setShowGlobalPreview] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const statusDropdownRef = useRef(null);
   const hasUnsavedChangesRef = useRef(false);
   const saveAndLeaveRef = useRef(null);
   const leaveConfirmDialogRef = useRef(null);
@@ -143,6 +148,18 @@ export default function LoadingSheetPage() {
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, index: null });
   const sheetSort = searchParams.get("sheetSort") || "oldest";
   const sortedLoadingSheets = sortLoadingSheets(loadingSheets, sheetSort);
+
+  // Close status dropdown on outside click
+  useEffect(() => {
+    if (!showStatusDropdown) return;
+    const handleOutsideClick = (e) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target)) {
+        setShowStatusDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showStatusDropdown]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -975,6 +992,24 @@ export default function LoadingSheetPage() {
     }
   };
 
+  // Color logic for Container Status
+  const getContainerStatusStyle = (status) => {
+    switch (status) {
+      case "LOADED":
+        return "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200";
+      case "DELIVERED":
+        return "bg-green-100 text-green-800 border-green-200 hover:bg-green-200";
+      default:
+        return "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200"; // OPEN
+    }
+  };
+
+  const CONTAINER_STATUS_OPTIONS = [
+    { value: "OPEN", label: "Open", icon: FileEdit, color: "text-amber-600" },
+    { value: "LOADED", label: "Loaded", icon: Truck, color: "text-blue-600" },
+    { value: "DELIVERED", label: "Delivered", icon: PackageCheck, color: "text-green-600" },
+  ];
+
   // --- SKELETONS ---
   if (loading && !container) {
     return (
@@ -1127,30 +1162,38 @@ export default function LoadingSheetPage() {
                   {container?.containerCode}
                 </h1>
                 {/* Container Status Dropdown */}
-                <div className="relative group z-10">
+                <div className="relative z-10" ref={statusDropdownRef}>
                   <button
-                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors ${container?.status === "CONFIRMED"
-                      ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-200"
-                      : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                      }`}
+                    onClick={() => setShowStatusDropdown((v) => !v)}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors ${getContainerStatusStyle(container?.status || "OPEN")}`}
                   >
-                    {container?.status || "OPEN"}{" "}
+                    {(() => {
+                      const opt = CONTAINER_STATUS_OPTIONS.find(o => o.value === (container?.status || "OPEN"));
+                      const Icon = opt?.icon || FileEdit;
+                      return <><Icon className="w-3 h-3" />{opt?.label || "Open"}</>;
+                    })()}{" "}
                     <ChevronDown className="w-3 h-3" />
                   </button>
-                  <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 hidden group-hover:block overflow-hidden z-20">
-                    {["DRAFT", "CONFIRMED"].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => handleContainerStatusChange(s)}
-                        className={`w-full text-left px-4 py-2 text-xs font-bold hover:bg-slate-50 ${container?.status === s
-                          ? "text-blue-600 bg-blue-50"
-                          : "text-slate-700"
-                          }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                  {showStatusDropdown && (
+                    <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 overflow-hidden z-20">
+                      {CONTAINER_STATUS_OPTIONS.map(({ value, label, icon: Icon, color }) => (
+                        <button
+                          key={value}
+                          onClick={() => {
+                            handleContainerStatusChange(value);
+                            setShowStatusDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-xs font-bold hover:bg-slate-50 flex items-center gap-2 ${container?.status === value
+                            ? "bg-blue-50 text-blue-600"
+                            : `text-slate-700 ${color}`
+                            }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <p className="text-sm text-slate-600">
