@@ -9,6 +9,7 @@ const getClients = async (req, res) => {
       search: req.query.search,
       location: req.query.location,
       type: req.query.type,
+      status: req.query.status,
     };
     const result = await clientsService.getAllClients(filters);
     res.json({ success: true, data: result.clients, pagination: result.pagination });

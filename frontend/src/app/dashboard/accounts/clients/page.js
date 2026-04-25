@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { Search, Loader2, ArrowLeft, Users, MapPin, Package, ChevronRight, ChevronLeft, X } from "lucide-react";
+import { Search, Loader2, ArrowLeft, Users, MapPin, Package, ChevronRight, ChevronLeft, X, FileEdit, Truck, PackageCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+
 import { get } from "@/lib/api";
 
 export default function AccountClientsPage() {
@@ -15,23 +16,33 @@ export default function AccountClientsPage() {
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
   const [pagination, setPagination] = useState({ totalPages: 1, totalItems: 0 });
   const [selectedCity, setSelectedCity] = useState(searchParams.get("city") || "ALL");
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get("status") || "ALL");
 
-  const syncURL = (s, p, city) => {
+  const STATUS_CONFIG = {
+    ALL:       { label: 'All',       icon: null,         cls: 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50', activeCls: 'bg-slate-900 text-white border-slate-900' },
+    OPEN:      { label: 'Open',      icon: FileEdit,     cls: 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100', activeCls: 'bg-amber-500 text-white border-amber-500' },
+    LOADED:    { label: 'Loaded',    icon: Truck,        cls: 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100', activeCls: 'bg-blue-500 text-white border-blue-500' },
+    DELIVERED: { label: 'Delivered', icon: PackageCheck, cls: 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100', activeCls: 'bg-green-500 text-white border-green-500' },
+  };
+
+  const syncURL = (s, p, city, status) => {
     const params = new URLSearchParams();
     if (s) params.set("search", s);
     if (p > 1) params.set("page", p);
     if (city && city !== "ALL") params.set("city", city);
+    if (status && status !== "ALL") params.set("status", status);
     window.history.replaceState(null, "", params.toString() ? `?${params}` : window.location.pathname);
   };
 
   useEffect(() => {
     fetchClients();
-  }, [page, search]);
+  }, [page, search, selectedStatus]);
 
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const res = await get(`/accounts/clts?page=${page}&limit=20&search=${search}&type=CLIENT`);
+      const statusParam = selectedStatus !== "ALL" ? `&status=${selectedStatus}` : "";
+      const res = await get(`/accounts/clts?page=${page}&limit=20&search=${search}&type=CLIENT${statusParam}`);
       if (res.success) {
         setClients(res.data);
         setPagination(res.pagination);
@@ -53,26 +64,32 @@ export default function AccountClientsPage() {
     [clients]
   );
 
-  const hasFilters = search || selectedCity !== "ALL";
+  const hasFilters = search || selectedCity !== "ALL" || selectedStatus !== "ALL";
 
   const clearFilters = () => {
-    setSearch(""); setSelectedCity("ALL"); setPage(1);
+    setSearch(""); setSelectedCity("ALL"); setSelectedStatus("ALL"); setPage(1);
     window.history.replaceState(null, "", window.location.pathname);
   };
 
   const handleSearch = (val) => {
     setSearch(val); setPage(1);
-    syncURL(val, 1, selectedCity);
+    syncURL(val, 1, selectedCity, selectedStatus);
   };
 
   const handleCity = (city) => {
     setSelectedCity(city);
-    syncURL(search, page, city);
+    syncURL(search, page, city, selectedStatus);
+  };
+
+  const handleStatus = (status) => {
+    setSelectedStatus(status);
+    setPage(1);
+    syncURL(search, 1, selectedCity, status);
   };
 
   const handlePage = (p) => {
     setPage(p);
-    syncURL(search, p, selectedCity);
+    syncURL(search, p, selectedCity, selectedStatus);
   };
 
   return (
@@ -113,12 +130,13 @@ export default function AccountClientsPage() {
             </div>
 
             {/* City filter pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap border-r pr-4 mr-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">City:</span>
               {cities.map(city => (
                 <button
                   key={city}
                   onClick={() => handleCity(city)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
                     selectedCity === city
                       ? "bg-slate-900 text-white border-slate-900"
                       : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700"
@@ -127,6 +145,27 @@ export default function AccountClientsPage() {
                   {city}
                 </button>
               ))}
+            </div>
+
+            {/* Status filter pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Status:</span>
+              {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                const Icon = cfg.icon;
+                const isActive = selectedStatus === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleStatus(key)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                      isActive ? cfg.activeCls : cfg.cls
+                    }`}
+                  >
+                    {Icon && <Icon className="w-3 h-3" />}
+                    {cfg.label}
+                  </button>
+                );
+              })}
             </div>
 
             {hasFilters && (
@@ -208,19 +247,23 @@ export default function AccountClientsPage() {
 
                   {/* Containers */}
                   <div>
-                    {client.containerCodes?.length > 0 ? (
+                    {client.containers?.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {client.containerCodes.slice(0, 20).map(code => (
-                          <span
-                            key={code}
-                            className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tight"
-                          >
-                            {code}
-                          </span>
-                        ))}
-                        {client.containerCodes.length > 20 && (
+                        {client.containers.slice(0, 20).map(ctn => {
+                          const cfg = STATUS_CONFIG[ctn.status] || STATUS_CONFIG.OPEN;
+                          return (
+                            <span
+                              key={ctn.code}
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-tight ${cfg.cls}`}
+                              title={ctn.status}
+                            >
+                              {ctn.code}
+                            </span>
+                          );
+                        })}
+                        {client.containers.length > 20 && (
                           <span className="text-[9px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded uppercase">
-                            +{client.containerCodes.length - 20}
+                            +{client.containers.length - 20}
                           </span>
                         )}
                       </div>
@@ -246,7 +289,7 @@ export default function AccountClientsPage() {
         {!loading && pagination?.totalPages > 1 && (
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6">
             <span className="text-xs text-slate-400 font-semibold">
-              Page <span className="text-slate-700">{page}</span> / {pagination.totalPages}
+              Page <span className="text-slate-700">{page}</span>{" / "}{pagination.totalPages}
               &nbsp;·&nbsp; {pagination.totalItems} clients
             </span>
             <div className="flex items-center gap-1">

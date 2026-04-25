@@ -2,7 +2,7 @@ const { prisma } = require("../../../database/prisma");
 
 const AccountClientsService = {
     // Get all clients (Fetch from CRM Clients)
-    getAllClients: async ({ page = 1, limit = 20, search = "", location = "", type = "" }) => {
+    getAllClients: async ({ page = 1, limit = 20, search = "", location = "", type = "", status = "" }) => {
         const skip = (page - 1) * limit;
 
         const where = {};
@@ -15,6 +15,24 @@ const AccountClientsService = {
         }
         if (type) {
             where.type = type;
+        }
+
+        if (status) {
+            // Find container codes with this status
+            const containers = await prisma.container.findMany({
+                where: { status },
+                select: { containerCode: true }
+            });
+            const containerCodes = containers.map(c => c.containerCode);
+
+            // Add to where clause: client must have loading sheet with that status OR transaction with those codes
+            where.AND = where.AND || [];
+            where.AND.push({
+                OR: [
+                    { loadingSheets: { some: { container: { status } } } },
+                    { transactions: { some: { containerCode: { in: containerCodes } } } }
+                ]
+            });
         }
 
         // Fetch clients
@@ -43,21 +61,52 @@ const AccountClientsService = {
             prisma.client.count({ where }),
         ]);
 
-        // Process clients to have a flat list of unique container codes
+        // 1. Collect all unique container codes across all clients
+        const allContainerCodes = new Set();
+        clients.forEach(client => {
+            client.transactions.forEach(t => t.containerCode && allContainerCodes.add(t.containerCode));
+            client.loadingSheets.forEach(ls => ls.container?.containerCode && allContainerCodes.add(ls.container.containerCode));
+        });
+
+        // 2. Fetch statuses for all collected container codes
+        const containerStatuses = await prisma.container.findMany({
+            where: { containerCode: { in: Array.from(allContainerCodes) } },
+            select: { containerCode: true, status: true }
+        });
+
+        // Create a map for quick lookup
+        const statusMap = {};
+        containerStatuses.forEach(c => {
+            statusMap[c.containerCode] = c.status;
+        });
+
+        // 3. Process clients to have containers with status
         const processedClients = clients.map(client => {
-            const containerCodes = new Set();
+            const containers = new Map(); // Use Map to keep unique by code
+
             client.transactions.forEach(t => {
-                if (t.containerCode) containerCodes.add(t.containerCode);
+                if (t.containerCode) {
+                    containers.set(t.containerCode, {
+                        code: t.containerCode,
+                        status: statusMap[t.containerCode] || "OPEN"
+                    });
+                }
             });
+
             client.loadingSheets.forEach(ls => {
-                if (ls.container?.containerCode) containerCodes.add(ls.container.containerCode);
+                if (ls.container?.containerCode) {
+                    containers.set(ls.container.containerCode, {
+                        code: ls.container.containerCode,
+                        status: ls.container.status || statusMap[ls.container.containerCode] || "OPEN"
+                    });
+                }
             });
 
             return {
                 ...client,
-                transactions: undefined, // Remove from response
-                loadingSheets: undefined, // Remove from response
-                containerCodes: Array.from(containerCodes)
+                transactions: undefined,
+                loadingSheets: undefined,
+                containers: Array.from(containers.values())
             };
         });
 
@@ -253,7 +302,7 @@ const AccountClientsService = {
 
     // Get All Containers (linked with client)
     getClientContainers: async (clientId, filters = {}) => {
-        const { origin, dateFrom, dateTo } = filters;
+        const { origin, dateFrom, dateTo, containerStatus } = filters;
 
         // 1. Fetch all transactions for this client to find linked container codes and sheet names
         const transactions = await prisma.clientTransaction.findMany({
@@ -307,6 +356,9 @@ const AccountClientsService = {
         if (origin) {
             containerWhere.origin = { contains: origin, mode: 'insensitive' };
         }
+        if (containerStatus) {
+            containerWhere.status = containerStatus;
+        }
         if (dateFrom || dateTo) {
             containerWhere.loadingDate = {};
             if (dateFrom) containerWhere.loadingDate.gte = new Date(dateFrom);
@@ -322,7 +374,8 @@ const AccountClientsService = {
                 containerCode: true,
                 origin: true,
                 loadingDate: true,
-                createdAt: true
+                createdAt: true,
+                status: true
             }
         });
 

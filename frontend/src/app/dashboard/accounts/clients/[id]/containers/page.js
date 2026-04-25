@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Package, Search, Calendar, CheckCircle2, Circle, Plus, ChevronRight, LayoutGrid, Sparkles, ArrowRight, ChevronsUpDown, Check, X } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Search, Calendar, CheckCircle2, Circle, Plus, ChevronRight, LayoutGrid, Sparkles, ArrowRight, ChevronsUpDown, Check, X, FileEdit, Truck, PackageCheck, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get } from "@/lib/api";
@@ -92,10 +92,24 @@ export default function ClientContainersPage() {
   const [origin, setOrigin] = useState("");
   const [origins, setOrigins] = useState([]);
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [containerStatus, setContainerStatus] = useState("");
+
+  const CONTAINER_STATUS_OPTIONS = [
+    { value: "", label: "All", icon: null, cls: "border-slate-200 text-slate-500 bg-white hover:bg-slate-50", activeCls: "bg-slate-800 text-white border-slate-800" },
+    { value: "OPEN", label: "Open", icon: FileEdit, cls: "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100", activeCls: "bg-amber-500 text-white border-amber-500" },
+    { value: "LOADED", label: "Loaded", icon: Truck, cls: "border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100", activeCls: "bg-blue-500 text-white border-blue-500" },
+    { value: "DELIVERED", label: "Delivered", icon: PackageCheck, cls: "border-green-200 text-green-700 bg-green-50 hover:bg-green-100", activeCls: "bg-green-500 text-white border-green-500" },
+  ];
+
+  const CONTAINER_STATUS_BADGE = {
+    OPEN:      { label: "Open",      icon: FileEdit,     cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    LOADED:    { label: "Loaded",    icon: Truck,        cls: "bg-blue-100 text-blue-700 border-blue-200" },
+    DELIVERED: { label: "Delivered", icon: PackageCheck, cls: "bg-green-100 text-green-700 border-green-200" },
+  };
 
   useEffect(() => {
     fetchContainers();
-  }, [id, origin, dateRange.from, dateRange.to]);
+  }, [id, origin, dateRange.from, dateRange.to, containerStatus]);
 
   useEffect(() => {
     fetchOrigins();
@@ -120,6 +134,7 @@ export default function ClientContainersPage() {
         ...(origin && { origin }),
         ...(dateRange.from && { dateFrom: dateRange.from }),
         ...(dateRange.to && { dateTo: dateRange.to }),
+        ...(containerStatus && { containerStatus }),
       });
       const res = await get(`/accounts/clts/${id}/containers?${params.toString()}`);
       if (res.success) {
@@ -293,6 +308,7 @@ export default function ClientContainersPage() {
                   setSearch("");
                   setOrigin("");
                   setDateRange({ from: "", to: "" });
+                  setContainerStatus("");
                 }}
                 className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
                 title="Clear all filters"
@@ -300,6 +316,24 @@ export default function ClientContainersPage() {
                 <X className="w-5 h-5" />
              </button>
           )}
+        </div>
+
+        {/* Container Status Filter Pills */}
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Status:</span>
+          {CONTAINER_STATUS_OPTIONS.map(({ value, label, icon: Icon, cls, activeCls }) => {
+            const isActive = containerStatus === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setContainerStatus(value)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider border transition-all ${isActive ? activeCls : cls}`}
+              >
+                {Icon && <Icon className="w-3 h-3" />}
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Workspaces List */}

@@ -222,19 +222,28 @@ export default function ExcelLedgerPage() {
         }
     };
 
+    const saveAll = async () => {
+        try {
+            toast.loading("Saving changes...", { id: "save-all" });
+            const allTxns = transactions;
+            const allTrf = trfTransactions;
+            const saves = [
+                ...allTxns.map((_, i) => saveRow(i, true)),
+                ...allTrf.map((_, i) => saveTrfRow(i, true)),
+            ];
+            await Promise.allSettled(saves);
+            toast.success("Everything Saved", { id: "save-all" });
+        } catch (error) {
+            toast.error("Failed to save some rows", { id: "save-all" });
+        }
+    };
+
     // Global Keyboard Shortcuts
     useEffect(() => {
         const handleGlobalKeyDown = async (e) => {
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
-                // Save all rows in both tabs (same logic as the green check button)
-                const allTxns = transactions;
-                const allTrf = trfTransactions;
-                const saves = [
-                    ...allTxns.map((_, i) => saveRow(i)),
-                    ...allTrf.map((_, i) => saveTrfRow(i)),
-                ];
-                await Promise.allSettled(saves);
+                saveAll();
             }
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -480,7 +489,7 @@ export default function ExcelLedgerPage() {
 
     const lastSavedData = useRef({});
 
-    const saveRow = async (rowIndex) => {
+    const saveRow = async (rowIndex, silent = false) => {
         const txn = transactions[rowIndex];
         if (!txn) return;
 
@@ -513,11 +522,11 @@ export default function ExcelLedgerPage() {
                     setAvailableSheets(prev => [...prev, sheetName]);
                 }
 
-                toast.success(sheetName ? `Row Added to ${sheetName}` : "Row Created", { duration: 2000 });
+                if (!silent) toast.success(sheetName ? `Row Added to ${sheetName}` : "Row Created", { duration: 2000 });
             } else {
                 res = await put(`/accounts/clts/${id}/transactions/${txnId}`, payload);
                 lastSavedData.current[txnId] = currentStateString;
-                toast.success("Row Updated Details Saved", { duration: 2000 });
+                if (!silent) toast.success("Row Updated Details Saved", { duration: 2000 });
             }
         } catch (e) {
             console.error(e);
@@ -613,7 +622,7 @@ export default function ExcelLedgerPage() {
         setTrfTransactions(updated);
     };
 
-    const saveTrfRow = async (rowIndex) => {
+    const saveTrfRow = async (rowIndex, silent = false) => {
         const txn = trfTransactions[rowIndex];
         if (!txn) return;
 
@@ -639,11 +648,11 @@ export default function ExcelLedgerPage() {
                 updated[rowIndex] = { ...res.data, isNew: false };
                 setTrfTransactions(updated);
                 lastSavedTrfData.current[res.data.id] = JSON.stringify(res.data);
-                toast.success("TRF Row Added", { duration: 2000 });
+                if (!silent) toast.success("TRF Row Added", { duration: 2000 });
             } else {
                 res = await put(`/accounts/clts/${id}/trf-transactions/${txnId}`, payload);
                 lastSavedTrfData.current[txnId] = currentStateString;
-                toast.success("TRF Row Updated", { duration: 2000 });
+                if (!silent) toast.success("TRF Row Updated", { duration: 2000 });
             }
         } catch (e) {
             console.error(e);
@@ -986,6 +995,15 @@ export default function ExcelLedgerPage() {
                                 </>
                             )}
                         </div>
+
+                        {/* SAVE ALL Button */}
+                        <button
+                            onClick={saveAll}
+                            className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 font-bold text-xs uppercase tracking-widest active:scale-95"
+                        >
+                            <Check className="w-4 h-4" />
+                            SAVE ALL
+                        </button>
 
                         {/* More Options Ellipsis */}
                         <div className="relative" ref={menuRef}>
