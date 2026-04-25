@@ -283,7 +283,7 @@ Run this command from any directory on the server to sync from Git, rebuild fron
 ```bash
 /apps/impexina/deploy.sh
 ```
-
+asaasd
 ---
 
 ## 🛡️ System Security & Backups
