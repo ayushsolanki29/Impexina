@@ -440,6 +440,7 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                     <thead>
                                         <tr className="bg-slate-100 text-slate-600 font-bold text-left border-y border-slate-300 uppercase tracking-wide">
                                             <th className="px-3 py-2 w-12 text-center">#</th>
+                                            <th className="px-3 py-2 text-center">HISAB</th>
                                             <th className="px-3 py-2">Mark</th>
                                             <th className="px-3 py-2 text-center">CTN</th>
                                             <th className="px-3 py-2">Product Detail</th>
@@ -453,7 +454,6 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                     <th className="px-3 py-2 text-center">Inv #</th>
                                                     <th className="px-3 py-2 text-right">GST</th>
                                                     <th className="px-3 py-2 text-center">LR</th>
-                                                    <th className="px-3 py-2 text-center">HISAB</th>
                                                     <th className="px-3 py-2 text-center">SENT</th>
                                                 </>
                                             )}
@@ -478,6 +478,9 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                 {items.map((item, idx) => (
                                                     <tr key={idx} className={`hover:bg-slate-50/50 transition-colors ${clientName && idx === items.length - 1 ? 'border-b border-slate-200' : ''}`}>
                                                         <td className="px-3 py-2 text-center text-slate-400 font-medium">{idx + 1}</td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            {item.hisab ? <Check className="w-3 h-3 mx-auto text-amber-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
+                                                        </td>
                                                         <td className="px-3 py-2 font-bold text-slate-700">{item.mark}</td>
                                                         <td className="px-3 py-2 text-center font-bold text-slate-700">{item.ctn}</td>
                                                         <td className="px-3 py-2 text-slate-600 font-medium truncate max-w-[200px]">{item.product}</td>
@@ -501,9 +504,6 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     {item.lrNo ? <Check className="w-3 h-3 mx-auto text-emerald-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
-                                                                </td>
-                                                                <td className="px-3 py-2 text-center">
-                                                                    {item.hisab ? <Check className="w-3 h-3 mx-auto text-amber-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     {item.sent ? <Check className="w-3 h-3 mx-auto text-emerald-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
@@ -1004,6 +1004,7 @@ export default function BifurcationPage() {
                                                         <thead>
                                                             <tr className="bg-slate-100 text-slate-600 font-bold text-left border-y border-slate-300 uppercase tracking-wide">
                                                                 <th className="px-3 py-2 w-12 text-center">#</th>
+                                                                <th className="px-3 py-2 text-center">HISAB</th>
                                                                 <th className="px-3 py-2">Shipping Mark</th>
                                                                 <th className="px-3 py-2 text-center">CTN</th>
                                                                 <th className="px-3 py-2">Product Detail</th>
@@ -1015,7 +1016,6 @@ export default function BifurcationPage() {
                                                                 <th className="px-3 py-2 text-center">Inv #</th>
                                                                 <th className="px-3 py-2 text-right">GST</th>
                                                                 <th className="px-3 py-2 text-center">LR</th>
-                                                                <th className="px-3 py-2 text-center">HISAB</th>
                                                                 <th className="px-3 py-2 text-center">SENT</th>
                                                             </tr>
                                                         </thead>
@@ -1059,6 +1059,15 @@ export default function BifurcationPage() {
                                                                             <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${client && iIdx === clientItems.length - 1 ? 'border-b border-slate-200' : ''}`}>
                                                                                 <td className="px-3 py-2 text-center text-slate-400 font-medium">
                                                                                     {client ? `${gIdx}.${iIdx + 1}` : iIdx + 1}
+                                                                                </td>
+                                                                                <td className="px-3 py-2 text-center">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        className="w-4 h-4 rounded-md border-slate-300 text-amber-600 focus:ring-4 focus:ring-amber-500/10 cursor-pointer transition-all"
+                                                                                        checked={item.hisab}
+                                                                                        onChange={(e) => handleUpdate(item.id, 'hisab', e.target.checked)}
+                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 7}
+                                                                                    />
                                                                                 </td>
                                                                                 <td className="px-3 py-2 font-bold text-slate-700">{item.mark}</td>
                                                                                 <td className="px-3 py-2 text-center font-bold text-slate-700">{item.ctn}</td>
@@ -1132,15 +1141,6 @@ export default function BifurcationPage() {
                                                                                         checked={item.lrNo}
                                                                                         onChange={(e) => handleUpdate(item.id, 'lrNo', e.target.checked)}
                                                                                         tabIndex={(gIdx * 1000) + (iIdx * 10) + 6}
-                                                                                    />
-                                                                                </td>
-                                                                                <td className="px-3 py-2 text-center">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        className="w-4 h-4 rounded-md border-slate-300 text-amber-600 focus:ring-4 focus:ring-amber-500/10 cursor-pointer transition-all"
-                                                                                        checked={item.hisab}
-                                                                                        onChange={(e) => handleUpdate(item.id, 'hisab', e.target.checked)}
-                                                                                        tabIndex={(gIdx * 1000) + (iIdx * 10) + 7}
                                                                                     />
                                                                                 </td>
                                                                                 <td className="px-3 py-2 text-center">
