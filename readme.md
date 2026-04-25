@@ -275,13 +275,13 @@ The system includes a deployment script to automate updates on the Linux server.
 
 ### Setup (Run Once)
 ```bash
-chmod +x /app/impexina/deploy.sh
+chmod +x /apps/impexina/deploy.sh
 ```
 
 ### Deploy Latest Changes
 Run this command from any directory on the server to sync from Git, rebuild frontend, update database, and restart all PM2 processes:
 ```bash
-/app/impexina/deploy.sh
+/apps/impexina/deploy.sh
 ```
 
 ---
