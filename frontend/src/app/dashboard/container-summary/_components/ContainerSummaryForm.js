@@ -23,6 +23,7 @@ import {
     Search,
     ExternalLink,
     Filter,
+    ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import API from "@/lib/api";
@@ -42,6 +43,54 @@ const DEFAULT_COLOR_RULES = [
     { field: "shippingLine", color: "#fefce8", role: "Mail" },
     { field: "bl", color: "#fff7ed", role: "WA" },
 ];
+
+const MultiSelect = ({ value = [], onChange, options, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, []);
+    const toggle = (opt) => onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+    const label = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value.length} selected`;
+    return (
+        <div className="relative min-w-[140px]" ref={ref}>
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className={`flex items-center justify-between px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold cursor-pointer transition-all bg-white hover:border-blue-400 ${value.length > 0 ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
+            >
+                <span className="truncate pr-2">{label}</span>
+                <div className="flex items-center gap-1 flex-shrink-0 border-l pl-1.5 ml-0.5 border-slate-100">
+                    {value.length > 0 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onChange([]); }}
+                            className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    )}
+                    <ChevronsUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+            </div>
+            {isOpen && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-56 overflow-y-auto py-1">
+                    {options.map((opt) => (
+                        <button
+                            key={opt}
+                            onClick={() => toggle(opt)}
+                            className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-slate-50 flex items-center justify-between transition-colors"
+                        >
+                            <span className={value.includes(opt) ? "text-blue-600 font-bold" : "text-slate-600"}>{opt}</span>
+                            {value.includes(opt) && <Check className="w-3 h-3 text-blue-600" />}
+                        </button>
+                    ))}
+                    {options.length === 0 && <div className="px-3 py-2 text-[10px] text-slate-400 text-center">No options</div>}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const EMPTY_CONTAINER = {
     containerCode: "",
@@ -68,6 +117,7 @@ const EMPTY_CONTAINER = {
     workflowStatus: "",
     sims: "",
     cellStyles: {},
+    isActive: true,
 };
 
 export default function ContainerSummaryForm({
@@ -81,11 +131,17 @@ export default function ContainerSummaryForm({
     const getParam = (key, fallback = "") =>
         initialSearchParams ? (initialSearchParams.get(key) || fallback) : fallback;
 
+    const parseArr = (key) => {
+        const val = getParam(key);
+        return val ? val.split(",").map(decodeURIComponent).filter(Boolean) : [];
+    };
+
     const [rowFilters, setRowFilters] = useState({
         search: getParam("search") || (getParam("highlight") ? getParam("highlight") : ""),
-        status: getParam("status"),
-        origin: getParam("origin"),
-        shippingLine: getParam("shippingLine"),
+        status: parseArr("status"),
+        origin: parseArr("origin"),
+        shippingLine: parseArr("shippingLine"),
+        containerCode: parseArr("containerCode"),
         showInactive: getParam("showInactive") === "true",
         dateType: getParam("dateType", "loadingDate"),
         dateFrom: getParam("dateFrom"),
@@ -100,9 +156,11 @@ export default function ContainerSummaryForm({
     const syncRowFiltersToURL = (f) => {
         const p = new URLSearchParams();
         if (f.search) p.set("search", f.search);
-        if (f.status) p.set("status", f.status);
-        if (f.origin) p.set("origin", f.origin);
-        if (f.shippingLine) p.set("shippingLine", f.shippingLine);
+        
+        ["status", "origin", "shippingLine", "containerCode"].forEach(k => {
+            if (f[k]?.length) p.set(k, f[k].map(encodeURIComponent).join(","));
+        });
+
         if (f.showInactive) p.set("showInactive", "true");
         if (f.dateType && f.dateType !== "loadingDate") p.set("dateType", f.dateType);
         if (f.dateFrom) p.set("dateFrom", f.dateFrom);
@@ -113,19 +171,29 @@ export default function ContainerSummaryForm({
     const updateRowFilter = (key, value) => {
         setRowFilters(prev => {
             const next = { ...prev, [key]: value };
-            syncRowFiltersToURL(next);
+            setTimeout(() => syncRowFiltersToURL(next), 0);
             return next;
         });
     };
 
     const clearRowFilters = () => {
-        const empty = { search: "", status: "", origin: "", shippingLine: "", showInactive: false, dateType: "loadingDate", dateFrom: "", dateTo: "" };
+        const empty = { 
+            search: "", 
+            status: [], 
+            origin: [], 
+            shippingLine: [], 
+            containerCode: [],
+            showInactive: false, 
+            dateType: "loadingDate", 
+            dateFrom: "", 
+            dateTo: "" 
+        };
         setRowFilters(empty);
         window.history.replaceState(null, "", window.location.pathname);
     };
 
-    const hasActiveRowFilters = rowFilters.search || rowFilters.status || rowFilters.origin ||
-        rowFilters.shippingLine || rowFilters.dateFrom || rowFilters.dateTo || rowFilters.showInactive;
+    const hasActiveRowFilters = rowFilters.search || rowFilters.status.length || rowFilters.origin.length ||
+        rowFilters.shippingLine.length || rowFilters.containerCode.length || rowFilters.dateFrom || rowFilters.dateTo || rowFilters.showInactive;
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
         month: initialData?.month || "",
@@ -142,8 +210,9 @@ export default function ContainerSummaryForm({
                 containerNo: c.containerNoField || "",
                 duty: c.duty != null ? c.duty : undefined,
                 gst: c.gst != null ? c.gst : undefined,
-                dutyPercent: c.dutyPercent ?? 16.5,
-                gstPercent: c.gstPercent ?? 18.0,
+                dutyPercent: c.dutyPercent !== undefined && c.dutyPercent !== null ? Number(c.dutyPercent) : 16.5,
+                gstPercent: c.gstPercent !== undefined && c.gstPercent !== null ? Number(c.gstPercent) : 18.0,
+                isActive: c.isActive !== false,
             }))
             : [{ ...EMPTY_CONTAINER }]
     );
@@ -236,20 +305,23 @@ export default function ContainerSummaryForm({
 
     const calculateFields = (c) => {
         const dollar = Number(c.dollar) || 0;
-        const rate = Number(c.dollarRate) || 89.7;
+        const rate = Number(c.dollarRate) || 0;
         const inr = dollar * rate;
 
-        const dutyPct = Number(c.dutyPercent) ?? 16.5;
-        const gstPct = Number(c.gstPercent) ?? 18;
+        // Ensure we handle percentages correctly even if they are empty or invalid
+        const dutyPct = (c.dutyPercent !== undefined && c.dutyPercent !== null && c.dutyPercent !== "") ? Number(c.dutyPercent) : 16.5;
+        const gstPct = (c.gstPercent !== undefined && c.gstPercent !== null && c.gstPercent !== "") ? Number(c.gstPercent) : 18.0;
 
         const dutyCalc = inr * (dutyPct / 100);
-        const totalCalc = inr + dutyCalc;
-        const gstCalc = totalCalc * (gstPct / 100);
-
-        // Use editable duty/gst when set, else calculated
-        const duty = c.duty != null && c.duty !== "" ? Number(c.duty) : dutyCalc;
+        // Use manual duty override if present, otherwise use calculated duty
+        const duty = (c.duty !== undefined && c.duty !== null && c.duty !== "") ? Number(c.duty) : dutyCalc;
+        
         const total = inr + duty;
-        const gst = c.gst != null && c.gst !== "" ? Number(c.gst) : total * (gstPct / 100);
+        
+        const gstCalc = total * (gstPct / 100);
+        // Use manual gst override if present, otherwise use calculated gst
+        const gst = (c.gst !== undefined && c.gst !== null && c.gst !== "") ? Number(c.gst) : gstCalc;
+        
         const totalDuty = duty + gst;
         const finalAmount = totalDuty + (Number(c.doCharge) || 0) + (Number(c.cfs) || 0);
 
@@ -258,6 +330,7 @@ export default function ContainerSummaryForm({
             duty: duty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
             dutyRaw: duty,
             total: total.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
+            totalRaw: total,
             gst: gst.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
             gstRaw: gst,
             totalDuty: totalDuty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
@@ -290,13 +363,16 @@ export default function ContainerSummaryForm({
             }
 
             // Status
-            if (rowFilters.status && c.status !== rowFilters.status) return false;
+            if (rowFilters.status.length && !rowFilters.status.includes(c.status)) return false;
 
             // Origin
-            if (rowFilters.origin && c.origin !== rowFilters.origin) return false;
+            if (rowFilters.origin.length && !rowFilters.origin.includes(c.origin)) return false;
 
             // Shipping line
-            if (rowFilters.shippingLine && c.shippingLine !== rowFilters.shippingLine) return false;
+            if (rowFilters.shippingLine.length && !rowFilters.shippingLine.includes(c.shippingLine)) return false;
+
+            // Container Code
+            if (rowFilters.containerCode.length && !rowFilters.containerCode.includes(c.containerCode)) return false;
 
             // Date range
             if (rowFilters.dateFrom || rowFilters.dateTo) {
@@ -327,6 +403,7 @@ export default function ContainerSummaryForm({
     const uniqueStatuses = useMemo(() => [...new Set(containers.map(c => c.status).filter(Boolean))].sort(), [containers]);
     const uniqueOrigins = useMemo(() => [...new Set(containers.map(c => c.origin).filter(Boolean))].sort(), [containers]);
     const uniqueShippingLines = useMemo(() => [...new Set(containers.map(c => c.shippingLine).filter(Boolean))].sort(), [containers]);
+    const uniqueContainerCodes = useMemo(() => [...new Set(containers.map(c => c.containerCode).filter(Boolean))].sort(), [containers]);
 
     const totals = useMemo(() => {
         return filteredContainers.reduce((acc, c) => {
@@ -351,9 +428,22 @@ export default function ContainerSummaryForm({
     }, [filteredContainers]);
 
     const handleContainerChange = (index, field, value) => {
-        const next = [...containers];
-        next[index] = { ...next[index], [field]: value };
-        setContainers(next);
+        setContainers(prev => {
+            const next = [...prev];
+            const updatedItem = { ...next[index], [field]: value };
+            
+            // If the user changes a percentage, we clear the manual override
+            // so the calculation re-activates based on the new percentage.
+            if (field === 'dutyPercent') {
+                updatedItem.duty = undefined;
+            }
+            if (field === 'gstPercent') {
+                updatedItem.gst = undefined;
+            }
+            
+            next[index] = updatedItem;
+            return next;
+        });
     };
 
     const handleInputKeyDown = (e, rowIndex, fieldName) => {
@@ -426,12 +516,12 @@ export default function ContainerSummaryForm({
                     ctn: Number(c.ctn) || 0,
                     dollar: Number(c.dollar) || 0,
                     dollarRate: Number(c.dollarRate) || 0,
-                    dutyPercent: Number(c.dutyPercent) || 16.5,
-                    gstPercent: Number(c.gstPercent) || 18.0,
-                    duty: c.duty != null && c.duty !== "" ? Number(c.duty) : undefined,
-                    gst: c.gst != null && c.gst !== "" ? Number(c.gst) : undefined,
-                    doCharge: Number(c.doCharge) || 0,
-                    cfs: Number(c.cfs) || 0,
+                    dutyPercent: (c.dutyPercent !== undefined && c.dutyPercent !== null && c.dutyPercent !== "") ? Number(c.dutyPercent) : 16.5,
+                    gstPercent: (c.gstPercent !== undefined && c.gstPercent !== null && c.gstPercent !== "") ? Number(c.gstPercent) : 18.0,
+                    duty: (c.duty != null && c.duty !== "") ? Number(c.duty) : undefined,
+                    gst: (c.gst != null && c.gst !== "") ? Number(c.gst) : undefined,
+                    doCharge: Number(c.doCharge ?? 0),
+                    cfs: Number(c.cfs ?? 0),
                     origin: String(c.origin || ""),
                     sims: String(c.sims || ""),
                     isActive: c.isActive !== false,
@@ -444,7 +534,22 @@ export default function ContainerSummaryForm({
 
             if (res.data.success) {
                 toast.success("Summary saved successfully");
-                if (onCancel) onCancel();
+                if (isCreate) {
+                    window.location.href = `/dashboard/container-summary/${res.data.data.id}`;
+                } else if (res.data.data && res.data.data.containers) {
+                    setContainers(res.data.data.containers.map(c => ({
+                        ...EMPTY_CONTAINER,
+                        ...c,
+                        loadingDate: c.loadingDate?.split('T')[0] || EMPTY_CONTAINER.loadingDate,
+                        eta: c.eta?.split('T')[0] || c.eta || "",
+                        sims: c.sims || "",
+                        containerNo: c.containerNoField || "",
+                        duty: c.duty != null ? c.duty : undefined,
+                        gst: c.gst != null ? c.gst : undefined,
+                        dutyPercent: c.dutyPercent ?? 16.5,
+                        gstPercent: c.gstPercent ?? 18.0,
+                    })));
+                }
             }
         } catch (err) {
             const errorData = err.response?.data;
@@ -744,34 +849,36 @@ export default function ContainerSummaryForm({
                         </div>
 
                         {/* Status */}
-                        <select
-                            value={rowFilters.status}
-                            onChange={e => updateRowFilter("status", e.target.value)}
-                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.status ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
-                        >
-                            <option value="">All Status</option>
-                            {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <MultiSelect 
+                            value={rowFilters.status} 
+                            onChange={v => updateRowFilter("status", v)} 
+                            options={uniqueStatuses} 
+                            placeholder="All Status" 
+                        />
 
                         {/* Origin */}
-                        <select
-                            value={rowFilters.origin}
-                            onChange={e => updateRowFilter("origin", e.target.value)}
-                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.origin ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
-                        >
-                            <option value="">All Origins</option>
-                            {uniqueOrigins.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
+                        <MultiSelect 
+                            value={rowFilters.origin} 
+                            onChange={v => updateRowFilter("origin", v)} 
+                            options={uniqueOrigins} 
+                            placeholder="All Origins" 
+                        />
 
                         {/* Shipping Line */}
-                        <select
-                            value={rowFilters.shippingLine}
-                            onChange={e => updateRowFilter("shippingLine", e.target.value)}
-                            className={`bg-white px-3 py-1.5 rounded-lg border shadow-sm text-[11px] font-bold outline-none cursor-pointer transition-colors ${rowFilters.shippingLine ? "border-blue-400 text-blue-700" : "border-slate-200 text-slate-500"}`}
-                        >
-                            <option value="">All Lines</option>
-                            {uniqueShippingLines.map(l => <option key={l} value={l}>{l}</option>)}
-                        </select>
+                        <MultiSelect 
+                            value={rowFilters.shippingLine} 
+                            onChange={v => updateRowFilter("shippingLine", v)} 
+                            options={uniqueShippingLines} 
+                            placeholder="All Lines" 
+                        />
+
+                        {/* Container Code */}
+                        <MultiSelect 
+                            value={rowFilters.containerCode} 
+                            onChange={v => updateRowFilter("containerCode", v)} 
+                            options={uniqueContainerCodes} 
+                            placeholder="All Codes" 
+                        />
 
                         {/* Date type + range */}
                         <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">

@@ -301,6 +301,55 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
   );
 };
 
+// Multi-select dropdown component
+const MultiSelect = ({ value = [], onChange, options, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const toggle = (opt) => onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+  const label = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value.length} selected`;
+  return (
+    <div className="relative min-w-[140px]" ref={ref}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between px-3 py-2 rounded-lg border shadow-sm text-sm font-medium cursor-pointer transition-all bg-white hover:border-indigo-400 ${value.length > 0 ? "border-indigo-400 text-indigo-700" : "border-slate-200 text-slate-500"}`}
+      >
+        <span className="truncate pr-2">{label}</span>
+        <div className="flex items-center gap-1 flex-shrink-0 border-l pl-1.5 ml-0.5 border-slate-100">
+          {value.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChange([]); }}
+              className="text-slate-300 hover:text-red-500 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <ChevronsUpDown className="w-3 h-3 text-slate-400" />
+        </div>
+      </div>
+      {isOpen && (
+        <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-56 overflow-y-auto py-1">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => toggle(opt)}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 flex items-center justify-between transition-colors"
+            >
+              <span className={value.includes(opt) ? "text-indigo-600 font-semibold" : "text-slate-600"}>{opt}</span>
+              {value.includes(opt) && <Check className="w-3 h-3 text-indigo-600" />}
+            </button>
+          ))}
+          {options.length === 0 && <div className="px-3 py-2 text-xs text-slate-400 text-center">No options</div>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ========================
 // ADMIN DASHBOARD COMPONENT
 // ========================
@@ -319,10 +368,10 @@ function AdminDashboard({ user, dashboardData }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [containerFilters, setContainerFilters] = useState({
     search: "",
-    status: "",
+    status: [],
     dateRange: "",
-    workflowStatus: "",
-    origin: "",
+    workflowStatus: [],
+    origin: [],
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [showAdvancedDashboard, setShowAdvancedDashboard] = useState(false);
@@ -482,6 +531,8 @@ function AdminDashboard({ user, dashboardData }) {
         });
       } else if (activeFilter.type === 'status') {
         filtered = filtered.filter((c) => c.status === activeFilter.status);
+      } else if (activeFilter.type === 'status_multi') {
+        filtered = filtered.filter((c) => activeFilter.status.includes(c.status));
       } else if (activeFilter.type === 'duty') {
         filtered = filtered.filter((c) =>
           c.status !== "Delivered" && (c.duty > 0 || c.finalAmount > 0)
@@ -500,16 +551,16 @@ function AdminDashboard({ user, dashboardData }) {
       );
     }
 
-    if (containerFilters.status) {
-      filtered = filtered.filter((c) => c.status === containerFilters.status);
+    if (containerFilters.status.length > 0) {
+      filtered = filtered.filter((c) => containerFilters.status.includes(c.status));
     }
 
-    if (containerFilters.workflowStatus) {
-      filtered = filtered.filter((c) => c.workflowStatus === containerFilters.workflowStatus);
+    if (containerFilters.workflowStatus.length > 0) {
+      filtered = filtered.filter((c) => containerFilters.workflowStatus.includes(c.workflowStatus));
     }
 
-    if (containerFilters.origin) {
-      filtered = filtered.filter((c) => c.origin === containerFilters.origin);
+    if (containerFilters.origin.length > 0) {
+      filtered = filtered.filter((c) => containerFilters.origin.includes(c.origin));
     }
 
     if (containerFilters.dateRange) {
@@ -580,7 +631,7 @@ function AdminDashboard({ user, dashboardData }) {
               onClick={() => {
                 setShowAdvancedDashboard(true);
                 setActiveFilter({ type: 'arriving', days: 15 });
-                setContainerFilters({ search: "", status: "", dateRange: "next15", workflowStatus: "", origin: "" });
+                setContainerFilters({ search: "", status: [], dateRange: "next15", workflowStatus: [], origin: [] });
               }}
             >
               <div className="flex items-center justify-between mb-3">
@@ -602,7 +653,7 @@ function AdminDashboard({ user, dashboardData }) {
               onClick={() => {
                 setShowAdvancedDashboard(true);
                 setActiveFilter({ type: 'duty', status: 'pending' });
-                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                setContainerFilters({ search: "", status: [], dateRange: "", workflowStatus: [], origin: [] });
               }}
             >
               <div className="flex items-center justify-between mb-3">
@@ -624,7 +675,7 @@ function AdminDashboard({ user, dashboardData }) {
               onClick={() => {
                 setShowAdvancedDashboard(true);
                 setActiveFilter({ type: 'duty', status: 'pending' });
-                setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                setContainerFilters({ search: "", status: [], dateRange: "", workflowStatus: [], origin: [] });
               }}
             >
               <div className="flex items-center justify-between mb-3">
@@ -644,7 +695,7 @@ function AdminDashboard({ user, dashboardData }) {
               onClick={() => {
                 setShowAdvancedDashboard(true);
                 setActiveFilter({ type: 'status', status: 'Delivered' });
-                setContainerFilters({ search: "", status: "Delivered", dateRange: "thisMonth", workflowStatus: "", origin: "" });
+                setContainerFilters({ search: "", status: ["Delivered"], dateRange: "thisMonth", workflowStatus: [], origin: [] });
               }}
             >
               <div className="flex items-center justify-between mb-3">
@@ -672,7 +723,7 @@ function AdminDashboard({ user, dashboardData }) {
                   setShowAdvancedDashboard(!showAdvancedDashboard);
                   if (!showAdvancedDashboard) {
                     setActiveFilter(null);
-                    setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                    setContainerFilters({ search: "", status: [], dateRange: "", workflowStatus: [], origin: [] });
                   }
                 }}
                 className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
@@ -685,51 +736,45 @@ function AdminDashboard({ user, dashboardData }) {
               <div className="p-5 space-y-4">
                 {/* Filters */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="relative">
+                  <div className="relative group">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Search containers..."
                       value={containerFilters.search}
                       onChange={(e) => setContainerFilters(prev => ({ ...prev, search: e.target.value }))}
-                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                      className="w-full pl-10 pr-10 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
                     />
+                    {containerFilters.search && (
+                      <button 
+                        onClick={() => setContainerFilters(prev => ({ ...prev, search: "" }))}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-300 hover:text-slate-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
 
-                  <select
+                  <MultiSelect
                     value={containerFilters.status}
-                    onChange={(e) => setContainerFilters(prev => ({ ...prev, status: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-                  >
-                    <option value="">All Status</option>
-                    <option value="Loaded">Loaded</option>
-                    <option value="Insea">In Sea</option>
-                    <option value="Delivered">Delivered</option>
-                  </select>
+                    onChange={(val) => setContainerFilters((prev) => ({ ...prev, status: val }))}
+                    options={["Loaded", "Insea", "Delivered"]}
+                    placeholder="All Status"
+                  />
 
-                  <select
+                  <MultiSelect
                     value={containerFilters.workflowStatus}
-                    onChange={(e) => setContainerFilters(prev => ({ ...prev, workflowStatus: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
-                  >
-                    <option value="">All Workflow Status</option>
-                    <option value="WHATSAPP">WhatsApp</option>
-                    <option value="MAIL">Mail</option>
-                    <option value="SIMS">SIMS</option>
-                    <option value="PIMS">PIMS</option>
-                    <option value="CHECKLIST">Checklist</option>
-                    <option value="LOADING SHEET">Loading Sheet</option>
-                    <option value="BIFURCATION">Bifurcation</option>
-                    <option value="PACKING LIST">Packing List</option>
-                    <option value="INVOICE">Invoice</option>
-                    <option value="BOE">BOE</option>
-                    <option value="DUTY CALCULATOR">Duty Calculator</option>
-                    <option value="PURCHASE SELL">Purchase Sell</option>
-                    <option value="WAREHOUSE PLAN">Warehouse Plan</option>
-                    <option value="ACCOUNT">Account</option>
-                  </select>
+                    onChange={(val) => setContainerFilters((prev) => ({ ...prev, workflowStatus: val }))}
+                    options={[
+                      "WHATSAPP", "MAIL", "SIMS", "PIMS", "CHECKLIST", 
+                      "LOADING SHEET", "BIFURCATION", "PACKING LIST", 
+                      "INVOICE", "BOE", "DUTY CALCULATOR", "PURCHASE SELL", 
+                      "WAREHOUSE PLAN", "ACCOUNT"
+                    ]}
+                    placeholder="Workflow Status"
+                  />
 
-                  <Combobox
+                  <MultiSelect
                     value={containerFilters.origin}
                     onChange={(val) => setContainerFilters((prev) => ({ ...prev, origin: val }))}
                     options={origins}
@@ -739,62 +784,68 @@ function AdminDashboard({ user, dashboardData }) {
                   <select
                     value={containerFilters.dateRange}
                     onChange={(e) => setContainerFilters(prev => ({ ...prev, dateRange: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                    className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white font-medium"
                   >
                     <option value="">All Dates</option>
                     <option value="next10">Next 10 Days</option>
                     <option value="next15">Next 15 Days</option>
                     <option value="thisMonth">This Month</option>
                   </select>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setActiveFilter({ type: 'arriving', days: 10 });
+                        setContainerFilters(prev => ({ ...prev, dateRange: 'next10' }));
+                      }}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm font-semibold ${containerFilters.dateRange === 'next10' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                    >
+                      Next 10 Days
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveFilter({ type: 'arriving', days: 15 });
+                        setContainerFilters(prev => ({ ...prev, dateRange: 'next15' }));
+                      }}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm font-semibold ${containerFilters.dateRange === 'next15' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                    >
+                      Next 15 Days
+                    </button>
+                    <button
+                      onClick={() => {
+                        const nextStatus = containerFilters.status.includes('Loaded') 
+                          ? containerFilters.status.filter(s => s !== 'Loaded')
+                          : [...containerFilters.status, 'Loaded'];
+                        setContainerFilters(prev => ({ ...prev, status: nextStatus }));
+                      }}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm font-semibold ${containerFilters.status.includes('Loaded') ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                    >
+                      Loaded Containers
+                    </button>
+                    <button
+                      onClick={() => {
+                        const nextStatus = containerFilters.status.includes('Insea') 
+                          ? containerFilters.status.filter(s => s !== 'Insea')
+                          : [...containerFilters.status, 'Insea'];
+                        setContainerFilters(prev => ({ ...prev, status: nextStatus }));
+                      }}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm font-semibold ${containerFilters.status.includes('Insea') ? 'bg-sky-600 text-white shadow-sm' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                    >
+                      In Sea Containers
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => {
                       setActiveFilter(null);
-                      setContainerFilters({ search: "", status: "", dateRange: "", workflowStatus: "", origin: "" });
+                      setContainerFilters({ search: "", status: [], dateRange: "", workflowStatus: [], origin: [] });
                     }}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium flex items-center gap-2"
+                    className="px-4 py-2 text-slate-500 hover:text-red-600 transition-colors text-sm font-bold flex items-center gap-1.5"
                   >
-                    <X className="w-4 h-4" /> Clear Filters
-                  </button>
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => {
-                      setActiveFilter({ type: 'arriving', days: 10 });
-                      setContainerFilters(prev => ({ ...prev, dateRange: 'next10' }));
-                    }}
-                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
-                  >
-                    Next 10 Days
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveFilter({ type: 'arriving', days: 15 });
-                      setContainerFilters(prev => ({ ...prev, dateRange: 'next15' }));
-                    }}
-                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
-                  >
-                    Next 15 Days
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveFilter({ type: 'status', status: 'Loaded' });
-                      setContainerFilters(prev => ({ ...prev, status: 'Loaded' }));
-                    }}
-                    className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
-                  >
-                    Loaded Containers
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveFilter({ type: 'status', status: 'Insea' });
-                      setContainerFilters(prev => ({ ...prev, status: 'Insea' }));
-                    }}
-                    className="px-4 py-2 bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition-colors text-sm font-medium"
-                  >
-                    In Sea Containers
+                    <RotateCcw className="w-4 h-4" /> Clear Filters
                   </button>
                 </div>
 

@@ -507,164 +507,155 @@ const containerSummaryService = {
     try {
       const { month, status, containers } = data;
 
-      // Get existing summary
-      const existingSummary = await prisma.containerSummary.findUnique({
-        where: { id: summaryId },
-        include: {
-          containers: true,
-        },
-      });
-
-      if (!existingSummary) {
-        throw new Error("Summary not found");
-      }
-
-      // Calculate totals if containers are provided
-      let totals = {
-        totalContainers: existingSummary.totalContainers,
-        totalCTN: existingSummary.totalCTN,
-        totalDollar: existingSummary.totalDollar,
-        totalINR: existingSummary.totalINR,
-        totalFinalAmount: existingSummary.totalFinalAmount,
-      };
-
-      if (containers && containers.length > 0) {
-        // Delete existing containers and create new ones
-        await prisma.containerInSummary.deleteMany({
-          where: { summaryId },
+      return await prisma.$transaction(async (tx) => {
+        // Get existing summary
+        const existingSummary = await tx.containerSummary.findUnique({
+          where: { id: summaryId },
+          include: { containers: true },
         });
 
-        // Recalculate totals
-        totals = containers.reduce(
-          (acc, container) => {
-            const inr = container.dollar * container.dollarRate;
-            const dutyPercent = container.dutyPercent ?? 16.5;
-            const gstPercent = container.gstPercent ?? 18.0;
-            const dutyCalc = inr * (dutyPercent / 100);
-            const totalCalc = inr + dutyCalc;
-            const gstCalc = totalCalc * (gstPercent / 100);
-            const duty = container.duty != null ? Number(container.duty) : dutyCalc;
-            const total = inr + duty;
-            const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
-            const totalDuty = duty + gst;
-            const finalAmount = totalDuty + container.doCharge + container.cfs;
+        if (!existingSummary) {
+          throw new Error("Summary not found");
+        }
 
-            return {
-              totalContainers: containers.length,
-              totalCTN: acc.totalCTN + (container.ctn || 0),
-              totalDollar: acc.totalDollar + (container.dollar || 0),
-              totalINR: acc.totalINR + inr,
-              totalFinalAmount: acc.totalFinalAmount + finalAmount,
-            };
+        // Calculate totals if containers are provided
+        let totals = {
+          totalContainers: existingSummary.totalContainers,
+          totalCTN: existingSummary.totalCTN,
+          totalDollar: existingSummary.totalDollar,
+          totalINR: existingSummary.totalINR,
+          totalFinalAmount: existingSummary.totalFinalAmount,
+        };
+
+        if (containers && containers.length > 0) {
+          // Delete existing containers
+          await tx.containerInSummary.deleteMany({
+            where: { summaryId },
+          });
+
+          // Recalculate totals
+          totals = containers.reduce(
+            (acc, container) => {
+              const inr = container.dollar * container.dollarRate;
+              const dutyPercent = container.dutyPercent !== undefined ? Number(container.dutyPercent) : 16.5;
+              const gstPercent = container.gstPercent !== undefined ? Number(container.gstPercent) : 18.0;
+              const dutyCalc = inr * (dutyPercent / 100);
+              const totalCalc = inr + dutyCalc;
+              const duty = container.duty != null ? Number(container.duty) : dutyCalc;
+              const total = inr + duty;
+              const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
+              const totalDuty = duty + gst;
+              const finalAmount = totalDuty + (Number(container.doCharge) || 0) + (Number(container.cfs) || 0);
+
+              return {
+                totalContainers: containers.length,
+                totalCTN: acc.totalCTN + (container.ctn || 0),
+                totalDollar: acc.totalDollar + (container.dollar || 0),
+                totalINR: acc.totalINR + inr,
+                totalFinalAmount: acc.totalFinalAmount + finalAmount,
+              };
+            },
+            {
+              totalContainers: 0,
+              totalCTN: 0,
+              totalDollar: 0,
+              totalINR: 0,
+              totalFinalAmount: 0,
+            }
+          );
+
+          // Create new containers
+          await tx.containerInSummary.createMany({
+            data: containers.map((container, index) => {
+              const inr = container.dollar * container.dollarRate;
+              const dutyPercent = container.dutyPercent !== undefined ? Number(container.dutyPercent) : 16.5;
+              const gstPercent = container.gstPercent !== undefined ? Number(container.gstPercent) : 18.0;
+              const dutyCalc = inr * (dutyPercent / 100);
+              const totalCalc = inr + dutyCalc;
+              const duty = container.duty != null ? Number(container.duty) : dutyCalc;
+              const total = inr + duty;
+              const gst = container.gst != null ? Number(container.gst) : total * (gstPercent / 100);
+              const totalDuty = duty + gst;
+              const finalAmount = totalDuty + (Number(container.doCharge) || 0) + (Number(container.cfs) || 0);
+
+              return {
+                summaryId,
+                containerNo: index + 1,
+                containerCode: container.containerCode || "",
+                ctn: Number(container.ctn) || 0,
+                loadingDate: container.loadingDate ? new Date(container.loadingDate) : null,
+                eta: container.eta || "",
+                status: container.status || "Loaded",
+                dollar: Number(container.dollar) || 0,
+                dollarRate: Number(container.dollarRate) || 89.7,
+                doCharge: Number(container.doCharge) || 0,
+                cfs: Number(container.cfs) || 0,
+                dutyPercent,
+                gstPercent,
+                inr: parseFloat(inr.toFixed(2)),
+                duty: parseFloat(duty.toFixed(2)),
+                total: parseFloat(total.toFixed(2)),
+                gst: parseFloat(gst.toFixed(2)),
+                totalDuty: parseFloat(totalDuty.toFixed(2)),
+                finalAmount: parseFloat(finalAmount.toFixed(2)),
+                shippingLine: container.shippingLine || "",
+                bl: container.bl || "",
+                origin: container.origin || "",
+                containerNoField: container.containerNo || "",
+                sims: container.sims || "",
+                pims: container.pims || "",
+                cellStyles: container.cellStyles || {},
+                isActive: container.isActive !== false,
+              };
+            }),
+          });
+        }
+
+        // Update summary
+        await tx.containerSummary.update({
+          where: { id: summaryId },
+          data: {
+            ...(month && { month }),
+            ...(status && { status }),
+            updatedBy: userName,
+            totalContainers: totals.totalContainers,
+            totalCTN: totals.totalCTN,
+            totalDollar: parseFloat(totals.totalDollar.toFixed(2)),
+            totalINR: parseFloat(totals.totalINR.toFixed(2)),
+            totalFinalAmount: parseFloat(totals.totalFinalAmount.toFixed(2)),
           },
-          {
-            totalContainers: 0,
-            totalCTN: 0,
-            totalDollar: 0,
-            totalINR: 0,
-            totalFinalAmount: 0,
-          }
-        );
-      }
-
-      // Update summary
-      const updateData = {
-        ...(month && { month }),
-        ...(status && { status }),
-        updatedBy: userName,
-        ...(containers && {
-          totalContainers: totals.totalContainers,
-          totalCTN: totals.totalCTN,
-          totalDollar: parseFloat(totals.totalDollar.toFixed(2)),
-          totalINR: parseFloat(totals.totalINR.toFixed(2)),
-          totalFinalAmount: parseFloat(totals.totalFinalAmount.toFixed(2)),
-        }),
-      };
-
-      const summary = await prisma.containerSummary.update({
-        where: { id: summaryId },
-        data: updateData,
-        include: {
-          containers: true,
-        },
-      });
-
-      // Create containers if provided
-      if (containers && containers.length > 0) {
-        await prisma.containerInSummary.createMany({
-          data: containers.map((container, index) => {
-            const inr = container.dollar * container.dollarRate;
-            const dutyCalc = inr * 0.165;
-            const totalCalc = inr + dutyCalc;
-            const gstCalc = totalCalc * 0.18;
-            const duty = container.duty != null ? Number(container.duty) : dutyCalc;
-            const total = inr + duty;
-            const gst = container.gst != null ? Number(container.gst) : total * 0.18;
-            const totalDuty = duty + gst;
-            const finalAmount = totalDuty + container.doCharge + container.cfs;
-
-            return {
-              summaryId,
-              containerNo: index + 1,
-              containerCode: container.containerCode || "",
-              ctn: container.ctn || 0,
-              loadingDate: container.loadingDate
-                ? new Date(container.loadingDate)
-                : null,
-              eta: container.eta || "",
-              status: container.status || "Loaded",
-              dollar: container.dollar || 0,
-              dollarRate: container.dollarRate || 89.7,
-              doCharge: container.doCharge || 58000,
-              cfs: container.cfs || 21830,
-              dutyPercent: container.dutyPercent ?? 16.5,
-              gstPercent: container.gstPercent ?? 18.0,
-              inr: parseFloat(inr.toFixed(2)),
-              duty: parseFloat(duty.toFixed(2)),
-              total: parseFloat(total.toFixed(2)),
-              gst: parseFloat(gst.toFixed(2)),
-              totalDuty: parseFloat(totalDuty.toFixed(2)),
-              finalAmount: parseFloat(finalAmount.toFixed(2)),
-              shippingLine: container.shippingLine || "",
-              bl: container.bl || "",
-              origin: container.origin || "",
-              containerNoField: container.containerNo || "",
-              sims: container.sims || "",
-              pims: container.pims || "",
-              cellStyles: container.cellStyles || {},
-              isActive: container.isActive !== false,
-            };
-          }),
         });
-      }
 
-      // Create activity log
-      await prisma.summaryActivity.create({
-        data: {
-          summaryId,
-          userId,
-          type: "UPDATED",
-          oldValue: {
-            month: existingSummary.month,
-            status: existingSummary.status,
-            containerCount: existingSummary.totalContainers,
-            totalFinalAmount: existingSummary.totalFinalAmount,
+        // Create activity log
+        await tx.summaryActivity.create({
+          data: {
+            summaryId,
+            userId,
+            type: "UPDATED",
+            oldValue: {
+              month: existingSummary.month,
+              status: existingSummary.status,
+              containerCount: existingSummary.totalContainers,
+            },
+            newValue: {
+              month: month || existingSummary.month,
+              status: status || existingSummary.status,
+              containerCount: containers ? containers.length : existingSummary.totalContainers,
+            },
+            note: `Updated summary for ${month || existingSummary.month}`,
           },
-          newValue: {
-            month: summary.month,
-            status: summary.status,
-            containerCount: summary.totalContainers,
-            totalFinalAmount: summary.totalFinalAmount,
+        });
+
+        // Fetch final result
+        return await tx.containerSummary.findUnique({
+          where: { id: summaryId },
+          include: {
+            containers: {
+              orderBy: { containerNo: "asc" },
+            },
           },
-          note: `updated container summary for ${summary.month}`,
-        },
+        });
       });
-
-      return {
-        success: true,
-        message: "Summary updated successfully",
-        data: summary,
-      };
     } catch (error) {
       console.error("Error updating summary:", error);
       throw error;
