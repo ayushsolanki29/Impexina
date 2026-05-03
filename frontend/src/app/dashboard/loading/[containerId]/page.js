@@ -146,7 +146,7 @@ export default function LoadingSheetPage() {
   // Direct paste on hover state
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, index: null });
-  const sheetSort = searchParams.get("sheetSort") || "oldest";
+  const sheetSort = searchParams.get("sheetSort") || "newest";
   const sortedLoadingSheets = sortLoadingSheets(loadingSheets, sheetSort);
 
   // Close status dropdown on outside click
@@ -356,7 +356,7 @@ export default function LoadingSheetPage() {
         if (!activeSheet && response.data.data.loadingSheets?.length > 0) {
           const orderedSheets = sortLoadingSheets(
             response.data.data.loadingSheets || [],
-            searchParams.get("sheetSort") || "oldest",
+            searchParams.get("sheetSort") || "newest",
           );
           // Check if client name is provided in URL params - try to find matching sheet
           const urlClientName = searchParams.get("client");
@@ -676,7 +676,7 @@ export default function LoadingSheetPage() {
   const handleSheetSortChange = (nextSort) => {
     const params = new URLSearchParams(searchParams.toString());
 
-    if (!nextSort || nextSort === "oldest") {
+    if (!nextSort || nextSort === "newest") {
       params.delete("sheetSort");
     } else {
       params.set("sheetSort", nextSort);
