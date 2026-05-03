@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical, CheckCircle2, Circle, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Check, Package, ArrowRight, RefreshCw, FileSpreadsheet, ArrowRightLeft, Eye, Calendar, X, MoreVertical, CheckCircle2, Circle, ChevronUp, ChevronDown, Search } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { get, post, put, del } from "@/lib/api";
@@ -107,6 +107,7 @@ export default function ExcelLedgerPage() {
     const [showPreview, setShowPreview] = useState(false);
     const [dateRange, setDateRange] = useState({ from: "", to: "", type: "transactionDate" });
     const [sortBy, setSortBy] = useState("entryDate_asc"); // default: entry date ascending (newest at bottom)
+    const [searchTerm, setSearchTerm] = useState("");
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, rowIdx: null, tab: 'expense' });
 
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -941,14 +942,67 @@ export default function ExcelLedgerPage() {
         }
     };
 
+    // Filtering helper
+    const applyFilter = (rows, tab = 'expense') => {
+        if (!searchTerm) return rows;
+        const lowSearch = searchTerm.toLowerCase();
+        return rows.filter(t => {
+            if (tab === 'expense') {
+                return (
+                    (t.particulars?.toLowerCase().includes(lowSearch)) ||
+                    (t.containerCode?.toLowerCase().includes(lowSearch)) ||
+                    (t.paymentMode?.toLowerCase().includes(lowSearch)) ||
+                    (t.from?.toLowerCase().includes(lowSearch)) ||
+                    (t.to?.toLowerCase().includes(lowSearch))
+                );
+            } else {
+                return (
+                    (t.particular?.toLowerCase().includes(lowSearch)) ||
+                    (t.paymentMode?.toLowerCase().includes(lowSearch))
+                );
+            }
+        });
+    };
+
+    // Sort helper
+    const applySortToRows = (rows) => {
+        if (sortBy === 'custom') return rows; // manual order preserved
+        const sorted = [...rows];
+        const [field, dir] = sortBy.split("_");
+        const asc = dir === "asc";
+        sorted.sort((a, b) => {
+            let aVal, bVal;
+            if (field === "entryDate") {
+                aVal = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
+                bVal = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
+            } else if (field === "paymentDate") {
+                aVal = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
+                bVal = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
+            } else if (field === "deliveryDate") {
+                aVal = a.deliveryDate ? new Date(a.deliveryDate).getTime() : 0;
+                bVal = b.deliveryDate ? new Date(b.deliveryDate).getTime() : 0;
+            } else {
+                return 0;
+            }
+            return asc ? aVal - bVal : bVal - aVal;
+        });
+        return sorted;
+    };
+
+    const filteredTransactions = applyFilter(transactions, 'expense');
+    const filteredTrfTransactions = applyFilter(trfTransactions, 'trf');
+
+    const displayTransactions = applySortToRows(filteredTransactions);
+    const displayTrfTransactions = applySortToRows(filteredTrfTransactions);
+
     // Expense totals
-    const totalAmount = transactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-    const totalPaid = transactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
+    const totalAmount = filteredTransactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    const totalPaid = filteredTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
     const balance = totalAmount - totalPaid;
 
     // TRF totals
-    const trfTotalAmount = trfTransactions.reduce((sum, t) => sum + (parseFloat(t.total) || 0), 0);
-    const trfTotalPaid = trfTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
+    const trfTotalAmount = filteredTrfTransactions.reduce((sum, t) => sum + (parseFloat(t.total) || 0), 0);
+    const trfTotalPaid = filteredTrfTransactions.reduce((sum, t) => sum + (parseFloat(t.paid) || 0), 0);
     const trfBalance = trfTotalAmount - trfTotalPaid;
 
     // ── Row reorder ────────────────────────────────────────────
@@ -1005,34 +1059,6 @@ export default function ExcelLedgerPage() {
         window.addEventListener('click', close);
         return () => window.removeEventListener('click', close);
     }, []);
-
-    // ── Sort helper ────────────────────────────────────────────
-    const applySortToRows = (rows) => {
-        if (sortBy === 'custom') return rows; // manual order preserved
-        const sorted = [...rows];
-        const [field, dir] = sortBy.split("_");
-        const asc = dir === "asc";
-        sorted.sort((a, b) => {
-            let aVal, bVal;
-            if (field === "entryDate") {
-                aVal = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
-                bVal = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
-            } else if (field === "paymentDate") {
-                aVal = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
-                bVal = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
-            } else if (field === "deliveryDate") {
-                aVal = a.deliveryDate ? new Date(a.deliveryDate).getTime() : 0;
-                bVal = b.deliveryDate ? new Date(b.deliveryDate).getTime() : 0;
-            } else {
-                return 0;
-            }
-            return asc ? aVal - bVal : bVal - aVal;
-        });
-        return sorted;
-    };
-
-    const sortedTransactions = applySortToRows(transactions);
-    const sortedTrfTransactions = applySortToRows(trfTransactions);
 
     if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-slate-300" /></div>;
     if (!client) return <div className="p-12 text-center text-slate-500">Client not found</div>;
@@ -1110,6 +1136,25 @@ export default function ExcelLedgerPage() {
                         <div className="hidden md:block h-8 w-px bg-slate-200" />
 
                         <TabSwitch activeTab={activeTab} onChange={setActiveTab} />
+
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                            <input
+                                type="text"
+                                placeholder="Search ledger..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all w-48"
+                            />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm("")}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Right Group: Metrics & Ellipsis Menu */}
@@ -1335,9 +1380,8 @@ export default function ExcelLedgerPage() {
                             ))}
                         </div>
 
-                        {/* Data Rows */}
                         <div className="divide-y divide-slate-50 bg-white col-span-14 grid grid-cols-subgrid">
-                            {sortedTransactions.map((txn, idx) => {
+                            {displayTransactions.map((txn, idx) => {
                                 const realIdx = transactions.findIndex(t => t.id === txn.id);
                                 const ri = realIdx >= 0 ? realIdx : idx;
                                 return (
@@ -1530,7 +1574,7 @@ export default function ExcelLedgerPage() {
 
                         {/* TRF Data Rows */}
                         <div className="divide-y divide-amber-50 bg-white col-span-10 grid grid-cols-subgrid">
-                            {sortedTrfTransactions.map((txn, idx) => {
+                            {displayTrfTransactions.map((txn, idx) => {
                                 const realIdx = trfTransactions.findIndex(t => t.id === txn.id);
                                 const ri = realIdx >= 0 ? realIdx : idx;
                                 return (
@@ -1669,8 +1713,8 @@ export default function ExcelLedgerPage() {
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
                 client={client}
-                expenseTransactions={transactions}
-                trfTransactions={trfTransactions}
+                expenseTransactions={displayTransactions}
+                trfTransactions={displayTrfTransactions}
                 sheetName={sheetName}
                 dateRange={dateRange}
             />
