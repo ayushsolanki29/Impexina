@@ -193,6 +193,9 @@ const packingListService = {
       kg: parseFloat(item.kg) || 0,
       tKg: parseFloat(item.tKg) || 0,
       hsn: item.hsn || "",
+      mix: item.mix || "",
+      value: parseFloat(item.value) || null,
+      dollarRate: parseFloat(item.dollarRate) || null,
       photo: item.photo,
       sequence: index
     }));

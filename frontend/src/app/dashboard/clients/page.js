@@ -24,7 +24,7 @@ export default function ClientsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [popup, setPopup] = useState(null); // { clientId, field, x, y }
 
-  const TYPE_OPTIONS   = ["LEAD", "CLIENT"];
+  const TYPE_OPTIONS = ["LEAD", "CLIENT"];
   const STATUS_OPTIONS = ["NEW", "CONTACTED", "ACTIVE", "INACTIVE"];
 
   const handleInlineUpdate = async (clientId, field, value) => {
@@ -68,12 +68,12 @@ export default function ClientsPage() {
         setClients(res.data.clients || []);
         setTotalPages(res.data.totalPages || 1);
         setTotal(res.data.total || 0);
-        
+
         // Calculate stats from clients
         const leadsCount = res.data.clients?.filter(c => c.type === 'LEAD').length || 0;
         const clientsCount = res.data.clients?.filter(c => c.type === 'CLIENT').length || 0;
         const activeCount = res.data.clients?.filter(c => c.status === 'ACTIVE').length || 0;
-        
+
         setStats({
           total: res.data.total || 0,
           leads: leadsCount,
@@ -403,8 +403,8 @@ export default function ClientsPage() {
                             ${client.status === 'ACTIVE'
                               ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                               : client.status === 'NEW' || client.status === 'CONTACTED'
-                              ? 'bg-amber-100 text-amber-700 border-amber-200'
-                              : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                           {client.status || 'NEW'}
                         </button>
                       </td>
@@ -485,11 +485,10 @@ export default function ClientsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setPage(pageNum)}
-                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                        page === pageNum
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${page === pageNum
                           ? 'bg-blue-600 text-white'
                           : 'border border-slate-200 hover:bg-white'
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>

@@ -26,6 +26,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import PreviewModal from '../_components/PreviewModal';
 import { getImageUrl } from '@/lib/image-utils';
 
@@ -41,6 +47,7 @@ export default function PackingListEntryPage() {
   const [importing, setImporting] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("standard"); // "standard" or "advance"
 
   // Templates
   const [templates, setTemplates] = useState([]);
@@ -324,7 +331,9 @@ export default function PackingListEntryPage() {
       tKg: 0,
       mix: '',
       hsn: '',
-      photo: null
+      photo: null,
+      value: '',
+      dollarRate: ''
     }]);
   };
 
@@ -406,6 +415,26 @@ export default function PackingListEntryPage() {
       }
       return item;
     }));
+  };
+
+  const calculateAdvance = (item) => {
+    const value = parseFloat(item.value) || 0;
+    const tKg = parseFloat(item.tKg) || 0;
+    const tQty = parseInt(item.tQty) || 0;
+
+    const calcValue = (value * tKg) / 90;
+    const perPcsRate = tQty > 0 ? calcValue / tQty : 0;
+    const roundup = Math.ceil(perPcsRate * 100) / 100;
+    const tValue = roundup * tQty;
+    const difference = calcValue - tValue;
+
+    return {
+      calcValue: calcValue.toFixed(2),
+      perPcsRate: perPcsRate.toFixed(4),
+      roundup: roundup.toFixed(2),
+      tValue: tValue.toFixed(2),
+      difference: difference.toFixed(2)
+    };
   };
 
   const uploadFile = async (file, setter, type = 'photo') => {
@@ -986,7 +1015,19 @@ export default function PackingListEntryPage() {
             {/* Items Table Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-900 uppercase tracking-tight">Packing List Items</h2>
+                <div className="flex items-center gap-6">
+                  <h2 className="text-lg font-bold text-slate-900 uppercase tracking-tight">Packing List Items</h2>
+                  <Tabs value={viewMode} onValueChange={setViewMode} className="w-[400px]">
+                    <TabsList className="bg-slate-100 p-1 rounded-xl">
+                      <TabsTrigger value="standard" className="rounded-lg px-4 py-1.5 text-xs font-bold uppercase transition-all data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                        Standard View
+                      </TabsTrigger>
+                      <TabsTrigger value="advance" className="rounded-lg px-4 py-1.5 text-xs font-bold uppercase transition-all data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
+                        Advance Calculations
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
                 <button
                   onClick={addItem}
                   className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 font-bold text-xs uppercase transition-all shadow-lg shadow-blue-100"
@@ -1004,191 +1045,268 @@ export default function PackingListEntryPage() {
                       <th className="px-4 py-5 w-12 text-center border-r border-slate-200">S.N.</th>
                       <th className="px-2 py-5 w-16 text-center border-r border-slate-200">Photo</th>
                       <th className="px-4 py-5 min-w-[250px] border-r border-slate-200 text-left">Descriptions</th>
-                      <th className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200">MARK</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Ctn.</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Qty/Ctn</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Unit</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-blue-50/50 text-blue-700">T-Qty</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 text-orange-600/80">KG</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-orange-50/50 text-orange-700">T.KG</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">MIX</th>
-                      <th className="px-2 py-5 min-w-[80px] text-center">HSN</th>
+                      
+                      {viewMode === 'standard' ? (
+                        <>
+                          <th className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200">MARK</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Ctn.</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Qty/Ctn</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">Unit</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-blue-50/50 text-blue-700">T-Qty</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 text-orange-600/80">KG</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-orange-50/50 text-orange-700">T.KG</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200">MIX</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center">HSN</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-purple-50 text-purple-700 font-black">VALUE</th>
+                          <th className="px-2 py-5 min-w-[80px] text-center border-r border-slate-200 bg-slate-100 text-slate-700 font-black">DOLLAR</th>
+                          <th 
+                            className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200 bg-blue-50 text-blue-800 font-black cursor-help"
+                            title="Formula: (VALUE * T.KG) / 90&#10;Example: (80 * 438.48) / 90 = 389.76"
+                          >
+                            VALUE-*T.W
+                          </th>
+                          <th 
+                            className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200 bg-emerald-50 text-emerald-800 font-black cursor-help"
+                            title="Formula: CALC_VALUE / T.QTY&#10;Example: 389.76 / 1200 = 0.3248"
+                          >
+                            PER PCS
+                          </th>
+                          <th 
+                            className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200 bg-amber-50 text-amber-800 font-black cursor-help"
+                            title="Formula: Math.ceil(PER_PCS_RATE * 100) / 100&#10;Example: roundup(0.3248) = 0.33"
+                          >
+                            ROUNDUP
+                          </th>
+                          <th 
+                            className="px-2 py-5 min-w-[100px] text-center border-r border-slate-200 bg-indigo-50 text-indigo-800 font-black cursor-help"
+                            title="Formula: ROUNDUP * T.QTY&#10;Example: 0.33 * 1200 = 396"
+                          >
+                            T.VALUE
+                          </th>
+                          <th 
+                            className="px-2 py-5 min-w-[100px] text-center text-red-700 font-black cursor-help"
+                            title="Formula: CALC_VALUE - T.VALUE&#10;Example: 389.76 - 396 = -6.24"
+                          >
+                            DIFF.
+                          </th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {items.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="w-10 border-r border-slate-100 bg-slate-50/20">
-                          <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button
-                              onClick={() => moveItem(idx, 'up')}
-                              disabled={idx === 0}
-                              className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
-                            >
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => moveItem(idx, 'down')}
-                              disabled={idx === items.length - 1}
-                              className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
-                            >
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-center text-xs font-medium text-slate-400 border-r border-slate-100">{idx + 1}</td>
-                        <td className="px-1 py-1 border-r border-slate-100 text-center">
-                          <label
-                            className="w-10 h-10 mx-auto flex items-center justify-center border border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 transition-all relative overflow-hidden group"
-                            onMouseEnter={() => setHoveredId(item.id)}
-                            onMouseLeave={() => setHoveredId(null)}
-                            onContextMenu={(e) => onCellContextMenu(e, item.id)}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.currentTarget.classList.add("border-blue-500", "bg-blue-50");
-                            }}
-                            onDragLeave={(e) => {
-                              e.preventDefault();
-                              e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
-                              const file = e.dataTransfer.files[0];
-                              if (file && file.type.startsWith("image/")) {
-                                uploadFile(file, (url) => updateItem(item.id, 'photo', url));
-                              }
-                            }}
-                            onPaste={(e) => {
-                              const file = getImageFileFromClipboardEvent(e);
-                              if (file) uploadFile(file, (url) => updateItem(item.id, 'photo', url));
-                            }}
-                          >
-                            {item.photo ? (
-                              <img src={getImageUrl(item.photo)} alt="Item" className="w-full h-full object-cover" />
-                            ) : (
-                              <Upload className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
-                            )}
-                            <input
-                              type="file" accept="image/*" className="hidden"
-                              onChange={e => handleFileUpload((url) => updateItem(item.id, 'photo', url))}
-                            />
-                          </label>
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <textarea
-                            id={`cell-${idx}-particular`}
-                            value={item.particular}
-                            onChange={e => updateItem(item.id, 'particular', e.target.value.toUpperCase())}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'particular')}
-                            className="w-full bg-transparent border-none px-3 py-1 text-sm font-semibold text-slate-700 outline-none resize-none h-10 flex items-center"
-                            placeholder="Description"
-                            onMouseEnter={() => setHoveredId(item.id)}
-                            onMouseLeave={() => setHoveredId(null)}
-                            onContextMenu={(e) => onCellContextMenu(e, item.id)}
-                            onPaste={(e) => {
-                              const clipboardItems = e.clipboardData.items;
-                              for (let i = 0; i < clipboardItems.length; i++) {
-                                if (clipboardItems[i].type.indexOf("image") !== -1) {
-                                  const file = clipboardItems[i].getAsFile();
+                    {items.map((item, idx) => {
+                      const adv = calculateAdvance(item);
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="w-10 border-r border-slate-100 bg-slate-50/20">
+                            <div className="flex flex-col items-center justify-center py-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => moveItem(idx, 'up')}
+                                disabled={idx === 0}
+                                className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => moveItem(idx, 'down')}
+                                disabled={idx === items.length - 1}
+                                className="p-1 text-slate-300 hover:text-blue-500 disabled:opacity-0"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-center text-xs font-medium text-slate-400 border-r border-slate-100">{idx + 1}</td>
+                          <td className="px-1 py-1 border-r border-slate-100 text-center">
+                            <label
+                              className="w-10 h-10 mx-auto flex items-center justify-center border border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 transition-all relative overflow-hidden group"
+                              onMouseEnter={() => setHoveredId(item.id)}
+                              onMouseLeave={() => setHoveredId(null)}
+                              onContextMenu={(e) => onCellContextMenu(e, item.id)}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.add("border-blue-500", "bg-blue-50");
+                              }}
+                              onDragLeave={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                                const file = e.dataTransfer.files[0];
+                                if (file && file.type.startsWith("image/")) {
                                   uploadFile(file, (url) => updateItem(item.id, 'photo', url));
-                                  break;
                                 }
-                              }
-                            }}
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-itemNumber`}
-                            value={item.itemNumber}
-                            onChange={e => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'itemNumber')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
-                            placeholder="-"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-ctn`}
-                            type="number" value={item.ctn || ''}
-                            onChange={e => updateItem(item.id, 'ctn', e.target.value)}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'ctn')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-900 text-center outline-none"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-qtyPerCtn`}
-                            type="number" value={item.qtyPerCtn || ''}
-                            onChange={e => updateItem(item.id, 'qtyPerCtn', e.target.value)}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'qtyPerCtn')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-unit`}
-                            value={item.unit || 'PCS'}
-                            onChange={e => updateItem(item.id, 'unit', e.target.value.toUpperCase())}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'unit')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-600 bg-blue-50/20">{item.tQty}</td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-kg`}
-                            type="number" value={item.kg || ''}
-                            onChange={e => updateItem(item.id, 'kg', e.target.value)}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'kg')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-orange-600 bg-orange-50/20">{(parseFloat(item.tKg) || 0).toFixed(2)}</td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-mix`}
-                            value={item.mix || ''}
-                            onChange={e => updateItem(item.id, 'mix', e.target.value.toUpperCase())}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'mix')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
-                            placeholder="-"
-                          />
-                        </td>
-                        <td className="px-1 py-1 border-r border-slate-100">
-                          <input
-                            id={`cell-${idx}-hsn`}
-                            value={item.hsn || ''}
-                            onChange={e => updateItem(item.id, 'hsn', e.target.value.toUpperCase())}
-                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'hsn')}
-                            className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
-                            placeholder="-"
-                          />
-                        </td>
-                        <td className="px-1 py-2 text-center flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => duplicateRow(idx)}
-                            className="p-2 text-slate-300 hover:text-blue-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                            title="Duplicate Row"
-                            tabIndex={-1}
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                            title="Delete Row"
-                            tabIndex={-1}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                              }}
+                              onPaste={(e) => {
+                                const file = getImageFileFromClipboardEvent(e);
+                                if (file) uploadFile(file, (url) => updateItem(item.id, 'photo', url));
+                              }}
+                            >
+                              {item.photo ? (
+                                <img src={getImageUrl(item.photo)} alt="Item" className="w-full h-full object-cover" />
+                              ) : (
+                                <Upload className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
+                              )}
+                              <input
+                                type="file" accept="image/*" className="hidden"
+                                onChange={e => handleFileUpload((url) => updateItem(item.id, 'photo', url))}
+                              />
+                            </label>
+                          </td>
+                          <td className="px-1 py-1 border-r border-slate-100">
+                            <textarea
+                              id={`cell-${idx}-particular`}
+                              value={item.particular}
+                              onChange={e => updateItem(item.id, 'particular', e.target.value.toUpperCase())}
+                              onKeyDown={(e) => handleInputKeyDown(e, idx, 'particular')}
+                              className="w-full bg-transparent border-none px-3 py-1 text-sm font-semibold text-slate-700 outline-none resize-none h-10 flex items-center"
+                              placeholder="Description"
+                              onMouseEnter={() => setHoveredId(item.id)}
+                              onMouseLeave={() => setHoveredId(null)}
+                              onContextMenu={(e) => onCellContextMenu(e, item.id)}
+                              onPaste={(e) => {
+                                const clipboardItems = e.clipboardData.items;
+                                for (let i = 0; i < clipboardItems.length; i++) {
+                                  if (clipboardItems[i].type.indexOf("image") !== -1) {
+                                    const file = clipboardItems[i].getAsFile();
+                                    uploadFile(file, (url) => updateItem(item.id, 'photo', url));
+                                    break;
+                                  }
+                                }
+                              }}
+                            />
+                          </td>
+
+                          {viewMode === 'standard' ? (
+                            <>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-itemNumber`}
+                                  value={item.itemNumber}
+                                  onChange={e => updateItem(item.id, 'itemNumber', e.target.value.toUpperCase())}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'itemNumber')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-700 text-center outline-none uppercase"
+                                  placeholder="-"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-ctn`}
+                                  type="number" value={item.ctn || ''}
+                                  onChange={e => updateItem(item.id, 'ctn', e.target.value)}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'ctn')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-slate-900 text-center outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-qtyPerCtn`}
+                                  type="number" value={item.qtyPerCtn || ''}
+                                  onChange={e => updateItem(item.id, 'qtyPerCtn', e.target.value)}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'qtyPerCtn')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-unit`}
+                                  value={item.unit || 'PCS'}
+                                  onChange={e => updateItem(item.id, 'unit', e.target.value.toUpperCase())}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'unit')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-600 bg-blue-50/20">{item.tQty}</td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-kg`}
+                                  type="number" value={item.kg || ''}
+                                  onChange={e => updateItem(item.id, 'kg', e.target.value)}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'kg')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-700 text-center outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-orange-600 bg-orange-50/20">{(parseFloat(item.tKg) || 0).toFixed(2)}</td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-mix`}
+                                  value={item.mix || ''}
+                                  onChange={e => updateItem(item.id, 'mix', e.target.value.toUpperCase())}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'mix')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
+                                  placeholder="-"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-hsn`}
+                                  value={item.hsn || ''}
+                                  onChange={e => updateItem(item.id, 'hsn', e.target.value.toUpperCase())}
+                                  onKeyDown={(e) => handleInputKeyDown(e, idx, 'hsn')}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-xs font-semibold text-slate-700 text-center outline-none"
+                                  placeholder="-"
+                                />
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-1 py-1 border-r border-slate-100 bg-purple-50/30">
+                                <input
+                                  id={`cell-${idx}-value`}
+                                  type="number" value={item.value || ''}
+                                  onChange={e => updateItem(item.id, 'value', e.target.value)}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-bold text-purple-700 text-center outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100">
+                                <input
+                                  id={`cell-${idx}-dollarRate`}
+                                  type="number" value={item.dollarRate || ''}
+                                  onChange={e => updateItem(item.id, 'dollarRate', e.target.value)}
+                                  className="w-full bg-transparent border-none px-1 py-1 text-sm font-semibold text-slate-600 text-center outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-blue-800 bg-blue-50/50">{adv.calcValue}</td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-semibold text-emerald-800 bg-emerald-50/50">{adv.perPcsRate}</td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-amber-800 bg-amber-50/50">{adv.roundup}</td>
+                              <td className="px-1 py-1 border-r border-slate-100 text-center font-bold text-indigo-800 bg-indigo-50/50">{adv.tValue}</td>
+                              <td className={`px-1 py-1 text-center font-bold ${parseFloat(adv.difference) < 0 ? 'text-red-600 bg-red-50/50' : 'text-green-600 bg-green-50/50'}`}>
+                                {adv.difference}
+                              </td>
+                            </>
+                          )}
+
+                          <td className="px-1 py-2 text-center flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => duplicateRow(idx)}
+                              className="p-2 text-slate-300 hover:text-blue-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              title="Duplicate Row"
+                              tabIndex={-1}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => removeItem(item.id)}
+                              className="p-2 text-slate-300 hover:text-red-500 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              title="Delete Row"
+                              tabIndex={-1}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
 

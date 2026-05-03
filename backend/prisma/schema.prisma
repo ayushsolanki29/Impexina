@@ -440,6 +440,8 @@ model PackingListItem {
   mix           String? // MIX value
   hsn           String? // HSN value
   photo         String? // Base64 or URL
+  value         Float?  // Advance calculation: Input Value
+  dollarRate    Float?  // Advance calculation: Dollar Rate
   sequence      Int     @default(0)
 
   packingList PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
