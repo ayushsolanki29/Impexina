@@ -26,7 +26,7 @@ const updateSheetSchema = Joi.object({
 });
 
 const entrySchema = Joi.object({
-  clientName: Joi.string().required().max(200),
+  clientName: Joi.string().optional().max(200),
   expectedDate: Joi.date().optional(),
   amount24_25: Joi.number().min(0).optional().allow(null),
   addCompany: Joi.number().min(0).optional().allow(null),
@@ -36,6 +36,7 @@ const entrySchema = Joi.object({
   notes: Joi.string().max(1000).optional().allow("", null),
   paymentMode: Joi.string().max(50).optional().allow("", null),
   paymentRef: Joi.string().max(100).optional().allow("", null),
+  hisab: Joi.boolean().optional().default(false),
 });
 
 const importEntriesSchema = Joi.array().items(entrySchema).min(1).max(1000);

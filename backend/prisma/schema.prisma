@@ -868,6 +868,7 @@ model DineshSheetEntry {
 
   // Metadata
   isPaid   Boolean @default(false)
+  hisab    Boolean @default(false)
   priority String? // "HIGH", "MEDIUM", "LOW"
 
   // Timestamps
@@ -945,6 +946,7 @@ model DavidSheetEntry {
 
   // Metadata
   isBalanced Boolean @default(true)
+  hisab      Boolean @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -1029,6 +1031,7 @@ model PaymentCollectionEntry {
 
   // Status tracking
   paymentStatus String @default("PENDING") // PENDING, PARTIAL, PAID
+  hisab         Boolean @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -1141,6 +1144,7 @@ model ShippingEntry {
   notes        String?
   shippingLine String?
   blNumber     String?
+  hisab        Boolean  @default(false)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -1857,6 +1861,7 @@ model TukaramSheetEntry {
   paid          Float     @default(0)
   paymentDate   DateTime?
   note          String?
+  hisab         Boolean   @default(false)
 
   // Calculated fields
   balance Float @default(0) // total - paid
@@ -1931,6 +1936,7 @@ model KavyaSheetEntry {
   total          Float     @default(0)
   paid           Float     @default(0)
   paymentDate    DateTime?
+  hisab          Boolean   @default(false)
 
   // Calculated fields
   balance Float @default(0) // total - paid

@@ -48,6 +48,7 @@ export default function TukaramSheetPage() {
     paid: "",
     paymentDate: "",
     note: "",
+    hisab: false,
   });
 
   const loadSheetData = useCallback(async () => {
@@ -121,6 +122,10 @@ export default function TukaramSheetPage() {
         dc: parseFloat(newEntry.dc) || 0,
         paid: parseFloat(newEntry.paid) || 0,
       };
+      // Convert empty date strings to null
+      ['loadingDate', 'deliveryDate', 'paymentDate'].forEach(field => {
+        if (entryData[field] === "") entryData[field] = null;
+      });
       await tukaramAPI.addEntry(sheetId, entryData);
       toast.success("Entry added");
       setNewEntry({
@@ -135,17 +140,23 @@ export default function TukaramSheetPage() {
         paid: "",
         paymentDate: "",
         note: "",
+        hisab: false,
       });
       loadSheetData();
     } catch (error) {
-      toast.error("Failed to add entry");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to add entry";
+      toast.error(errorMsg);
     }
   };
 
   const handleUpdateEntry = async (entryId, field, value) => {
     try {
       const entry = entries.find(e => e.id === entryId);
-      const updatedData = { ...entry, [field]: value };
+      let finalValue = value;
+      if (['loadingDate', 'deliveryDate', 'paymentDate'].includes(field) && value === "") {
+        finalValue = null;
+      }
+      const updatedData = { ...entry, [field]: finalValue };
       
       // Auto-recalculate total if charges/scanning/dc change
       if (['charges', 'scanning', 'dc'].includes(field)) {
@@ -157,7 +168,8 @@ export default function TukaramSheetPage() {
       await tukaramAPI.updateEntry(entryId, updatedData);
       setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updatedData } : e));
     } catch (error) {
-      toast.error("Failed to update entry");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to update entry";
+      toast.error(errorMsg);
     }
   };
 
@@ -305,6 +317,7 @@ export default function TukaramSheetPage() {
               <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase w-20">CTN</th>
               <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-32">Loading</th>
               <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-32">Delivery</th>
+              <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase w-16">HISAB</th>
               <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Particular</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-28 bg-blue-50/50">Charges</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-28 bg-blue-50/50">Scanning</th>
@@ -320,7 +333,7 @@ export default function TukaramSheetPage() {
             {/* Opening Balance Row */}
             <tr className="bg-slate-50 border-b border-slate-200 italic text-slate-500">
                 <td className="border border-slate-200 px-3 py-2 text-center">-</td>
-                <td className="border border-slate-200 px-3 py-2 font-bold uppercase" colSpan="4">Opening Balance</td>
+                <td className="border border-slate-200 px-3 py-2 font-bold uppercase" colSpan="5">Opening Balance</td>
                 <td className="border border-slate-200 px-3 py-2"></td>
                 <td className="border border-slate-200 px-3 py-2"></td>
                 <td className="border border-slate-200 px-3 py-2"></td>
@@ -365,6 +378,14 @@ export default function TukaramSheetPage() {
                     className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-600"
                     value={row.deliveryDate ? new Date(row.deliveryDate).toISOString().split("T")[0] : ""}
                     onChange={(e) => handleUpdateEntry(row.id, "deliveryDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
+                    checked={row.hisab || false} 
+                    onChange={(e) => handleUpdateEntry(row.id, "hisab", e.target.checked)} 
                   />
                 </td>
                 <td className="border border-slate-200 px-3 py-1.5">
@@ -475,6 +496,14 @@ export default function TukaramSheetPage() {
                   onChange={(e) => setNewEntry({ ...newEntry, deliveryDate: e.target.value })}
                 />
               </td>
+              <td className="border border-slate-200 px-3 py-2 text-center">
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
+                  checked={newEntry.hisab} 
+                  onChange={(e) => setNewEntry({ ...newEntry, hisab: e.target.checked })} 
+                />
+              </td>
               <td className="border border-slate-200 px-3 py-2">
                 <input
                   className="w-full border border-blue-200 rounded px-2 py-1 text-xs"
@@ -536,7 +565,7 @@ export default function TukaramSheetPage() {
           {/* Footer Totals */}
           <tfoot>
             <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-              <td colSpan="6" className="border border-slate-300 px-3 py-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">
+              <td colSpan="7" className="border border-slate-300 px-3 py-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">
                 GRAND TOTAL
               </td>
               <td className="border border-slate-300 px-3 py-3 text-right font-mono">

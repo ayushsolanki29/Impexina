@@ -24,11 +24,11 @@ const updateSheetSchema = Joi.object({
 });
 
 const entrySchema = Joi.object({
-  containerCode: Joi.string().required().max(50),
+  containerCode: Joi.string().optional().max(50),
   loadingFrom: Joi.string().max(100).optional(),
   ctn: Joi.number().integer().min(0).optional(),
-  loadingDate: Joi.date().required(),
-  deliveryDate: Joi.date().optional(),
+  loadingDate: Joi.date().optional(),
+  deliveryDate: Joi.date().optional().allow(null),
   freightUSD: Joi.number().min(0).optional(),
   freightINR: Joi.number().min(0).optional(),
   rmbRate: Joi.number().min(0).optional(),
@@ -47,6 +47,7 @@ const entrySchema = Joi.object({
   shippingLine: Joi.string().max(100).optional().allow("", null),
   blNumber: Joi.string().max(100).optional().allow("", null),
   deliveryStatus: Joi.string().valid("PENDING", "IN_TRANSIT", "ARRIVED", "DELIVERED").optional(),
+  hisab: Joi.boolean().optional().default(false),
 });
 
 const importEntriesSchema = Joi.array().items(entrySchema).min(1).max(1000);

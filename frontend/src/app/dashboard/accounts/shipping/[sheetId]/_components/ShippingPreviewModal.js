@@ -94,6 +94,7 @@ export default function ShippingPreviewModal({
 
       const header = [
         "SR",
+        "HISAB",
         "CONT CODE",
         "CTN",
         "LOADING",
@@ -143,6 +144,7 @@ export default function ShippingPreviewModal({
 
           return [
             idx + 1,
+            e.hisab ? "YES" : "NO",
             e.containerCode || "",
             parseFloat(e.ctn) || 0,
             e.loadingDate ? formatDate(e.loadingDate) : "",
@@ -164,6 +166,7 @@ export default function ShippingPreviewModal({
         }),
         [],
         [
+          "",
           "",
           "TOTAL",
           safeStats.totalCTN || 0,
@@ -189,6 +192,7 @@ export default function ShippingPreviewModal({
 
       ws["!cols"] = [
         { wch: 5 },
+        { wch: 8 },
         { wch: 14 },
         { wch: 6 },
         { wch: 12 },
@@ -209,8 +213,8 @@ export default function ShippingPreviewModal({
       ];
 
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 17 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 18 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 17 } },
       ];
 
       const border = {
@@ -226,7 +230,7 @@ export default function ShippingPreviewModal({
       };
 
       // Title style (r=0)
-      for (let c = 0; c <= 17; c += 1) {
+      for (let c = 0; c <= 18; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -236,8 +240,8 @@ export default function ShippingPreviewModal({
       ws["!rows"] = [{ hpt: 26 }];
 
       // Header style (r=3)
-      for (let c = 0; c <= 17; c += 1) {
-        const isNumber = c >= 2;
+      for (let c = 0; c <= 18; c += 1) {
+        const isNumber = c >= 3;
         setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -250,8 +254,8 @@ export default function ShippingPreviewModal({
       const firstDataRow = 4;
       const lastDataRow = firstDataRow + safeEntries.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 17; c += 1) {
-          const isNumber = c >= 2;
+        for (let c = 0; c <= 18; c += 1) {
+          const isNumber = c >= 3;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: false },
@@ -262,8 +266,8 @@ export default function ShippingPreviewModal({
 
       // Totals row style
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 17; c += 1) {
-        const isNumber = c >= 2;
+      for (let c = 0; c <= 18; c += 1) {
+        const isNumber = c >= 3;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -357,6 +361,9 @@ export default function ShippingPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Cont Code
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-16">
+                        HISAB
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-20">
                         CTN
                       </th>
@@ -439,6 +446,9 @@ export default function ShippingPreviewModal({
                           <td className="border border-slate-200 px-3 py-2 text-slate-900 font-semibold whitespace-nowrap">
                             {e.containerCode || "-"}
                           </td>
+                          <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap text-center font-bold">
+                            {e.hisab ? "✔" : "-"}
+                          </td>
                           <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
                             {formatCurrency(e.ctn)}
                           </td>
@@ -494,7 +504,7 @@ export default function ShippingPreviewModal({
                   <tfoot>
                     <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <td
-                        colSpan="2"
+                        colSpan="3"
                         className="border border-slate-300 px-3 py-2 text-right text-slate-600 uppercase"
                       >
                         Total

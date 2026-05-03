@@ -317,6 +317,7 @@ const davidSheetService = {
         creditRMB = 0,
         debitUSD = 0,
         creditUSD = 0,
+        hisab = false,
       } = entryData;
 
       // Validate amounts
@@ -339,6 +340,7 @@ const davidSheetService = {
           totalDebitUSD: finalDebitUSD,
           totalCreditUSD: finalCreditUSD,
           isBalanced: (finalDebitRMB >= 0 && finalCreditRMB >= 0 && finalDebitUSD >= 0 && finalCreditUSD >= 0),
+          hisab: !!hisab,
           createdBy: userId.toString(),
         },
       });
@@ -360,6 +362,7 @@ const davidSheetService = {
         creditRMB,
         debitUSD,
         creditUSD,
+        hisab,
       } = entryData;
 
       // Convert to numbers
@@ -375,6 +378,7 @@ const davidSheetService = {
         ...(finalCreditRMB !== undefined && { creditRMB: finalCreditRMB }),
         ...(finalDebitUSD !== undefined && { debitUSD: finalDebitUSD }),
         ...(finalCreditUSD !== undefined && { creditUSD: finalCreditUSD }),
+        ...(hisab !== undefined && { hisab: !!hisab }),
         updatedBy: userId.toString(),
         updatedAt: new Date(),
       };
@@ -429,6 +433,7 @@ const davidSheetService = {
             creditRMB = 0,
             debitUSD = 0,
             creditUSD = 0,
+            hisab = false,
           } = entryData;
 
           const finalDebitRMB = parseFloat(debitRMB) || 0;
@@ -450,6 +455,7 @@ const davidSheetService = {
               totalDebitUSD: finalDebitUSD,
               totalCreditUSD: finalCreditUSD,
               isBalanced: (finalDebitRMB >= 0 && finalCreditRMB >= 0 && finalDebitUSD >= 0 && finalCreditUSD >= 0),
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });
@@ -484,6 +490,7 @@ const davidSheetService = {
             creditRMB = 0,
             debitUSD = 0,
             creditUSD = 0,
+            hisab = false,
           } = entryData;
 
           const finalDebitRMB = parseFloat(debitRMB) || 0;
@@ -505,6 +512,7 @@ const davidSheetService = {
               totalDebitUSD: finalDebitUSD,
               totalCreditUSD: finalCreditUSD,
               isBalanced: (finalDebitRMB >= 0 && finalCreditRMB >= 0 && finalDebitUSD >= 0 && finalCreditUSD >= 0),
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });

@@ -321,6 +321,7 @@ const dineshbhaiService = {
         clientRef,
         notes,
         priority,
+        hisab,
       } = entryData;
       
       // Calculate total if not provided
@@ -346,6 +347,7 @@ const dineshbhaiService = {
           clientRef: clientRef || null,
           notes: notes || null,
           priority: priority || null,
+          hisab: !!hisab,
           isPaid: balance <= 0,
           createdBy: userId.toString(),
         },
@@ -372,6 +374,7 @@ const dineshbhaiService = {
         clientRef,
         notes,
         priority,
+        hisab,
       } = entryData;
       
       // Calculate total if not provided but booking and rate are
@@ -399,6 +402,7 @@ const dineshbhaiService = {
           ...(clientRef !== undefined && { clientRef }),
           ...(notes !== undefined && { notes }),
           ...(priority !== undefined && { priority }),
+          ...(hisab !== undefined && { hisab: !!hisab }),
           ...(balance !== undefined && { isPaid: balance <= 0 }),
           updatedBy: userId.toString(),
           updatedAt: new Date(),
@@ -444,6 +448,7 @@ const dineshbhaiService = {
             clientRef,
             notes,
             priority,
+            hisab,
           } = entryData;
           
           // Calculate total if not provided
@@ -469,6 +474,7 @@ const dineshbhaiService = {
               clientRef: clientRef || null,
               notes: notes || null,
               priority: priority || null,
+              hisab: !!hisab,
               isPaid: balance <= 0,
               createdBy: userId.toString(),
             },

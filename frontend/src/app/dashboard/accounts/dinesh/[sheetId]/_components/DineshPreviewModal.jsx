@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
-import { X, Printer, FileSpreadsheet, Loader2 } from "lucide-react";
+import { X, Printer, FileSpreadsheet, Loader2, Check } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 function formatDateDDMMYYYY(dateStr) {
@@ -88,6 +88,7 @@ export default function DineshPreviewModal({
       setLoading(true);
 
       const header = [
+        "HISAB",
         "SUPPLIER",
         "PAYMENT DATE",
         "AMOUNT",
@@ -104,6 +105,7 @@ export default function DineshPreviewModal({
         [],
         header,
         ...(entries || []).map((e) => [
+          e.hisab ? "YES" : "NO",
           e.supplier || "",
           formatDateDDMMYYYY(e.paymentDate),
           typeof e.amount === "number" ? e.amount : parseFloat(e.amount) || 0,
@@ -136,6 +138,7 @@ export default function DineshPreviewModal({
       ];
 
       ws["!cols"] = [
+        { wch: 8 },
         { wch: 20 },
         { wch: 14 },
         { wch: 12 },
@@ -171,7 +174,7 @@ export default function DineshPreviewModal({
 
       // Header styles (row 3 / r=2)
       for (let c = 0; c < header.length; c += 1) {
-        const isNumber = c >= 2 && c <= 6;
+        const isNumber = c >= 3 && c <= 7;
         setStyle(XLSX.utils.encode_cell({ r: 2, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -189,7 +192,7 @@ export default function DineshPreviewModal({
       const lastDataRow = firstDataRow + (entries?.length || 0) - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
         for (let c = 0; c < header.length; c += 1) {
-          const isNumber = c >= 2 && c <= 6;
+          const isNumber = c >= 3 && c <= 7;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: {
@@ -206,7 +209,7 @@ export default function DineshPreviewModal({
       const totalsRow = lastDataRow + 2;
       const balanceRow = totalsRow + 1;
       for (let c = 0; c < header.length; c += 1) {
-        const isNumber = c >= 2 && c <= 6;
+        const isNumber = c >= 3 && c <= 7;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -215,7 +218,7 @@ export default function DineshPreviewModal({
             horizontal: isNumber ? "right" : "left",
             vertical: "center",
           },
-          numFmt: c === 5 || c === 6 ? "#,##0.00" : undefined,
+          numFmt: c === 6 || c === 7 ? "#,##0.00" : undefined,
         });
       }
       for (let c = 0; c < header.length; c += 1) {
@@ -300,6 +303,9 @@ export default function DineshPreviewModal({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-amber-200 text-slate-900 border border-slate-300">
+                    <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-10">
+                      HISAB
+                    </th>
                     <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                       Supplier
                     </th>
@@ -332,6 +338,13 @@ export default function DineshPreviewModal({
                 <tbody>
                   {(entries || []).map((e) => (
                     <tr key={e.id} className="border-b border-slate-200">
+                      <td className="border border-slate-200 px-3 py-2 text-center">
+                        {e.hisab ? (
+                          <Check className="w-4 h-4 mx-auto text-amber-600 font-bold" />
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
                       <td className="border border-slate-200 px-3 py-2 font-medium text-slate-800">
                         {e.supplier || "-"}
                       </td>
@@ -365,7 +378,7 @@ export default function DineshPreviewModal({
                 <tfoot>
                   <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                     <td
-                      colSpan="5"
+                      colSpan="6"
                       className="border border-slate-300 px-3 py-2 text-right"
                     >
                       TOTAL
@@ -388,7 +401,7 @@ export default function DineshPreviewModal({
                     <td className="border border-slate-300 px-3 py-2 text-slate-700 whitespace-nowrap">
                       {formatDateDDMMYYYY(new Date())} INR
                     </td>
-                    <td colSpan="7" className="border border-slate-300"></td>
+                    <td colSpan="8" className="border border-slate-300"></td>
                     <td className="border border-slate-300 px-3 py-2 text-right font-black text-amber-800 bg-amber-200/80 whitespace-nowrap">
                       {"\u20B9"}{" "}
                       {balance.toLocaleString("en-IN", {

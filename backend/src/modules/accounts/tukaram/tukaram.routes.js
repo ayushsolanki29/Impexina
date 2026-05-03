@@ -26,7 +26,7 @@ const updateSheetSchema = Joi.object({
 });
 
 const entrySchema = Joi.object({
-  containerCode: Joi.string().required().max(50),
+  containerCode: Joi.string().optional().max(50),
   totalCtn: Joi.number().integer().min(0).optional(),
   loadingDate: Joi.date().optional().allow(null),
   deliveryDate: Joi.date().optional().allow(null),
@@ -38,6 +38,7 @@ const entrySchema = Joi.object({
   paid: Joi.number().min(0).optional(),
   paymentDate: Joi.date().optional().allow(null),
   note: Joi.string().max(1000).optional().allow("", null),
+  hisab: Joi.boolean().optional().default(false),
 });
 
 const importEntriesSchema = Joi.array().items(entrySchema).min(1).max(1000);

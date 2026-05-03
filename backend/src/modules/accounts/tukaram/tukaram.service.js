@@ -325,6 +325,7 @@ const tukaramService = {
         paid,
         paymentDate,
         note,
+        hisab = false,
       } = entryData;
       
       // Calculate total if not provided
@@ -352,6 +353,7 @@ const tukaramService = {
           paymentDate: paymentDate ? new Date(paymentDate) : null,
           note: note || null,
           balance,
+          hisab: !!hisab,
           createdBy: userId.toString(),
         },
       });
@@ -379,6 +381,7 @@ const tukaramService = {
         paid,
         paymentDate,
         note,
+        hisab,
       } = entryData;
       
       // Calculate total if not provided
@@ -406,6 +409,7 @@ const tukaramService = {
       if (paid !== undefined) updateData.paid = parseFloat(paid) || 0;
       if (paymentDate !== undefined) updateData.paymentDate = paymentDate ? new Date(paymentDate) : null;
       if (note !== undefined) updateData.note = note || null;
+      if (hisab !== undefined) updateData.hisab = !!hisab;
       if (balance !== undefined) updateData.balance = balance;
       
       updateData.updatedBy = userId.toString();
@@ -457,6 +461,7 @@ const tukaramService = {
             paid,
             paymentDate,
             note,
+            hisab = false,
           } = entryData;
           
           // Calculate total if not provided
@@ -484,6 +489,7 @@ const tukaramService = {
               paymentDate: paymentDate ? new Date(paymentDate) : null,
               note: note || null,
               balance,
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });

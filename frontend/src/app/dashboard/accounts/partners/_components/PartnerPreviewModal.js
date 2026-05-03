@@ -99,6 +99,7 @@ export default function PartnerPreviewModal({
 
       const header = [
         "DATE",
+        "HISAB",
         "PARTICULARS",
         "DEBIT (RMB)",
         "CREDIT (RMB)",
@@ -113,6 +114,7 @@ export default function PartnerPreviewModal({
         header,
         ...safeRows.map((r) => [
           formatDate(r.date),
+          r.hisab ? "YES" : "NO",
           r.particulars || "",
           typeof r.debitRMB === "number" ? r.debitRMB : parseFloat(r.debitRMB) || 0,
           typeof r.creditRMB === "number" ? r.creditRMB : parseFloat(r.creditRMB) || 0,
@@ -120,8 +122,8 @@ export default function PartnerPreviewModal({
           typeof r.creditUSD === "number" ? r.creditUSD : parseFloat(r.creditUSD) || 0,
         ]),
         [],
-        ["", "TOTALS", safeTotals.dRMB || 0, safeTotals.cRMB || 0, safeTotals.dUSD || 0, safeTotals.cUSD || 0],
-        ["", "NET BALANCE", netRMB, "", netUSD, ""],
+        ["", "", "TOTALS", safeTotals.dRMB || 0, safeTotals.cRMB || 0, safeTotals.dUSD || 0, safeTotals.cUSD || 0],
+        ["", "", "NET BALANCE", netRMB, "", netUSD, ""],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -133,6 +135,7 @@ export default function PartnerPreviewModal({
 
       ws["!cols"] = [
         { wch: 14 },
+        { wch: 8 },
         { wch: 38 },
         { wch: 14 },
         { wch: 14 },
@@ -153,7 +156,7 @@ export default function PartnerPreviewModal({
       };
 
       // Title row (r=0)
-      for (let c = 0; c <= 5; c += 1) {
+      for (let c = 0; c <= 6; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -163,8 +166,8 @@ export default function PartnerPreviewModal({
       ws["!rows"] = [{ hpt: 26 }];
 
       // Header row (r=3)
-      for (let c = 0; c <= 5; c += 1) {
-        const isNumber = c >= 2;
+      for (let c = 0; c <= 6; c += 1) {
+        const isNumber = c >= 3;
         setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -181,8 +184,8 @@ export default function PartnerPreviewModal({
       const firstDataRow = 4;
       const lastDataRow = firstDataRow + safeRows.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 5; c += 1) {
-          const isNumber = c >= 2;
+        for (let c = 0; c <= 6; c += 1) {
+          const isNumber = c >= 3;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: true },
@@ -194,8 +197,8 @@ export default function PartnerPreviewModal({
       // Totals and net rows
       const totalsRow = lastDataRow + 2;
       const netRow = totalsRow + 1;
-      for (let c = 0; c <= 5; c += 1) {
-        const isNumber = c >= 2;
+      for (let c = 0; c <= 6; c += 1) {
+        const isNumber = c >= 3;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -204,10 +207,10 @@ export default function PartnerPreviewModal({
           numFmt: isNumber ? "#,##0.00" : undefined,
         });
       }
-      for (let c = 0; c <= 5; c += 1) {
-        const isNumber = c >= 2;
+      for (let c = 0; c <= 6; c += 1) {
+        const isNumber = c >= 3;
         setStyle(XLSX.utils.encode_cell({ r: netRow, c }), {
-          font: c === 1 ? { bold: true } : undefined,
+          font: c === 2 ? { bold: true } : undefined,
           fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } },
           border,
           alignment: { horizontal: isNumber ? "right" : "left", vertical: "center" },
@@ -306,6 +309,9 @@ export default function PartnerPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Date
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap">
+                        HISAB
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Particulars
                       </th>
@@ -332,6 +338,9 @@ export default function PartnerPreviewModal({
                         <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap">
                           {formatDate(r.date)}
                         </td>
+                        <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap text-center font-bold">
+                          {r.hisab ? "✔" : "-"}
+                        </td>
                         <td className="border border-slate-200 px-3 py-2 text-slate-900">
                           {r.particulars || "-"}
                         </td>
@@ -353,7 +362,7 @@ export default function PartnerPreviewModal({
                   <tfoot>
                     <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <td
-                        colSpan="2"
+                        colSpan="3"
                         className="border border-slate-300 px-3 py-2 text-right"
                       >
                         TOTALS
@@ -373,7 +382,7 @@ export default function PartnerPreviewModal({
                     </tr>
                     <tr className="bg-amber-100 border-b border-slate-300">
                       <td
-                        colSpan="2"
+                        colSpan="3"
                         className="border border-slate-300 px-3 py-2 text-right font-black text-amber-900"
                       >
                         NET BALANCE

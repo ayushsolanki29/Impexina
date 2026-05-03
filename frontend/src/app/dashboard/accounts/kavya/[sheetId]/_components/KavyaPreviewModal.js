@@ -111,6 +111,7 @@ export default function KavyaPreviewModal({
 
       const header = [
         "SR",
+        "HISAB",
         "CONT CODE",
         "LOADING",
         "DELIVERY",
@@ -136,6 +137,7 @@ export default function KavyaPreviewModal({
             typeof e.balance === "number" ? e.balance : total - paid;
           return [
             idx + 1,
+            e.hisab ? "YES" : "NO",
             e.containerCode || "",
             e.loadingDate ? formatDate(e.loadingDate) : "",
             e.deliveryDate ? formatDate(e.deliveryDate) : "",
@@ -150,15 +152,16 @@ export default function KavyaPreviewModal({
           ];
         }),
         [],
-        ["", "", "", "", "", "TOTAL", "", "", "", totalPayable, totalPaid, totalBalance],
-        ["", "", "", "", "", "OPENING", "", "", "", openingBalance],
-        ["", "", "", "", "", "FINAL", "", "", "", computedFinalBalance],
+        ["", "", "", "", "", "", "TOTAL", "", "", "", totalPayable, totalPaid, totalBalance],
+        ["", "", "", "", "", "", "OPENING", "", "", "", openingBalance],
+        ["", "", "", "", "", "", "FINAL", "", "", "", computedFinalBalance],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
       ws["!cols"] = [
         { wch: 5 },
+        { wch: 8 },
         { wch: 14 },
         { wch: 12 },
         { wch: 12 },
@@ -173,8 +176,8 @@ export default function KavyaPreviewModal({
       ];
 
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
       ];
 
       const border = {
@@ -190,7 +193,7 @@ export default function KavyaPreviewModal({
       };
 
       // Title style
-      for (let c = 0; c <= 11; c += 1) {
+      for (let c = 0; c <= 12; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -200,8 +203,8 @@ export default function KavyaPreviewModal({
       ws["!rows"] = [{ hpt: 26 }];
 
       // Header style (r=3)
-      for (let c = 0; c <= 11; c += 1) {
-        const isNumber = c >= 6;
+      for (let c = 0; c <= 12; c += 1) {
+        const isNumber = c >= 7;
         setStyle(XLSX.utils.encode_cell({ r: 3, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -213,19 +216,19 @@ export default function KavyaPreviewModal({
       const firstDataRow = 4;
       const lastDataRow = firstDataRow + safeEntries.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 11; c += 1) {
-          const isNumber = c >= 6;
+        for (let c = 0; c <= 12; c += 1) {
+          const isNumber = c >= 7;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
-            alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 5 },
+            alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 6 },
             numFmt: isNumber ? "#,##0" : undefined,
           });
         }
       }
 
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 11; c += 1) {
-        const isNumber = c >= 6;
+      for (let c = 0; c <= 12; c += 1) {
+        const isNumber = c >= 7;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -239,15 +242,15 @@ export default function KavyaPreviewModal({
       const openingRow = totalsRow + 1;
       const finalRow = openingRow + 1;
       for (let r = openingRow; r <= finalRow; r += 1) {
-        for (let c = 0; c <= 11; c += 1) {
+        for (let c = 0; c <= 12; c += 1) {
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } },
             border,
-            alignment: { horizontal: c >= 9 ? "right" : "left", vertical: "center" },
+            alignment: { horizontal: c >= 10 ? "right" : "left", vertical: "center" },
           });
         }
       }
-      setStyle(XLSX.utils.encode_cell({ r: finalRow, c: 9 }), {
+      setStyle(XLSX.utils.encode_cell({ r: finalRow, c: 10 }), {
         font: { bold: true, color: { rgb: "92400E" } },
         fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
         border,
@@ -364,6 +367,9 @@ export default function KavyaPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Cont Code
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-16">
+                        HISAB
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap w-28">
                         Loading
                       </th>
@@ -411,6 +417,9 @@ export default function KavyaPreviewModal({
                           <td className="border border-slate-200 px-3 py-2 text-slate-900 font-semibold whitespace-nowrap">
                             {e.containerCode || "-"}
                           </td>
+                          <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap text-center font-bold">
+                            {e.hisab ? "✔" : "-"}
+                          </td>
                           <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap">
                             {formatDate(e.loadingDate)}
                           </td>
@@ -448,7 +457,7 @@ export default function KavyaPreviewModal({
                   <tfoot>
                     <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="border border-slate-300 px-3 py-2 text-right text-slate-600 uppercase"
                       >
                         Totals
@@ -465,7 +474,7 @@ export default function KavyaPreviewModal({
                     </tr>
                     <tr className="bg-amber-100 border-b border-slate-300">
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="border border-slate-300 px-3 py-2 text-right font-black text-amber-900 uppercase"
                       >
                         Final (Including Opening)

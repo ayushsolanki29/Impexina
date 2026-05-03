@@ -37,6 +37,7 @@ const entrySchema = Joi.object({
   total: Joi.number().min(0).optional(),
   paid: Joi.number().min(0).optional(),
   paymentDate: Joi.date().optional().allow(null),
+  hisab: Joi.boolean().optional().default(false),
 });
 
 const importEntriesSchema = Joi.array().items(entrySchema).min(1).max(1000);

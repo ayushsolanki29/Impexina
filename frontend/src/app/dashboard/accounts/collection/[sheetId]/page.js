@@ -38,6 +38,7 @@ export default function PaymentCollectionSheetPage() {
     advance: "",
     notes: "",
     highlight: false,
+    hisab: false,
   });
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export default function PaymentCollectionSheetPage() {
           amount25_26: parseFloat(e.amount25_26) || 0,
           advance: parseFloat(e.advance) || 0,
           isHighlighted: e.highlight || false,
+          hisab: e.hisab || false,
           notes: e.notes || "",
         }))
       );
@@ -99,7 +101,8 @@ export default function PaymentCollectionSheetPage() {
         loadSheetData(); // Refresh IDs and data
       }
     } catch (error) {
-      toast.error("Failed to save sheet");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to save sheet";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -128,6 +131,7 @@ export default function PaymentCollectionSheetPage() {
                     amount25_26: parseFloat(e.amount25_26) || 0,
                     advance: parseFloat(e.advance) || 0,
                     isHighlighted: e.highlight || false,
+                    hisab: e.hisab || false,
                     notes: e.notes || "",
                 }))
             );
@@ -137,7 +141,8 @@ export default function PaymentCollectionSheetPage() {
         router.push(`/dashboard/accounts/collection/${newSheet.id}`);
       }
     } catch (error) {
-      toast.error("Failed to create sheet");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to create sheet";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -187,6 +192,7 @@ export default function PaymentCollectionSheetPage() {
       advance: "",
       notes: "",
       highlight: false,
+      hisab: false,
     });
   };
 
@@ -308,7 +314,8 @@ export default function PaymentCollectionSheetPage() {
         <table className="w-full border-collapse text-sm" style={{ minWidth: "1200px" }}>
           <thead>
             <tr className="bg-amber-200 text-slate-900 border border-slate-300">
-              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Client Name</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">Client Name</th>
+              <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase w-16">HISAB</th>
               <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-40">Exp. Date</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-32 bg-amber-100/50">Amt 24-25</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-32 bg-blue-100/50 text-blue-800">Add Co.</th>
@@ -331,6 +338,14 @@ export default function PaymentCollectionSheetPage() {
                     className="w-full bg-transparent border-0 outline-none py-0.5 font-bold text-slate-800 uppercase"
                     value={row.clientName || ""}
                     onChange={(e) => handleUpdateEntry(row.id, "clientName", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                    checked={row.hisab || false} 
+                    onChange={(e) => handleUpdateEntry(row.id, "hisab", e.target.checked)} 
                   />
                 </td>
                 <td className="border border-slate-200 px-3 py-1.5">
@@ -415,6 +430,14 @@ export default function PaymentCollectionSheetPage() {
                   onKeyDown={(e) => e.key === "Enter" && handleAddEntry()}
                 />
               </td>
+              <td className="border border-slate-200 px-3 py-2 text-center">
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                  checked={newEntry.hisab} 
+                  onChange={(e) => setNewEntry({ ...newEntry, hisab: e.target.checked })} 
+                />
+              </td>
               <td className="border border-slate-200 px-3 py-2">
                 <input
                   type="date"
@@ -487,7 +510,7 @@ export default function PaymentCollectionSheetPage() {
           {/* Footer totals */}
           <tfoot>
             <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-              <td colSpan="2" className="border border-slate-300 px-3 py-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">
+              <td colSpan="3" className="border border-slate-300 px-3 py-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">
                 GRAND TOTAL
               </td>
               <td className="border border-slate-300 px-3 py-3 text-right font-mono">

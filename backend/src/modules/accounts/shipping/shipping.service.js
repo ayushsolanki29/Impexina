@@ -343,6 +343,7 @@ const shippingService = {
         deliveryStatus = "PENDING",
         rmbRate = 0,
         exchangeRate = 0,
+        hisab = false,
       } = entryData;
       
       // Calculate local charges
@@ -381,6 +382,7 @@ const shippingService = {
           shippingLine: shippingLine || null,
           blNumber: blNumber || null,
           deliveryStatus,
+          hisab: !!hisab,
           createdBy: userId.toString(),
         },
       });
@@ -422,6 +424,7 @@ const shippingService = {
         deliveryStatus,
         rmbRate,
         exchangeRate,
+        hisab,
       } = entryData;
       
       // Get current entry to know sheetId
@@ -498,6 +501,7 @@ const shippingService = {
         ...(deliveryStatus !== undefined && { deliveryStatus }),
         ...(rmbRate !== undefined && { rmbRate: parseFloat(rmbRate) || 0 }),
         ...(exchangeRate !== undefined && { exchangeRate: parseFloat(exchangeRate) || 0 }),
+        ...(hisab !== undefined && { hisab: !!hisab }),
         ...(localCharges !== undefined && { localCharges }),
         ...(totalAmount !== undefined && { totalAmount }),
         updatedBy: userId.toString(),
@@ -582,6 +586,7 @@ const shippingService = {
             deliveryStatus = "PENDING",
             rmbRate = 0,
             exchangeRate = 0,
+            hisab = false,
           } = entryData;
           
           // Calculate local charges
@@ -620,6 +625,7 @@ const shippingService = {
               shippingLine: shippingLine || null,
               blNumber: blNumber || null,
               deliveryStatus,
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });

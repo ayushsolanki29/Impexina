@@ -37,6 +37,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
           creditRMB: 0,
           debitUSD: 0,
           creditUSD: 0,
+          hisab: false,
         },
       ]);
       setIsLoading(false);
@@ -94,6 +95,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
           creditRMB: parseFloat(row.creditRMB) || 0,
           debitUSD: parseFloat(row.debitUSD) || 0,
           creditUSD: parseFloat(row.creditUSD) || 0,
+          hisab: !!row.hisab,
         }))
       );
 
@@ -112,7 +114,8 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
       }
     } catch (error) {
       console.error("Error saving sheet:", error);
-      toast.error("Failed to save sheet");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to save sheet";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -156,6 +159,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
             creditRMB: parseFloat(row.creditRMB) || 0,
             debitUSD: parseFloat(row.debitUSD) || 0,
             creditUSD: parseFloat(row.creditUSD) || 0,
+            hisab: !!row.hisab,
           }))
         );
 
@@ -166,13 +170,12 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
       }
     } catch (error) {
       console.error("Error creating sheet:", error);
-      toast.error("Failed to create sheet");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to create sheet";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
   };
-
-
 
   const addRow = () => {
     const newRow = {
@@ -183,6 +186,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
       creditRMB: "",
       debitUSD: "",
       creditUSD: "",
+      hisab: false,
     };
     setRows([...rows, newRow]);
   };
@@ -337,6 +341,9 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
                 <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap w-32">
                   Date
                 </th>
+                <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-16">
+                  HISAB
+                </th>
                 <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                   Particulars
                 </th>
@@ -358,8 +365,16 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
             <tbody className="divide-y divide-slate-100">
               {rows.filter(r => r.particulars?.toLowerCase().includes(search.toLowerCase())).map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50/50 group">
-                  <td className="px-2 py-1"><input type="date" className="w-full bg-transparent p-2 outline-none" value={row.date} onChange={(e) => updateRow(row.id, "date", e.target.value)} /></td>
-                  <td className="px-2 py-1"><input className="w-full bg-transparent p-2 outline-none font-medium" placeholder="Description..." value={row.particulars} onChange={(e) => updateRow(row.id, "particulars", e.target.value)} /></td>
+                  <td className="px-2 py-1 border border-slate-200"><input type="date" className="w-full bg-transparent p-2 outline-none" value={row.date} onChange={(e) => updateRow(row.id, "date", e.target.value)} /></td>
+                  <td className="px-2 py-1 border border-slate-200 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+                      checked={row.hisab || false} 
+                      onChange={(e) => updateRow(row.id, "hisab", e.target.checked)} 
+                    />
+                  </td>
+                  <td className="px-2 py-1 border border-slate-200"><input className="w-full bg-transparent p-2 outline-none font-medium" placeholder="Description..." value={row.particulars} onChange={(e) => updateRow(row.id, "particulars", e.target.value)} /></td>
                   <td className="px-2 py-1 border-l border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitRMB} onChange={(e) => updateRow(row.id, "debitRMB", e.target.value)} /></td>
                   <td className="px-2 py-1 border-r border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono text-red-600" value={row.creditRMB} onChange={(e) => updateRow(row.id, "creditRMB", e.target.value)} /></td>
                   <td className="px-2 py-1 border-l border-slate-200"><input type="number" className="w-full bg-transparent p-2 text-right outline-none font-mono" value={row.debitUSD} onChange={(e) => updateRow(row.id, "debitUSD", e.target.value)} /></td>
@@ -372,7 +387,7 @@ export default function PartnerSheet({ partnerName = "David", partnerPath = "dav
             </tbody>
             <tfoot className="bg-slate-50 font-bold">
               <tr>
-                <td colSpan="2" className="p-4 text-right text-slate-500 uppercase text-[10px] tracking-widest">Totals</td>
+                <td colSpan="3" className="p-4 text-right text-slate-500 uppercase text-[10px] tracking-widest">Totals</td>
                 <td className="p-4 text-right font-mono border-l">
                   {"\u00A5"}
                   {formatCurrency(totals.dRMB)}

@@ -339,6 +339,7 @@ const paymentCollectionService = {
         notes,
         paymentMode,
         paymentRef,
+        hisab = false,
       } = entryData;
       
       // Calculate balance
@@ -367,6 +368,7 @@ const paymentCollectionService = {
           paymentMode: paymentMode || null,
           paymentRef: paymentRef || null,
           paymentStatus,
+          hisab: !!hisab,
           createdBy: userId.toString(),
         },
       });
@@ -395,6 +397,7 @@ const paymentCollectionService = {
         notes,
         paymentMode,
         paymentRef,
+        hisab,
       } = entryData;
       
       // Get current entry to know sheetId
@@ -445,6 +448,7 @@ const paymentCollectionService = {
         ...(paymentRef !== undefined && { paymentRef }),
         ...(balance !== undefined && { balance }),
         ...(paymentStatus !== undefined && { paymentStatus }),
+        ...(hisab !== undefined && { hisab: !!hisab }),
         updatedBy: userId.toString(),
         updatedAt: new Date(),
       };
@@ -514,6 +518,7 @@ const paymentCollectionService = {
             notes,
             paymentMode,
             paymentRef,
+            hisab = false,
           } = entryData;
           
           // Calculate balance
@@ -542,6 +547,7 @@ const paymentCollectionService = {
               paymentMode: paymentMode || null,
               paymentRef: paymentRef || null,
               paymentStatus,
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });

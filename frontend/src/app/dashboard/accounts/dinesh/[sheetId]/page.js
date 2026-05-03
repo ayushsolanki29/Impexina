@@ -37,6 +37,7 @@ export default function DineshSheetPage() {
     paid: "",
     paidDate: "",
     clientRef: "",
+    hisab: false,
   });
 
   useEffect(() => {
@@ -124,14 +125,18 @@ export default function DineshSheetPage() {
       return;
     }
     try {
-      await dineshbhaiAPI.addEntry(sheetId, {
+      const entryData = {
         ...entry,
         amount: entry.amount ? parseFloat(entry.amount) : null,
         booking: entry.booking ? parseFloat(entry.booking) : null,
         rate: entry.rate ? parseFloat(entry.rate) : null,
         total: entry.total != null ? Number(entry.total) : 0,
         paid: entry.paid ? parseFloat(entry.paid) : null,
-      });
+      };
+      if (entryData.paymentDate === "") entryData.paymentDate = null;
+      if (entryData.paidDate === "") entryData.paidDate = null;
+      
+      await dineshbhaiAPI.addEntry(sheetId, entryData);
       toast.success("Entry added");
       setEntry({
         supplier: "",
@@ -143,24 +148,24 @@ export default function DineshSheetPage() {
         paid: "",
         paidDate: "",
         clientRef: "",
+        hisab: false,
       });
       loadEntries();
       loadSheetData();
     } catch (error) {
-      const data = error.response?.data;
-      const msg = data?.message || error.message || "Failed to add entry";
-      if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-        data.errors.forEach((err) => toast.error(`${err.field || "Field"}: ${err.message || msg}`));
-      } else {
-        toast.error(msg);
-      }
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to add entry";
+      toast.error(errorMsg);
     }
   };
 
   const handleUpdateEntry = async (entryId, field, value) => {
     const row = entries.find((e) => e.id === entryId);
     if (!row) return;
-    const updateData = { ...row, [field]: value };
+    let finalValue = value;
+    if (["paymentDate", "paidDate"].includes(field) && value === "") {
+      finalValue = null;
+    }
+    const updateData = { ...row, [field]: finalValue };
     if (["amount", "booking", "rate", "paid", "total"].includes(field)) {
       updateData[field] = value === "" ? null : parseFloat(value) || 0;
     }
@@ -176,13 +181,8 @@ export default function DineshSheetPage() {
         prev.map((e) => (e.id === entryId ? { ...e, ...updateData } : e))
       );
     } catch (error) {
-      const data = error.response?.data;
-      const msg = data?.message || "Failed to update";
-      if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-        data.errors.forEach((err) => toast.error(`${err.field || "Field"}: ${err.message || msg}`));
-      } else {
-        toast.error(msg);
-      }
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to update entry";
+      toast.error(errorMsg);
     }
   };
 
@@ -247,7 +247,7 @@ export default function DineshSheetPage() {
 
       {/* Green title */}
       <div className="bg-emerald-600 text-white py-4">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-[1400px] mx-auto px-6">
           <h1 className="text-2xl font-black uppercase tracking-tight">
             {sheet?.title || "DINESHBHAI 25-26"}
           </h1>
@@ -255,26 +255,39 @@ export default function DineshSheetPage() {
       </div>
 
       {/* Table */}
-      <div className="max-w-6xl mx-auto px-6 py-6 overflow-x-auto">
-        <table className="w-full border-collapse text-sm" style={{ minWidth: "900px" }}>
+      <div className="max-w-[1400px] mx-auto px-6 py-6 overflow-x-auto">
+        <table className="w-full border-collapse text-sm" style={{ minWidth: "1200px" }}>
           {/* Yellow header */}
           <thead>
             <tr className="bg-amber-200 text-slate-900 border border-slate-300">
-              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Supplier</th>
-              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Payment Date</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-10 text-center">#</th>
+              <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase w-10">HISAB</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase min-w-[150px]">Supplier</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-[160px]">Payment Date</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Amount</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Booking</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Rate</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Total</th>
-              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase">Paid</th>
-              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Date</th>
-              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase">Client</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase w-[120px]">Paid</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase w-[110px]">Date</th>
+              <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase min-w-[120px]">Client</th>
               <th className="border border-slate-300 px-2 py-2 w-10"></th>
             </tr>
           </thead>
           <tbody className="bg-white">
-            {entries.map((row) => (
+            {entries.map((row, idx) => (
               <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50/50">
+                <td className="border border-slate-200 px-3 py-1.5 text-center text-slate-400 font-medium">
+                  {idx + 1}
+                </td>
+                <td className="border border-slate-200 px-3 py-1.5 text-center">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    checked={row.hisab || false}
+                    onChange={(e) => handleUpdateEntry(row.id, "hisab", e.target.checked)}
+                  />
+                </td>
                 <td className="border border-slate-200 px-3 py-1.5">
                   <input
                     className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none py-0.5 text-slate-800 font-medium"
@@ -351,6 +364,17 @@ export default function DineshSheetPage() {
 
             {/* New entry row */}
             <tr className="bg-slate-50 border-t-2 border-slate-200">
+              <td className="border border-slate-200 px-3 py-2 text-center text-slate-400 font-bold">
+                NEW
+              </td>
+              <td className="border border-slate-200 px-3 py-2 text-center">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  checked={entry.hisab}
+                  onChange={(e) => setEntry({ ...entry, hisab: e.target.checked })}
+                />
+              </td>
               <td className="border border-slate-200 px-3 py-2">
                 <input
                   className="w-full border border-slate-200 rounded px-2 py-1 text-sm"
@@ -434,7 +458,7 @@ export default function DineshSheetPage() {
           {/* Footer: TOTAL row + BALANCE row */}
           <tfoot>
             <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-              <td colSpan="5" className="border border-slate-300 px-3 py-2 text-right">
+              <td colSpan="7" className="border border-slate-300 px-3 py-2 text-right">
                 TOTAL
               </td>
               <td className="border border-slate-300 px-3 py-2 text-right">
@@ -443,14 +467,14 @@ export default function DineshSheetPage() {
               <td className="border border-slate-300 px-3 py-2 text-right">
                 ₹ {totals.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
-              <td colSpan="2" className="border border-slate-300"></td>
+              <td colSpan="3" className="border border-slate-300"></td>
             </tr>
             <tr className="bg-amber-100 border-b border-slate-300">
-              <td className="border border-slate-300 px-3 py-2 text-slate-700">
+              <td colSpan="3" className="border border-slate-300 px-3 py-2 text-slate-700 whitespace-nowrap font-medium">
                 {formatDateDDMMYYYY(new Date())} INR
               </td>
               <td colSpan="7" className="border border-slate-300"></td>
-              <td className="border border-slate-300 px-3 py-2 text-right font-black text-amber-800 bg-amber-200/80">
+              <td colSpan="2" className="border border-slate-300 px-3 py-2 text-right font-black text-amber-800 bg-amber-200/80 whitespace-nowrap">
                 ₹ {totals.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} BALANCE
               </td>
             </tr>

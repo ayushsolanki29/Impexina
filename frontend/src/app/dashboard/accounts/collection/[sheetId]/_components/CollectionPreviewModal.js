@@ -101,6 +101,7 @@ export default function CollectionPreviewModal({
 
       const header = [
         "S.No",
+        "HISAB",
         "CLIENT NAME",
         "EXPECTED DATE",
         "24-25 AMT",
@@ -123,6 +124,7 @@ export default function CollectionPreviewModal({
           const balance = amount25 - advance;
           return [
             idx + 1,
+            e.hisab ? "YES" : "NO",
             e.clientName || "",
             e.expectedDate ? formatDate(e.expectedDate) : "",
             parseFloat(e.amount24_25) || 0,
@@ -135,6 +137,7 @@ export default function CollectionPreviewModal({
         }),
         [],
         [
+          "",
           "",
           "",
           "TOTAL",
@@ -152,6 +155,7 @@ export default function CollectionPreviewModal({
       // Column widths
       ws["!cols"] = [
         { wch: 6 },
+        { wch: 8 },
         { wch: 24 },
         { wch: 14 },
         { wch: 12 },
@@ -164,11 +168,11 @@ export default function CollectionPreviewModal({
 
       // Merges
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
       ];
       if (sheetDescription) {
-        ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 8 } });
+        ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 9 } });
       }
 
       const border = {
@@ -184,7 +188,7 @@ export default function CollectionPreviewModal({
       };
 
       // Title row style (r=0)
-      for (let c = 0; c <= 8; c += 1) {
+      for (let c = 0; c <= 9; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -195,9 +199,9 @@ export default function CollectionPreviewModal({
 
       // Header style row index depends on sheetDescription
       const headerRow = sheetDescription ? 4 : 3;
-      for (let c = 0; c <= 8; c += 1) {
-        const isNumber = c >= 3 && c <= 7;
-        const isNotes = c === 8;
+      for (let c = 0; c <= 9; c += 1) {
+        const isNumber = c >= 4 && c <= 8;
+        const isNotes = c === 9;
         setStyle(XLSX.utils.encode_cell({ r: headerRow, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -214,14 +218,14 @@ export default function CollectionPreviewModal({
       const firstDataRow = headerRow + 1;
       const lastDataRow = firstDataRow + safeEntries.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 8; c += 1) {
-          const isNumber = c >= 3 && c <= 7;
+        for (let c = 0; c <= 9; c += 1) {
+          const isNumber = c >= 4 && c <= 8;
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
             alignment: {
               horizontal: isNumber ? "right" : "left",
               vertical: "top",
-              wrapText: c === 8,
+              wrapText: c === 9,
             },
             numFmt: isNumber ? "#,##0" : undefined,
           });
@@ -230,8 +234,8 @@ export default function CollectionPreviewModal({
 
       // Totals row
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 8; c += 1) {
-        const isNumber = c >= 3 && c <= 7;
+      for (let c = 0; c <= 9; c += 1) {
+        const isNumber = c >= 4 && c <= 8;
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -355,6 +359,9 @@ export default function CollectionPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Client Name
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-16">
+                        HISAB
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap w-28">
                         Expected
                       </th>
@@ -396,6 +403,9 @@ export default function CollectionPreviewModal({
                           <td className="border border-slate-200 px-3 py-2 text-slate-900 font-semibold">
                             {entry.clientName || "-"}
                           </td>
+                          <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap text-center font-bold">
+                            {entry.hisab ? "✔" : "-"}
+                          </td>
                           <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap">
                             {formatDate(entry.expectedDate)}
                           </td>
@@ -424,7 +434,7 @@ export default function CollectionPreviewModal({
                   <tfoot>
                     <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <td
-                        colSpan="3"
+                        colSpan="4"
                         className="border border-slate-300 px-3 py-2 text-right text-slate-600 uppercase"
                       >
                         Total

@@ -323,6 +323,7 @@ const kavyaService = {
         total,
         paid,
         paymentDate,
+        hisab = false,
       } = entryData;
       
       // Calculate total if not provided
@@ -349,6 +350,7 @@ const kavyaService = {
           paid: parseFloat(paid) || 0,
           paymentDate: paymentDate ? new Date(paymentDate) : null,
           balance,
+          hisab: !!hisab,
           createdBy: userId.toString(),
         },
       });
@@ -375,6 +377,7 @@ const kavyaService = {
         total,
         paid,
         paymentDate,
+        hisab,
       } = entryData;
       
       // Get existing entry for calculations
@@ -409,6 +412,7 @@ const kavyaService = {
       if (total !== undefined) updateData.total = finalTotal;
       if (paid !== undefined) updateData.paid = parseFloat(paid) || 0;
       if (paymentDate !== undefined) updateData.paymentDate = paymentDate ? new Date(paymentDate) : null;
+      if (hisab !== undefined) updateData.hisab = !!hisab;
       updateData.balance = balance;
       
       updateData.updatedBy = userId.toString();
@@ -459,6 +463,7 @@ const kavyaService = {
             total,
             paid,
             paymentDate,
+            hisab = false,
           } = entryData;
           
           // Calculate total if not provided
@@ -485,6 +490,7 @@ const kavyaService = {
               paid: parseFloat(paid) || 0,
               paymentDate: paymentDate ? new Date(paymentDate) : null,
               balance,
+              hisab: !!hisab,
               createdBy: userId.toString(),
             },
           });

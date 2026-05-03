@@ -48,6 +48,7 @@ export default function ShippingSheetPage() {
     loadingUnloading: "",
     deliveryStatus: "PENDING",
     notes: "",
+    hisab: false,
   });
 
   useEffect(() => {
@@ -146,11 +147,13 @@ export default function ShippingSheetPage() {
           loadingUnloading: "",
           deliveryStatus: "PENDING",
           notes: "",
+          hisab: false,
         });
         loadSheetData();
       }
     } catch (error) {
-      toast.error("Failed to add entry");
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Failed to add entry";
+      toast.error(errorMsg);
     }
   };
 
@@ -179,7 +182,10 @@ export default function ShippingSheetPage() {
     try {
       await API.put(`/accounts/shipping/entries/${entryId}`, updateData);
     } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.message || error.response?.data?.message || "Update failed";
+      toast.error(errorMsg);
       console.error("Update failed", error);
+      loadSheetData(); // Revert on failure
     }
   };
 
@@ -326,6 +332,7 @@ export default function ShippingSheetPage() {
           <thead>
             <tr className="bg-amber-200 text-slate-900 border border-slate-300">
               <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase">Container</th>
+              <th className="border border-slate-300 px-2 py-2 text-center font-bold uppercase w-16">HISAB</th>
               <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase">From</th>
               <th className="border border-slate-300 px-2 py-2 text-right font-bold uppercase w-16">CTN</th>
               <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-28">Load Date</th>
@@ -357,6 +364,14 @@ export default function ShippingSheetPage() {
                     className="w-full bg-transparent border-0 outline-none py-0.5 font-bold text-indigo-900 uppercase"
                     value={row.containerCode || ""}
                     onChange={(e) => handleUpdateEntry(row.id, "containerCode", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                    checked={row.hisab || false} 
+                    onChange={(e) => handleUpdateEntry(row.id, "hisab", e.target.checked)} 
                   />
                 </td>
                 <td className="border border-slate-200 px-2 py-1">
@@ -501,6 +516,14 @@ export default function ShippingSheetPage() {
                   onChange={(e) => setEntry({ ...entry, containerCode: e.target.value })}
                 />
               </td>
+              <td className="border border-slate-200 px-2 py-1.5 text-center">
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                  checked={entry.hisab} 
+                  onChange={(e) => setEntry({ ...entry, hisab: e.target.checked })} 
+                />
+              </td>
               <td className="border border-slate-200 px-2 py-1.5">
                 <input
                   className="w-full border border-slate-300 rounded px-1.5 py-1 text-[10px]"
@@ -596,7 +619,7 @@ export default function ShippingSheetPage() {
           {/* Footer Totals */}
           <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold">
             <tr>
-              <td colSpan="2" className="border border-slate-300 px-2 py-2 text-right">TOTAL</td>
+              <td colSpan="3" className="border border-slate-300 px-2 py-2 text-right">TOTAL</td>
               <td className="border border-slate-300 px-2 py-2 text-right">{totals.totalCTN}</td>
               <td colSpan="2" className="border border-slate-300 px-2 py-2"></td>
               <td className="border border-slate-300 px-2 py-2 text-right text-blue-700">${totals.totalFreightUSD.toLocaleString()}</td>

@@ -110,6 +110,7 @@ export default function TukaramPreviewModal({
 
       const header = [
         "SR",
+        "HISAB",
         "CONT CODE",
         "CTN",
         "LOADING",
@@ -133,6 +134,7 @@ export default function TukaramPreviewModal({
         header,
         ...safeEntries.map((e, idx) => [
           idx + 1,
+          e.hisab ? "YES" : "NO",
           e.containerCode || "",
           parseFloat(e.totalCtn) || 0,
           e.loadingDate ? formatDate(e.loadingDate) : "",
@@ -148,6 +150,7 @@ export default function TukaramPreviewModal({
         ]),
         [],
         [
+          "",
           "",
           "TOTAL",
           "",
@@ -169,6 +172,7 @@ export default function TukaramPreviewModal({
 
       ws["!cols"] = [
         { wch: 5 },
+        { wch: 8 },
         { wch: 14 },
         { wch: 6 },
         { wch: 12 },
@@ -184,9 +188,9 @@ export default function TukaramPreviewModal({
       ];
 
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 8 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 9 } },
       ];
 
       const border = {
@@ -202,7 +206,7 @@ export default function TukaramPreviewModal({
       };
 
       // Title row style
-      for (let c = 0; c <= 12; c += 1) {
+      for (let c = 0; c <= 13; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: 0, c }), {
           font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
           fill: { patternType: "solid", fgColor: { rgb: "059669" } },
@@ -212,8 +216,8 @@ export default function TukaramPreviewModal({
       ws["!rows"] = [{ hpt: 26 }];
 
       const headerRow = 5;
-      for (let c = 0; c <= 12; c += 1) {
-        const isNumber = [2, 6, 7, 8, 9, 10].includes(c);
+      for (let c = 0; c <= 13; c += 1) {
+        const isNumber = [3, 7, 8, 9, 10, 11].includes(c);
         setStyle(XLSX.utils.encode_cell({ r: headerRow, c }), {
           font: { bold: true, color: { rgb: "0F172A" } },
           fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
@@ -225,19 +229,19 @@ export default function TukaramPreviewModal({
       const firstDataRow = headerRow + 1;
       const lastDataRow = firstDataRow + safeEntries.length - 1;
       for (let r = firstDataRow; r <= lastDataRow; r += 1) {
-        for (let c = 0; c <= 12; c += 1) {
-          const isNumber = [2, 6, 7, 8, 9, 10].includes(c);
+        for (let c = 0; c <= 13; c += 1) {
+          const isNumber = [3, 7, 8, 9, 10, 11].includes(c);
           setStyle(XLSX.utils.encode_cell({ r, c }), {
             border,
-            alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 12 },
+            alignment: { horizontal: isNumber ? "right" : "left", vertical: "top", wrapText: c === 13 },
             numFmt: isNumber ? "#,##0" : undefined,
           });
         }
       }
 
       const totalsRow = lastDataRow + 2;
-      for (let c = 0; c <= 12; c += 1) {
-        const isNumber = [2, 6, 7, 8, 9, 10].includes(c);
+      for (let c = 0; c <= 13; c += 1) {
+        const isNumber = [3, 7, 8, 9, 10, 11].includes(c);
         setStyle(XLSX.utils.encode_cell({ r: totalsRow, c }), {
           font: { bold: true },
           fill: { patternType: "solid", fgColor: { rgb: "F1F5F9" } },
@@ -248,14 +252,14 @@ export default function TukaramPreviewModal({
       }
 
       const balanceRow = totalsRow + 1;
-      for (let c = 0; c <= 12; c += 1) {
+      for (let c = 0; c <= 13; c += 1) {
         setStyle(XLSX.utils.encode_cell({ r: balanceRow, c }), {
           fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } },
           border,
-          alignment: { horizontal: c >= 9 ? "right" : "left", vertical: "center" },
+          alignment: { horizontal: c >= 10 ? "right" : "left", vertical: "center" },
         });
       }
-      setStyle(XLSX.utils.encode_cell({ r: balanceRow, c: 9 }), {
+      setStyle(XLSX.utils.encode_cell({ r: balanceRow, c: 10 }), {
         font: { bold: true, color: { rgb: "92400E" } },
         fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
         border,
@@ -372,6 +376,9 @@ export default function TukaramPreviewModal({
                       <th className="border border-slate-300 px-3 py-2 text-left font-bold uppercase whitespace-nowrap">
                         Cont Code
                       </th>
+                      <th className="border border-slate-300 px-3 py-2 text-center font-bold uppercase whitespace-nowrap w-16">
+                        HISAB
+                      </th>
                       <th className="border border-slate-300 px-3 py-2 text-right font-bold uppercase whitespace-nowrap w-16">
                         CTN
                       </th>
@@ -413,7 +420,7 @@ export default function TukaramPreviewModal({
                         -
                       </td>
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="border border-slate-200 px-3 py-2 text-slate-600 uppercase tracking-wide"
                       >
                         Opening Balance Carried Forward
@@ -431,6 +438,9 @@ export default function TukaramPreviewModal({
                         </td>
                         <td className="border border-slate-200 px-3 py-2 text-slate-900 font-semibold whitespace-nowrap">
                           {e.containerCode || "-"}
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2 text-slate-600 whitespace-nowrap text-center font-bold">
+                          {e.hisab ? "✔" : "-"}
                         </td>
                         <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
                           {e.totalCtn || "-"}
@@ -471,7 +481,7 @@ export default function TukaramPreviewModal({
                   <tfoot>
                     <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <td
-                        colSpan="6"
+                        colSpan="7"
                         className="border border-slate-300 px-3 py-2 text-right text-slate-600 uppercase"
                       >
                         Total
@@ -495,7 +505,7 @@ export default function TukaramPreviewModal({
                     </tr>
                     <tr className="bg-amber-100 border-b border-slate-300">
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="border border-slate-300 px-3 py-2 text-right font-black text-amber-900 uppercase"
                       >
                         Final Balance

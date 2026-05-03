@@ -25,11 +25,12 @@ const updateSheetSchema = Joi.object({
 
 const entrySchema = Joi.object({
   date: Joi.date().optional(),
-  particulars: Joi.string().required().max(1000),
+  particulars: Joi.string().optional().max(1000),
   debitRMB: Joi.number().min(0).optional().allow(null),
   creditRMB: Joi.number().min(0).optional().allow(null),
   debitUSD: Joi.number().min(0).optional().allow(null),
   creditUSD: Joi.number().min(0).optional().allow(null),
+  hisab: Joi.boolean().optional().default(false),
 });
 
 const importEntriesSchema = Joi.array().items(entrySchema).min(1).max(1000);
