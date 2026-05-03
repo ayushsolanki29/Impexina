@@ -1,116 +1,56 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import API from "@/lib/api";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Save,
-  Plus,
-  Trash2,
-  Loader2,
-  Info,
-  Calendar,
-  Package,
-  Truck,
-  DollarSign,
-  Keyboard,
-  User,
-  Search,
-  X,
-  ChevronDown,
-  ChevronUp,
-  Link as LinkIcon,
-  Edit2,
-  Pencil,
-  Check,
-  FileSpreadsheet
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { ArrowLeft, Save, PlusCircle, Trash2, Eye } from "lucide-react";
+import Link from "next/link";
+import API from "@/lib/api";
 
-// Helper function to safely convert date string to YYYY-MM-DD format for date inputs
-const formatDateForInput = (dateValue) => {
-  if (!dateValue) return '';
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
 
-  // If it's already in YYYY-MM-DD format, return as is
-  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-    return dateValue;
-  }
-
-  // If it's a Date object, convert to YYYY-MM-DD
-  if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
-    return dateValue.toISOString().split('T')[0];
-  }
-
-  // Try to parse various date string formats
-  if (typeof dateValue === 'string') {
-    // Try parsing DD-MM-YY format (e.g., "29-09-25")
-    const ddmmyyMatch = dateValue.match(/^(\d{2})-(\d{2})-(\d{2})$/);
-    if (ddmmyyMatch) {
-      const [, day, month, year] = ddmmyyMatch;
-      const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`;
-      const date = new Date(`${fullYear}-${month}-${day}`);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-    }
-
-    // Try parsing as ISO string or other formats
-    const parsed = new Date(dateValue);
-    if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
-    }
-  }
-
-  return '';
-};
-
-export default function OrderSheetEditor({ params }) {
+export default function OrderSheetEditor() {
+  const params = useParams();
   const router = useRouter();
-  const [unwrappedParams, setUnwrappedParams] = useState(null);
+  const sheetId = params.id;
+
+  const [sheet, setSheet] = useState(null);
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Sheet Data
-  const [sheet, setSheet] = useState(null);
-  const [rows, setRows] = useState([]);
-  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
-  const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [expandedSuppliers, setExpandedSuppliers] = useState(new Set());
-  const [selectedSupplier, setSelectedSupplier] = useState(null);
-  const [editingSupplier, setEditingSupplier] = useState(null);
-  const [editingShippingMark, setEditingShippingMark] = useState(null);
-  const [editingShippingMarkValue, setEditingShippingMarkValue] = useState("");
-  const [supplierInputRefs, setSupplierInputRefs] = useState({});
-  const [shippingMarkSuggestions, setShippingMarkSuggestions] = useState([]);
+  const [newRow, setNewRow] = useState({
+    hisab: false,
+    shippingMark: "",
+    notes: "",
+    orderDate: "",
+    paymentDate: "",
+    quantity: "",
+    product: "",
+    supplier: "",
+    deposit: "",
+    shippingCharge: "",
+    totalAmount: 0,
+    deliveryDate: "",
+    loadingDate: "",
+    ctn: 1, // required by schema
+  });
 
-  // Handle Params
-  useEffect(() => {
-    if (params instanceof Promise) {
-      params.then(p => setUnwrappedParams(p));
-    } else {
-      setUnwrappedParams(params);
-    }
-  }, [params]);
-
-  const fetchSheet = useCallback(async (sheetId) => {
+  const fetchSheet = useCallback(async (id) => {
     setLoading(true);
     try {
-      const res = await API.get(`/client-order-tracker/sheets/${sheetId}`);
+      const res = await API.get(`/client-order-tracker/sheets/${id}`);
       if (res.data.success) {
         setSheet(res.data.data);
         const fetchedRows = res.data.data.orders.map(o => ({ ...o, _key: o.id }));
-        // If no rows, start with one empty row
-        if (fetchedRows.length === 0) {
-          setRows([createEmptyRow()]);
-        } else {
-          setRows(fetchedRows);
-        }
-        // Expand all suppliers by default
-        const suppliers = [...new Set(fetchedRows.map(r => r.supplier).filter(Boolean))];
-        setExpandedSuppliers(new Set(suppliers));
+        setRows(fetchedRows);
       }
     } catch (error) {
       toast.error("Failed to load sheet");
@@ -120,97 +60,46 @@ export default function OrderSheetEditor({ params }) {
   }, []);
 
   useEffect(() => {
-    if (unwrappedParams?.id) {
-      fetchSheet(unwrappedParams.id);
+    if (sheetId) {
+      fetchSheet(sheetId);
     }
-  }, [unwrappedParams, fetchSheet]);
+  }, [sheetId, fetchSheet]);
 
-  // Fetch supplier suggestions
-  const fetchSupplierSuggestions = useCallback(async (search) => {
-    if (!search || search.length < 2) {
-      setSupplierSuggestions([]);
-      return;
-    }
-    try {
-      const res = await API.get(`/client-order-tracker/suppliers/suggestions`, {
-        params: { search }
-      });
-      if (res.data.success) {
-        setSupplierSuggestions(res.data.data || []);
-        setShowSupplierSuggestions(true);
-      }
-    } catch (error) {
-      console.error("Error fetching supplier suggestions:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (supplierSearch) {
-        fetchSupplierSuggestions(supplierSearch);
-      } else {
-        setSupplierSuggestions([]);
-        setShowSupplierSuggestions(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [supplierSearch, fetchSupplierSuggestions]);
-
-  const createEmptyRow = (supplier = "", shippingMark = "") => ({
+  const createEmptyRow = () => ({
     _key: `temp_${Date.now()}_${Math.random()}`,
     id: `temp_${Date.now()}`,
-    shippingMark: shippingMark,
-    supplier: supplier,
-    product: "",
-    quantity: 0,
-    ctn: 0,
-    totalAmount: 0,
-    deposit: 0,
-    balanceAmount: 0,
-    shippingMode: "",
-    shippingCode: "",
-    lrNo: "",
-    status: "PENDING",
+    hisab: false,
+    shippingMark: "",
+    notes: "",
     orderDate: "",
     paymentDate: "",
+    quantity: 0,
+    product: "",
+    supplier: "",
+    deposit: 0,
+    shippingCharge: 0,
+    totalAmount: 0,
     deliveryDate: "",
     loadingDate: "",
-    arrivalDate: "",
+    ctn: 1,
     isNew: true
   });
-
-  // Group rows by supplier, then by shipping mark
-  const groupedRows = useMemo(() => {
-    const grouped = {};
-    rows.forEach(row => {
-      const supplier = row.supplier || "Unassigned";
-      const mark = row.shippingMark || "No Mark";
-
-      if (!grouped[supplier]) {
-        grouped[supplier] = {};
-      }
-      if (!grouped[supplier][mark]) {
-        grouped[supplier][mark] = [];
-      }
-      grouped[supplier][mark].push(row);
-    });
-    return grouped;
-  }, [rows]);
 
   const handleChange = (rowKey, field, value) => {
     setRows(prev => prev.map(row => {
       if (row._key === rowKey) {
         let processedValue = value;
-        if (['quantity', 'ctn', 'totalAmount', 'deposit'].includes(field)) {
-          processedValue = (value === "" ? 0 : parseFloat(value) || 0);
+        if (['quantity', 'ctn', 'deposit', 'shippingCharge'].includes(field)) {
+          processedValue = (value === "" ? null : parseFloat(value) || 0);
         }
+        
         const updated = { ...row, [field]: processedValue };
 
-        // Auto calculate balance
-        if (field === 'totalAmount' || field === 'deposit') {
-          const total = parseFloat(updated.totalAmount || 0);
+        // Auto calculate totalPayment
+        if (['deposit', 'shippingCharge'].includes(field)) {
           const deposit = parseFloat(updated.deposit || 0);
-          updated.balanceAmount = total - deposit;
+          const shippingCharge = parseFloat(updated.shippingCharge || 0);
+          updated.totalAmount = deposit + shippingCharge;
         }
         return updated;
       }
@@ -218,155 +107,89 @@ export default function OrderSheetEditor({ params }) {
     }));
   };
 
-  const handleAddProduct = (supplier, shippingMark) => {
-    const actualSupplier = supplier === "Unassigned" ? "" : supplier;
-    const actualMark = shippingMark === "No Mark" ? "" : shippingMark;
-    const newRow = createEmptyRow(actualSupplier, actualMark);
-    setRows(prev => [...prev, newRow]);
-    // Expand supplier if collapsed
-    const supplierToExpand = actualSupplier || "Unassigned";
-    if (!expandedSuppliers.has(supplierToExpand)) {
-      setExpandedSuppliers(prev => new Set([...prev, supplierToExpand]));
+  const handleUpdateNewRow = (field, value) => {
+    let processedValue = value;
+    if (['quantity', 'ctn', 'deposit', 'shippingCharge'].includes(field)) {
+      processedValue = (value === "" ? "" : parseFloat(value) || 0);
     }
-    toast.success("Product added");
-  };
-
-  const handleAddShippingMark = (supplier) => {
-    const actualSupplier = supplier === "Unassigned" ? "" : supplier;
-    const newRow = createEmptyRow(actualSupplier, "");
-    setRows(prev => [...prev, newRow]);
-    const supplierToExpand = actualSupplier || "Unassigned";
-    if (!expandedSuppliers.has(supplierToExpand)) {
-      setExpandedSuppliers(prev => new Set([...prev, supplierToExpand]));
+    const updated = { ...newRow, [field]: processedValue };
+    if (['deposit', 'shippingCharge'].includes(field)) {
+      const deposit = parseFloat(updated.deposit || 0);
+      const shippingCharge = parseFloat(updated.shippingCharge || 0);
+      updated.totalAmount = deposit + shippingCharge;
     }
-    toast.success("Shipping mark added");
+    setNewRow(updated);
   };
 
-  const handleDeleteRow = (rowKey) => {
-    if (confirm("Are you sure you want to remove this product?")) {
-      setRows(prev => prev.filter(r => r._key !== rowKey));
-      toast.success("Product removed");
-    }
-  };
-
-  const handleSupplierSelect = (supplierName, oldSupplier) => {
-    const actualOldSupplier = oldSupplier === "Unassigned" ? "" : oldSupplier;
-    setRows(prev => prev.map(row => {
-      const rowSupplier = row.supplier || "";
-      if (rowSupplier === actualOldSupplier) {
-        return { ...row, supplier: supplierName };
-      }
-      return row;
-    }));
-    setSupplierSearch("");
-    setShowSupplierSuggestions(false);
-    setEditingSupplier(null);
-    if (supplierName && !expandedSuppliers.has(supplierName)) {
-      setExpandedSuppliers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(oldSupplier);
-        newSet.add(supplierName);
-        return newSet;
-      });
-    }
-  };
-
-  const handleSupplierInputChange = (value) => {
-    setSupplierSearch(value);
-  };
-
-  const handleShippingMarkChange = (oldMark, newMark, supplier) => {
-    // Update shipping mark for all products with this mark under this supplier
-    const actualOldMark = oldMark === "No Mark" ? "" : oldMark;
-    const actualSupplier = supplier === "Unassigned" ? "" : supplier;
-
-    setRows(prev => prev.map(row => {
-      const rowMark = row.shippingMark || "";
-      const rowSupplier = row.supplier || "";
-      if (rowSupplier === actualSupplier && rowMark === actualOldMark) {
-        return { ...row, shippingMark: newMark };
-      }
-      return row;
-    }));
-    setEditingShippingMark(null);
-  };
-
-  const fetchShippingMarkSuggestions = useCallback(async (search) => {
-    if (!search || search.length < 2) {
-      setShippingMarkSuggestions([]);
+  const handleAddRow = () => {
+    if (!newRow.product) {
+      toast.error("Product name is required");
       return;
     }
-    try {
-      // Get unique shipping marks from existing rows
-      const existingMarks = [...new Set(rows.map(r => r.shippingMark).filter(Boolean))];
-      const filtered = existingMarks.filter(mark =>
-        mark.toLowerCase().includes(search.toLowerCase())
-      );
-      setShippingMarkSuggestions(filtered.slice(0, 10).map(mark => ({ name: mark, id: mark })));
-    } catch (error) {
-      console.error("Error fetching shipping mark suggestions:", error);
+    if (!newRow.shippingMark) {
+      toast.error("Mark is required");
+      return;
     }
-  }, [rows]);
-
-  const toggleSupplier = (supplier) => {
-    setExpandedSuppliers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(supplier)) {
-        newSet.delete(supplier);
-      } else {
-        newSet.add(supplier);
-      }
-      return newSet;
+    
+    const rowToAdd = {
+      ...createEmptyRow(),
+      ...newRow,
+      quantity: newRow.quantity ? parseFloat(newRow.quantity) : 1,
+      deposit: newRow.deposit ? parseFloat(newRow.deposit) : 0,
+      shippingCharge: newRow.shippingCharge ? parseFloat(newRow.shippingCharge) : 0,
+    };
+    
+    setRows(prev => [...prev, rowToAdd]);
+    setNewRow({
+      hisab: false,
+      shippingMark: "",
+      notes: "",
+      orderDate: "",
+      paymentDate: "",
+      quantity: "",
+      product: "",
+      supplier: "",
+      deposit: "",
+      shippingCharge: "",
+      totalAmount: 0,
+      deliveryDate: "",
+      loadingDate: "",
+      ctn: 1,
     });
   };
 
+  const handleDeleteRow = (rowKey) => {
+    if (confirm("Are you sure you want to remove this row?")) {
+      setRows(prev => prev.filter(r => r._key !== rowKey));
+      toast.success("Row removed");
+    }
+  };
+
   const handleSave = useCallback(async () => {
-    if (!unwrappedParams?.id) return;
+    if (!sheetId) return;
 
     // Validation
     const invalid = rows.find(r => !r.shippingMark || !r.product);
     if (invalid) {
-      toast.error("All orders must have at least a Shipping Mark and Product Name.");
+      toast.error("All rows must have at least a Mark and Product Name.");
       return;
     }
 
     setSaving(true);
     try {
-      const res = await API.post(`/client-order-tracker/sheets/${unwrappedParams.id}/orders`, {
+      const res = await API.post(`/client-order-tracker/sheets/${sheetId}/orders`, {
         orders: rows
       });
       if (res.data.success) {
         toast.success("Sheet saved successfully! (Ctrl+S)");
-        fetchSheet(unwrappedParams.id);
+        fetchSheet(sheetId);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to save sheet");
     } finally {
       setSaving(false);
     }
-  }, [unwrappedParams, rows, fetchSheet]);
-
-  const handleExportSheet = async () => {
-    if (!unwrappedParams?.id) return;
-    try {
-      toast.info("Generating Excel...");
-      const response = await API.get(`/client-order-tracker/sheets/${unwrappedParams.id}/export`, {
-        responseType: 'blob'
-      });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${sheet?.name || 'sheet'}_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("Excel generated successfully");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export Excel");
-    }
-  };
+  }, [sheetId, rows, fetchSheet]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -375,567 +198,338 @@ export default function OrderSheetEditor({ params }) {
         e.preventDefault();
         handleSave();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        const firstSupplier = Object.keys(groupedRows)[0];
-        if (firstSupplier) {
-          handleAddProduct(firstSupplier, "");
-        } else {
-          setRows(prev => [...prev, createEmptyRow()]);
-        }
-      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSave, groupedRows]);
+  }, [handleSave]);
 
-  if (loading || !unwrappedParams) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-    </div>
-  );
+  const totals = useMemo(() => {
+    const totalSupplierPayment = rows.reduce((s, e) => s + (parseFloat(e.deposit) || 0), 0);
+    const totalShippingCharge = rows.reduce((s, e) => s + (parseFloat(e.shippingCharge) || 0), 0);
+    const totalPayment = rows.reduce((s, e) => s + (parseFloat(e.totalAmount) || 0), 0);
+    return { totalSupplierPayment, totalShippingCharge, totalPayment };
+  }, [rows]);
 
-  const totalValue = rows.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-  const totalBalance = rows.reduce((s, r) => s + (parseFloat(r.balanceAmount) || 0), 0);
-  const supplierCount = Object.keys(groupedRows).length;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-slate-500 font-medium">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
-      <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Top Navigation */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => router.back()} className="rounded-full h-10 w-10 bg-white border-slate-200">
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">{sheet?.name}</h1>
-              <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap">
-                <Calendar className="w-4 h-4" />
-                <span>{sheet?.month || 'General Sheet'}</span>
-                <span className="text-slate-300">|</span>
-                <span>{rows.length} Products</span>
-                <span className="text-slate-300">|</span>
-                <span>{supplierCount} Suppliers</span>
-                {sheet?.client && (
-                  <>
-                    <span className="text-slate-300">|</span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">
-                      <User className="w-3 h-3" />
-                      {sheet.client.name}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 items-center">
-            <Button
-              onClick={handleExportSheet}
-              variant="outline"
-              className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 h-10 px-4 rounded-lg flex items-center gap-2"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
-              Export Excel
-            </Button>
-            <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400 mr-2">
-              <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Ctrl+S</kbd>
-                Save
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Ctrl+Enter</kbd>
-                Add Product
-              </span>
-            </div>
-            <Button onClick={handleSave} disabled={saving} size="lg" className="bg-blue-600 hover:bg-blue-700 shadow-md">
-              {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-              Save Sheet
-            </Button>
-          </div>
-        </div>
-
-        {/* Summary Card */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Value</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">${totalValue.toLocaleString()}</p>
-            </div>
-            <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Outstanding Balance</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">${totalBalance.toLocaleString()}</p>
-            </div>
-            <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
-              <Info className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="bg-blue-600 p-6 rounded-2xl shadow-sm border border-blue-500 flex items-center justify-between text-white">
-            <div>
-              <p className="text-xs font-bold text-blue-200 uppercase tracking-wider">Suppliers</p>
-              <p className="text-2xl font-bold mt-1">{supplierCount}</p>
-            </div>
-            <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white">
-              <Package className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Supplier Groups */}
-        <div className="space-y-4">
-          {Object.entries(groupedRows).map(([supplier, marks]) => {
-            const isExpanded = expandedSuppliers.has(supplier);
-            const supplierRows = Object.values(marks).flat();
-            const supplierTotal = supplierRows.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-            const supplierBalance = supplierRows.reduce((s, r) => s + (parseFloat(r.balanceAmount) || 0), 0);
-
-            return (
-              <div key={supplier} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                {/* Supplier Header */}
-                <div
-                  className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                  onClick={() => toggleSupplier(supplier)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSupplier(supplier);
-                        }}
-                        className="p-1 hover:bg-slate-200 rounded"
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-slate-600" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-slate-600" />
-                        )}
-                      </button>
-                      <div className="relative flex-1 flex items-center gap-2">
-                        {editingSupplier === supplier ? (
-                          <div className="relative flex-1 flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <input
-                                type="text"
-                                value={supplierSearch}
-                                onChange={(e) => handleSupplierInputChange(e.target.value)}
-                                onFocus={() => {
-                                  fetchSupplierSuggestions(supplierSearch);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    if (supplierSearch && supplierSearch !== supplier) {
-                                      handleSupplierSelect(supplierSearch, supplier);
-                                    } else {
-                                      setEditingSupplier(null);
-                                    }
-                                  }
-                                  if (e.key === 'Escape') {
-                                    setEditingSupplier(null);
-                                    setSupplierSearch("");
-                                  }
-                                }}
-                                className="text-lg font-bold text-slate-900 px-3 py-1.5 border-2 border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px] w-full"
-                                autoFocus
-                              />
-                              {showSupplierSuggestions && supplierSuggestions.length > 0 && (
-                                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                  {supplierSuggestions.map((suggestion, idx) => (
-                                    <button
-                                      key={idx}
-                                      type="button"
-                                      onClick={() => handleSupplierSelect(suggestion.name, supplier)}
-                                      className="w-full px-4 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0"
-                                    >
-                                      <div className="font-medium text-slate-900">{suggestion.name}</div>
-                                    </button>
-                                  ))}
-                                  {supplierSearch && !supplierSuggestions.find(s => s.name.toLowerCase() === supplierSearch.toLowerCase()) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSupplierSelect(supplierSearch, supplier)}
-                                      className="w-full px-4 py-2 text-left hover:bg-emerald-50 border-t border-slate-200 bg-emerald-50/50"
-                                    >
-                                      <div className="font-medium text-emerald-700">Create "{supplierSearch}"</div>
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                className="bg-emerald-500 hover:bg-emerald-600 rounded-lg flex items-center gap-2 px-4 shadow-sm"
-                                onClick={() => {
-                                  if (supplierSearch && supplierSearch !== supplier) {
-                                    handleSupplierSelect(supplierSearch, supplier);
-                                  } else {
-                                    setEditingSupplier(null);
-                                  }
-                                }}
-                              >
-                                <Check className="w-4 h-4" />
-                                <span>Save</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-lg border-slate-200 flex items-center gap-2 px-4"
-                                onClick={() => {
-                                  setEditingSupplier(null);
-                                  setSupplierSearch("");
-                                }}
-                              >
-                                <X className="w-4 h-4" />
-                                <span>Cancel</span>
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingSupplier(supplier);
-                                setSupplierSearch(supplier);
-                                fetchSupplierSuggestions(supplier);
-                              }}
-                              className="text-lg font-bold text-slate-900 hover:text-blue-600 transition-colors flex items-center gap-2 group"
-                            >
-                              <LinkIcon className={`w-4 h-4 ${selectedSupplier === supplier ? 'text-blue-600' : 'text-slate-400'} group-hover:text-blue-600`} />
-                              {supplier}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingSupplier(supplier);
-                                setSupplierSearch(supplier);
-                                fetchSupplierSuggestions(supplier);
-                              }}
-                              className="p-1.5 hover:bg-blue-100 rounded transition-colors"
-                              title="Edit Supplier"
-                            >
-                              <Pencil className="w-3.5 h-3.5 text-slate-500 hover:text-blue-600" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-sm text-slate-500">
-                        ({Object.keys(marks).length} marks, {supplierRows.length} products)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500">Total</div>
-                        <div className="text-lg font-bold text-slate-900">${supplierTotal.toLocaleString()}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500">Balance</div>
-                        <div className={`text-lg font-bold ${supplierBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          ${supplierBalance.toLocaleString()}
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddShippingMark(supplier);
-                        }}
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Mark
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Shipping Marks */}
-                {isExpanded && (
-                  <div className="p-4 space-y-4">
-                    {Object.entries(marks).map(([mark, products]) => {
-                      const markTotal = products.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-                      return (
-                        <div key={mark} className="border border-slate-200 rounded-xl overflow-hidden">
-                          {/* Shipping Mark Header */}
-                          <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <Package className="w-4 h-4 text-slate-500" />
-                              {editingShippingMark === `${supplier}-${mark}` ? (
-                                <div className="relative flex-1 flex items-center gap-2 max-w-sm">
-                                  <div className="relative flex-1">
-                                    <input
-                                      type="text"
-                                      value={editingShippingMarkValue}
-                                      onChange={(e) => setEditingShippingMarkValue(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          if (editingShippingMarkValue && editingShippingMarkValue !== mark) {
-                                            handleShippingMarkChange(mark, editingShippingMarkValue, supplier);
-                                          }
-                                          setEditingShippingMark(null);
-                                          setEditingShippingMarkValue("");
-                                        }
-                                        if (e.key === 'Escape') {
-                                          setEditingShippingMark(null);
-                                          setEditingShippingMarkValue("");
-                                        }
-                                      }}
-                                      className="font-semibold text-slate-700 px-2 py-1.5 border-2 border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white w-full"
-                                      autoFocus
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      className="bg-emerald-500 hover:bg-emerald-600 rounded flex items-center gap-2 px-3 h-8 shadow-sm"
-                                      onClick={() => {
-                                        if (editingShippingMarkValue && editingShippingMarkValue !== mark) {
-                                          handleShippingMarkChange(mark, editingShippingMarkValue, supplier);
-                                        } else {
-                                          setEditingShippingMark(null);
-                                        }
-                                      }}
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                      <span className="text-[11px] font-bold">Save</span>
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="rounded border-slate-200 flex items-center gap-1 px-2 h-8"
-                                      onClick={() => {
-                                        setEditingShippingMark(null);
-                                        setEditingShippingMarkValue("");
-                                      }}
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                      <span className="text-[11px]">Cancel</span>
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingShippingMark(`${supplier}-${mark}`);
-                                      setEditingShippingMarkValue(mark);
-                                    }}
-                                    className="font-semibold text-slate-700 hover:text-blue-600 transition-colors group flex items-center gap-2"
-                                  >
-                                    {mark}
-                                    <Pencil className="w-3 h-3 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                                  </button>
-                                </>
-                              )}
-                              <span className="text-sm text-slate-500">({products.length} products)</span>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <div className="text-right">
-                                <div className="text-xs text-slate-500">Total</div>
-                                <div className="text-sm font-bold text-slate-900">${markTotal.toLocaleString()}</div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleAddProduct(supplier, mark)}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <Plus className="w-4 h-4 mr-1" />
-                                Add Product
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Products List */}
-                          <div className="divide-y divide-slate-100">
-                            {products.map((product, idx) => (
-                              <div key={product._key} className="p-4 hover:bg-slate-50/50 transition-colors">
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                                  {/* Product Name */}
-                                  <div className="lg:col-span-3">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Product *</label>
-                                    <input
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                      placeholder="Product name"
-                                      value={product.product}
-                                      onChange={e => handleChange(product._key, 'product', e.target.value)}
-                                    />
-                                  </div>
-
-                                  {/* QTY & CTN */}
-                                  <div className="lg:col-span-2">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">QTY</label>
-                                    <input
-                                      type="number"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                      value={product.quantity}
-                                      onChange={e => handleChange(product._key, 'quantity', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="lg:col-span-2">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">CTN</label>
-                                    <input
-                                      type="number"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                      value={product.ctn}
-                                      onChange={e => handleChange(product._key, 'ctn', e.target.value)}
-                                    />
-                                  </div>
-
-                                  {/* Financials */}
-                                  <div className="lg:col-span-2">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Total Amount</label>
-                                    <input
-                                      type="number"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold"
-                                      value={product.totalAmount}
-                                      onChange={e => handleChange(product._key, 'totalAmount', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="lg:col-span-2">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Deposit</label>
-                                    <input
-                                      type="number"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                      value={product.deposit}
-                                      onChange={e => handleChange(product._key, 'deposit', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="lg:col-span-1">
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Balance</label>
-                                    <div className={`w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold ${product.balanceAmount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                      ${(product.balanceAmount || 0).toLocaleString()}
-                                    </div>
-                                  </div>
-
-                                  {/* Actions */}
-                                  <div className="lg:col-span-1 flex items-end">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDeleteRow(product._key)}
-                                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                {/* Additional Fields Row */}
-                                <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 mt-3 pt-3 border-t border-slate-100">
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Shipping Code</label>
-                                    <input
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      placeholder="PSDE-83"
-                                      value={product.shippingCode || ""}
-                                      onChange={e => handleChange(product._key, 'shippingCode', e.target.value)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Status</label>
-                                    <select
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      value={product.status}
-                                      onChange={e => handleChange(product._key, 'status', e.target.value)}
-                                    >
-                                      <option value="PENDING">Pending</option>
-                                      <option value="LOADED">Loaded</option>
-                                      <option value="IN_TRANSIT">In Transit</option>
-                                      <option value="ARRIVED">Arrived</option>
-                                      <option value="DELIVERED">Delivered</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Loading Date</label>
-                                    <input
-                                      type="date"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      value={formatDateForInput(product.loadingDate)}
-                                      onChange={e => handleChange(product._key, 'loadingDate', e.target.value)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Arrival Date</label>
-                                    <input
-                                      type="date"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      value={formatDateForInput(product.arrivalDate)}
-                                      onChange={e => handleChange(product._key, 'arrivalDate', e.target.value)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Payment Date</label>
-                                    <input
-                                      type="date"
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      value={formatDateForInput(product.paymentDate)}
-                                      onChange={e => handleChange(product._key, 'paymentDate', e.target.value)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-slate-600 mb-1 block">LR No.</label>
-                                    <input
-                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                                      placeholder="LR-9988"
-                                      value={product.lrNo || ""}
-                                      onChange={e => handleChange(product._key, 'lrNo', e.target.value)}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Add New Supplier Button */}
-        <div className="relative">
+    <div className="min-h-screen bg-white pb-32">
+      {/* Top bar: back + title + actions */}
+      <div className="border-b border-slate-200 bg-white">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <button
-            onClick={() => {
-              const newRow = createEmptyRow();
-              setRows(prev => [...prev, newRow]);
-            }}
-            className="w-full py-5 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium"
           >
-            <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100">
-              <Plus className="w-6 h-6" />
-            </div>
-            <span className="font-semibold">Add New Supplier</span>
-            <span className="text-xs text-slate-400 mt-1">or press <kbd className="px-1.5 py-0.5 bg-slate-200 rounded">Ctrl+Enter</kbd></span>
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </button>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider hidden sm:inline mr-2">
+              Ctrl+S Save
+            </span>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? "Saving..." : "Save Sheet"}
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* Floating Save Button (Mobile) */}
-        <div className="fixed bottom-6 right-6 lg:hidden">
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            size="lg"
-            className="bg-blue-600 hover:bg-blue-700 shadow-xl rounded-full h-14 w-14 p-0"
-          >
-            {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-          </Button>
+      {/* Green title */}
+      <div className="bg-emerald-600 text-white py-4">
+        <div className="max-w-[1600px] mx-auto px-6">
+          <h1 className="text-2xl font-black uppercase tracking-tight">
+            {sheet?.name || "CLIENT ORDER TRACKER"}
+          </h1>
         </div>
+      </div>
+
+      {/* Table */}
+      <div className="max-w-[1600px] mx-auto px-6 py-6 overflow-x-auto">
+        <table className="w-full border-collapse text-[13px]" style={{ minWidth: "1500px" }}>
+          {/* Yellow header */}
+          <thead>
+            <tr className="bg-amber-200 text-slate-900 border border-slate-300">
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-10 text-center">#</th>
+              <th className="border border-slate-300 px-2 py-2 text-center font-bold uppercase w-12">HISAB</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-24">MARK</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-32">NOTES</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-32">ORDER DATE</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-36">SUPPLIER P. DATE</th>
+              <th className="border border-slate-300 px-2 py-2 text-right font-bold uppercase w-20">QTY</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase min-w-[200px]">PRODUCT NAME</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase min-w-[160px]">SUPPLIER NAME</th>
+              <th className="border border-slate-300 px-2 py-2 text-right font-bold uppercase w-36">SUPPLIER PAYMENT</th>
+              <th className="border border-slate-300 px-2 py-2 text-right font-bold uppercase w-36">SHIPPING CHARGE</th>
+              <th className="border border-slate-300 px-2 py-2 text-right font-bold uppercase w-36">TOTAL PAYMENT</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-32">DELIVERED</th>
+              <th className="border border-slate-300 px-2 py-2 text-left font-bold uppercase w-32">LOADED</th>
+              <th className="border border-slate-300 px-2 py-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white">
+            {rows.map((row, idx) => (
+              <tr key={row._key} className="border-b border-slate-200 hover:bg-slate-50/50">
+                <td className="border border-slate-200 px-2 py-1.5 text-center text-slate-400 font-medium">
+                  {idx + 1}
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-center">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    checked={row.hisab || false}
+                    onChange={(e) => handleChange(row._key, "hisab", e.target.checked)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none py-0.5 font-semibold"
+                    value={row.shippingMark || ""}
+                    onChange={(e) => handleChange(row._key, "shippingMark", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none py-0.5"
+                    value={row.notes || ""}
+                    onChange={(e) => handleChange(row._key, "notes", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-700"
+                    value={row.orderDate ? new Date(row.orderDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleChange(row._key, "orderDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-700"
+                    value={row.paymentDate ? new Date(row.paymentDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleChange(row._key, "paymentDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-medium"
+                    value={row.quantity ?? ""}
+                    onChange={(e) => handleChange(row._key, "quantity", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none py-0.5 font-medium"
+                    value={row.product || ""}
+                    onChange={(e) => handleChange(row._key, "product", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none py-0.5"
+                    value={row.supplier || ""}
+                    onChange={(e) => handleChange(row._key, "supplier", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-medium"
+                    value={row.deposit ?? ""}
+                    onChange={(e) => handleChange(row._key, "deposit", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-right">
+                  <input
+                    type="number"
+                    className="w-full text-right bg-transparent border-0 outline-none py-0.5 font-medium"
+                    value={row.shippingCharge ?? ""}
+                    onChange={(e) => handleChange(row._key, "shippingCharge", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 text-right font-bold text-slate-900 bg-slate-50">
+                  {(row.totalAmount || 0).toLocaleString("en-IN")}
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-700"
+                    value={row.deliveryDate ? new Date(row.deliveryDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleChange(row._key, "deliveryDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <input
+                    type="date"
+                    className="w-full bg-transparent border-0 outline-none py-0.5 text-xs text-slate-700"
+                    value={row.loadingDate ? new Date(row.loadingDate).toISOString().split("T")[0] : ""}
+                    onChange={(e) => handleChange(row._key, "loadingDate", e.target.value)}
+                  />
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRow(row._key)}
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {/* New entry row */}
+            <tr className="bg-slate-50 border-t-2 border-slate-200">
+              <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 font-bold">
+                NEW
+              </td>
+              <td className="border border-slate-200 px-2 py-2 text-center">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  checked={newRow.hisab}
+                  onChange={(e) => handleUpdateNewRow("hisab", e.target.checked)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  placeholder="Mark *"
+                  value={newRow.shippingMark}
+                  onChange={(e) => handleUpdateNewRow("shippingMark", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  placeholder="Notes"
+                  value={newRow.notes}
+                  onChange={(e) => handleUpdateNewRow("notes", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  value={newRow.orderDate}
+                  onChange={(e) => handleUpdateNewRow("orderDate", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  value={newRow.paymentDate}
+                  onChange={(e) => handleUpdateNewRow("paymentDate", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-right"
+                  placeholder="0"
+                  value={newRow.quantity}
+                  onChange={(e) => handleUpdateNewRow("quantity", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  placeholder="Product Name *"
+                  value={newRow.product}
+                  onChange={(e) => handleUpdateNewRow("product", e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddRow()}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  placeholder="Supplier Name"
+                  value={newRow.supplier}
+                  onChange={(e) => handleUpdateNewRow("supplier", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-right"
+                  placeholder="0"
+                  value={newRow.deposit}
+                  onChange={(e) => handleUpdateNewRow("deposit", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="number"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-right"
+                  placeholder="0"
+                  value={newRow.shippingCharge}
+                  onChange={(e) => handleUpdateNewRow("shippingCharge", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2 text-right font-bold text-slate-900 bg-slate-50">
+                {(newRow.totalAmount || 0).toLocaleString("en-IN")}
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  value={newRow.deliveryDate}
+                  onChange={(e) => handleUpdateNewRow("deliveryDate", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <input
+                  type="date"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                  value={newRow.loadingDate}
+                  onChange={(e) => handleUpdateNewRow("loadingDate", e.target.value)}
+                />
+              </td>
+              <td className="border border-slate-200 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={handleAddRow}
+                  className="p-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
+                  title="Add Row"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+          {/* Footer: TOTAL row */}
+          <tfoot>
+            <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+              <td colSpan="9" className="border border-slate-300 px-3 py-2 text-right uppercase tracking-wider text-slate-500">
+                Total Formula
+              </td>
+              <td className="border border-slate-300 px-3 py-2 text-right">
+                {totals.totalSupplierPayment.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </td>
+              <td className="border border-slate-300 px-3 py-2 text-right">
+                {totals.totalShippingCharge.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </td>
+              <td className="border border-slate-300 px-3 py-2 text-right font-black">
+                {totals.totalPayment.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </td>
+              <td colSpan="3" className="border border-slate-300"></td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   );

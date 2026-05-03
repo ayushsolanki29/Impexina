@@ -356,6 +356,31 @@ export default function ContainerSummaryForm({
         setContainers(next);
     };
 
+    const handleInputKeyDown = (e, rowIndex, fieldName) => {
+        if (e.key === 'Enter' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const nextRow = rowIndex + 1;
+            if (nextRow < containers.length) {
+                const el = document.getElementById(`cs-cell-${nextRow}-${fieldName}`);
+                if (el) {
+                    el.focus();
+                    if (el.select) el.select();
+                }
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prevRow = rowIndex - 1;
+            if (prevRow >= 0) {
+                const el = document.getElementById(`cs-cell-${prevRow}-${fieldName}`);
+                if (el) {
+                    el.focus();
+                    if (el.select) el.select();
+                }
+            }
+        }
+    };
+
+
     const moveContainer = (index, direction) => {
         const next = [...containers];
         const targetIndex = direction === 'up' ? index - 1 : index + 1;

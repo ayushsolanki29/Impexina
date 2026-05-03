@@ -272,7 +272,11 @@ export default function ExcelLedgerPage() {
                     const totalCbm = clientData.reduce((sum, item) => sum + (item.totalCbm || 0), 0);
                     const totalWeight = clientData.reduce((sum, item) => sum + (item.totalWt || 0), 0);
                     const totalGstAmount = clientData.reduce((sum, item) => sum + (item.gstAmount || 0), 0);
+                    const totalGstAmount2 = clientData.reduce((sum, item) => sum + (item.gstAmount2 || 0), 0);
+                    const totalGstAmount3 = clientData.reduce((sum, item) => sum + (item.gstAmount3 || 0), 0);
                     const invoiceNo = [...new Set(clientData.map(d => d.invoiceNo).filter(Boolean))].join(', ');
+                    const invoiceNo2 = [...new Set(clientData.map(d => d.invoiceNo2).filter(Boolean))].join(', ');
+                    const invoiceNo3 = [...new Set(clientData.map(d => d.invoiceNo3).filter(Boolean))].join(', ');
                     const gstText = [...new Set(clientData.map(d => d.gst).filter(Boolean))].join(', ');
 
                     // Get FROM and TO from bifurcation
@@ -309,8 +313,12 @@ export default function ExcelLedgerPage() {
                         totalCbm: parseFloat(totalCbm.toFixed(3)),
                         totalWeight: parseFloat(totalWeight.toFixed(2)),
                         invoiceNo,
+                        invoiceNo2,
+                        invoiceNo3,
                         gstText,
                         totalGstAmount: parseFloat(totalGstAmount.toFixed(2)),
+                        totalGstAmount2: parseFloat(totalGstAmount2.toFixed(2)),
+                        totalGstAmount3: parseFloat(totalGstAmount3.toFixed(2)),
                         from: fromLocation,
                         to: toLocation
                     };
@@ -363,7 +371,11 @@ export default function ExcelLedgerPage() {
                                 if (t.containerCode === containerCode || !t.containerCode) {
                                     // Update GST INV line with FROM/TO format
                                     let updatedParticulars = t.particulars;
-                                    if (t.particulars?.startsWith("GST INV")) {
+                                    if (t.particulars?.startsWith("GST INV 3")) {
+                                        updatedParticulars = `GST INV 3 - ${info.invoiceNo3}`;
+                                    } else if (t.particulars?.startsWith("GST INV 2")) {
+                                        updatedParticulars = `GST INV 2 - ${info.invoiceNo2}`;
+                                    } else if (t.particulars?.startsWith("GST INV")) {
                                         const fromPart = info.from ? ` FROM: ${info.from}` : '';
                                         const toPart = info.to ? ` TO: ${info.to}` : '';
                                         updatedParticulars = `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`;
@@ -381,7 +393,25 @@ export default function ExcelLedgerPage() {
                                     };
                                 }
                                 // Also update GST INV rows even if container code doesn't match
-                                if (t.particulars?.startsWith("GST INV") && info.invoiceNo) {
+                                if (t.particulars?.startsWith("GST INV 3") && info.invoiceNo3) {
+                                    return {
+                                        ...t,
+                                        particulars: `GST INV 3 - ${info.invoiceNo3}`,
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
+                                        from: info.from || t.from || '',
+                                        to: info.to || t.to || ''
+                                    };
+                                } else if (t.particulars?.startsWith("GST INV 2") && info.invoiceNo2) {
+                                    return {
+                                        ...t,
+                                        particulars: `GST INV 2 - ${info.invoiceNo2}`,
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
+                                        from: info.from || t.from || '',
+                                        to: info.to || t.to || ''
+                                    };
+                                } else if (t.particulars?.startsWith("GST INV") && !t.particulars?.startsWith("GST INV 2") && !t.particulars?.startsWith("GST INV 3") && info.invoiceNo) {
                                     const fromPart = info.from ? ` FROM: ${info.from}` : '';
                                     const toPart = info.to ? ` TO: ${info.to}` : '';
                                     return {
@@ -442,9 +472,124 @@ export default function ExcelLedgerPage() {
                                         sheetName: querySheetName || ""
                                     });
                                 }
+                                if (info.invoiceNo2 || info.totalGstAmount2 > 0) {
+                                    newRows.push({
+                                        id: `temp-${Date.now() + 2}`,
+                                        isNew: true,
+                                        containerCode: "",
+                                        deliveryDate: "",
+                                        particulars: `GST INV 2 - ${info.invoiceNo2}`,
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
+                                        rate: "",
+                                        amount: info.totalGstAmount2,
+                                        paid: "",
+                                        paymentDate: "",
+                                        paymentMode: "",
+                                        from: info.from || '',
+                                        to: info.to || '',
+                                        clientId: id,
+                                        billingType: "FLAT",
+                                        sheetName: querySheetName || ""
+                                    });
+                                }
+                                if (info.invoiceNo3 || info.totalGstAmount3 > 0) {
+                                    newRows.push({
+                                        id: `temp-${Date.now() + 3}`,
+                                        isNew: true,
+                                        containerCode: "",
+                                        deliveryDate: "",
+                                        particulars: `GST INV 3 - ${info.invoiceNo3}`,
+                                        quantity: info.totalCbm,
+                                        weight: info.totalWeight,
+                                        rate: "",
+                                        amount: info.totalGstAmount3,
+                                        paid: "",
+                                        paymentDate: "",
+                                        paymentMode: "",
+                                        from: info.from || '',
+                                        to: info.to || '',
+                                        clientId: id,
+                                        billingType: "FLAT",
+                                        sheetName: querySheetName || ""
+                                    });
+                                }
                                 return newRows;
                             }
-                            return updated;
+
+                            // If rows exist, check if we need to append missing GST rows
+                            const finalRows = [...updated];
+                            const hasGst1 = finalRows.some(r => r.particulars?.startsWith("GST INV") && !r.particulars?.startsWith("GST INV 2") && !r.particulars?.startsWith("GST INV 3"));
+                            const hasGst2 = finalRows.some(r => r.particulars?.startsWith("GST INV 2"));
+                            const hasGst3 = finalRows.some(r => r.particulars?.startsWith("GST INV 3"));
+
+                            if (!hasGst1 && (info.invoiceNo || info.totalGstAmount > 0)) {
+                                const fromPart = info.from ? ` FROM: ${info.from}` : '';
+                                const toPart = info.to ? ` TO: ${info.to}` : '';
+                                finalRows.push({
+                                    id: `temp-add-${Date.now() + 1}`,
+                                    isNew: true,
+                                    containerCode: "",
+                                    deliveryDate: "",
+                                    particulars: `GST INV - ${info.invoiceNo} |${fromPart}${toPart}`,
+                                    quantity: info.totalCbm,
+                                    weight: info.totalWeight,
+                                    rate: "",
+                                    amount: info.totalGstAmount,
+                                    paid: "",
+                                    paymentDate: "",
+                                    paymentMode: "",
+                                    from: info.from || '',
+                                    to: info.to || '',
+                                    clientId: id,
+                                    billingType: "FLAT",
+                                    sheetName: querySheetName || ""
+                                });
+                            }
+                            if (!hasGst2 && (info.invoiceNo2 || info.totalGstAmount2 > 0)) {
+                                finalRows.push({
+                                    id: `temp-add-${Date.now() + 2}`,
+                                    isNew: true,
+                                    containerCode: "",
+                                    deliveryDate: "",
+                                    particulars: `GST INV 2 - ${info.invoiceNo2}`,
+                                    quantity: info.totalCbm,
+                                    weight: info.totalWeight,
+                                    rate: "",
+                                    amount: info.totalGstAmount2,
+                                    paid: "",
+                                    paymentDate: "",
+                                    paymentMode: "",
+                                    from: info.from || '',
+                                    to: info.to || '',
+                                    clientId: id,
+                                    billingType: "FLAT",
+                                    sheetName: querySheetName || ""
+                                });
+                            }
+                            if (!hasGst3 && (info.invoiceNo3 || info.totalGstAmount3 > 0)) {
+                                finalRows.push({
+                                    id: `temp-add-${Date.now() + 3}`,
+                                    isNew: true,
+                                    containerCode: "",
+                                    deliveryDate: "",
+                                    particulars: `GST INV 3 - ${info.invoiceNo3}`,
+                                    quantity: info.totalCbm,
+                                    weight: info.totalWeight,
+                                    rate: "",
+                                    amount: info.totalGstAmount3,
+                                    paid: "",
+                                    paymentDate: "",
+                                    paymentMode: "",
+                                    from: info.from || '',
+                                    to: info.to || '',
+                                    clientId: id,
+                                    billingType: "FLAT",
+                                    sheetName: querySheetName || ""
+                                });
+                            }
+
+                            return finalRows;
                         });
                     }
                 } else if (querySheetName) {

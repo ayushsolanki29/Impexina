@@ -63,8 +63,12 @@ const bifurcationExportService = {
             { header: 'From', key: 'from', width: 15 },
             { header: 'To', key: 'to', width: 15 },
             { header: 'Delivery Date', key: 'deliveryDate', width: 15 },
-            { header: 'Invoice No', key: 'invoiceNo', width: 15 },
-            { header: 'GST Amount', key: 'gstAmount', width: 12 },
+            { header: 'Inv #1', key: 'invoiceNo', width: 15 },
+            { header: 'GST 1', key: 'gstAmount', width: 12 },
+            { header: 'Inv #2', key: 'invoiceNo2', width: 15 },
+            { header: 'GST 2', key: 'gstAmount2', width: 12 },
+            { header: 'Inv #3', key: 'invoiceNo3', width: 15 },
+            { header: 'GST 3', key: 'gstAmount3', width: 12 },
             { header: 'LR No', key: 'lrNo', width: 10 },
         ];
 
@@ -94,6 +98,10 @@ const bifurcationExportService = {
                     deliveryDate: sheet.bifurcation?.deliveryDate ? new Date(sheet.bifurcation.deliveryDate).toLocaleDateString() : '',
                     invoiceNo: sheet.bifurcation?.invoiceNo || '',
                     gstAmount: sheet.bifurcation?.gstAmount || 0,
+                    invoiceNo2: sheet.bifurcation?.invoiceNo2 || '',
+                    gstAmount2: sheet.bifurcation?.gstAmount2 || 0,
+                    invoiceNo3: sheet.bifurcation?.invoiceNo3 || '',
+                    gstAmount3: sheet.bifurcation?.gstAmount3 || 0,
                     lrNo: sheet.bifurcation?.lrNo ? 'YES' : 'NO'
                 };
             });

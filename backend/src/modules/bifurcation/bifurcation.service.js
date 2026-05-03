@@ -125,6 +125,12 @@ const bifurcationService = {
           invoiceNo: sheet.bifurcation?.invoiceNo || '',
           gst: sheet.bifurcation?.gst || '',
           gstAmount: sheet.bifurcation?.gstAmount || 0,
+          invoiceNo2: sheet.bifurcation?.invoiceNo2 || '',
+          gst2: sheet.bifurcation?.gst2 || '',
+          gstAmount2: sheet.bifurcation?.gstAmount2 || 0,
+          invoiceNo3: sheet.bifurcation?.invoiceNo3 || '',
+          gst3: sheet.bifurcation?.gst3 || '',
+          gstAmount3: sheet.bifurcation?.gstAmount3 || 0,
           from: sheet.bifurcation?.from || '',
           to: sheet.bifurcation?.to || '',
           lrNo: sheet.bifurcation?.lrNo || false,
@@ -154,7 +160,12 @@ const bifurcationService = {
 
   // Update or Create Bifurcation details
   upsertBifurcation: async (loadingSheetId, data, userId) => {
-    const { invoiceNo, gst, gstAmount, deliveryDate, from, to, lrNo, hisab, sent } = data;
+    const { 
+      invoiceNo, gst, gstAmount, 
+      invoiceNo2, gst2, gstAmount2, 
+      invoiceNo3, gst3, gstAmount3, 
+      deliveryDate, from, to, lrNo, hisab, sent 
+    } = data;
 
     // Get existing details for comparison
     const existing = await prisma.bifurcation.findUnique({
@@ -175,6 +186,12 @@ const bifurcationService = {
         invoiceNo,
         gst,
         gstAmount: parseFloat(gstAmount) || 0,
+        invoiceNo2,
+        gst2,
+        gstAmount2: parseFloat(gstAmount2) || 0,
+        invoiceNo3,
+        gst3,
+        gstAmount3: parseFloat(gstAmount3) || 0,
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
         from,
         to,
@@ -188,6 +205,12 @@ const bifurcationService = {
         invoiceNo,
         gst,
         gstAmount: parseFloat(gstAmount) || 0,
+        invoiceNo2,
+        gst2,
+        gstAmount2: parseFloat(gstAmount2) || 0,
+        invoiceNo3,
+        gst3,
+        gstAmount3: parseFloat(gstAmount3) || 0,
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
         from,
         to,
@@ -199,7 +222,12 @@ const bifurcationService = {
 
     // Log activities if something changed
     if (userId) {
-      const fields = ['invoiceNo', 'gst', 'gstAmount', 'deliveryDate', 'from', 'to', 'lrNo', 'hisab', 'sent'];
+      const fields = [
+        'invoiceNo', 'gst', 'gstAmount', 
+        'invoiceNo2', 'gst2', 'gstAmount2', 
+        'invoiceNo3', 'gst3', 'gstAmount3', 
+        'deliveryDate', 'from', 'to', 'lrNo', 'hisab', 'sent'
+      ];
       const activities = [];
 
       for (const field of fields) {

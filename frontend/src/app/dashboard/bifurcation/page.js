@@ -451,8 +451,12 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                             <th className="px-3 py-2 text-center">Delivery</th>
                                             {showFinancials && (
                                                 <>
-                                                    <th className="px-3 py-2 text-center">Inv #</th>
-                                                    <th className="px-3 py-2 text-right">GST</th>
+                                                    <th className="px-3 py-2 text-center">Inv #1</th>
+                                                    <th className="px-3 py-2 text-right">GST 1</th>
+                                                    <th className="px-3 py-2 text-center">Inv #2</th>
+                                                    <th className="px-3 py-2 text-right">GST 2</th>
+                                                    <th className="px-3 py-2 text-center">Inv #3</th>
+                                                    <th className="px-3 py-2 text-right">GST 3</th>
                                                     <th className="px-3 py-2 text-center">LR</th>
                                                     <th className="px-3 py-2 text-center">SENT</th>
                                                 </>
@@ -465,7 +469,7 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                 {/* Client row if needed */}
                                                 {clientName && (
                                                     <tr className="bg-yellow-50/50 print:bg-slate-50 border-t border-slate-200">
-                                                        <td colSpan={showFinancials ? "14" : "9"} className="px-3 py-2 border-l-4 border-yellow-400">
+                                                        <td colSpan={showFinancials ? "18" : "9"} className="px-3 py-2 border-l-4 border-yellow-400">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="font-bold text-slate-700 text-xs">{clientName}</span>
                                                                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -501,6 +505,14 @@ const BifurcationPreviewModal = ({ isOpen, onClose, data, settings = {} }) => {
                                                                 <td className="px-3 py-2 text-center font-bold text-slate-600">{item.invoiceNo || '-'}</td>
                                                                 <td className="px-3 py-2 text-right font-medium text-slate-600">
                                                                     {item.gstAmount ? `₹${item.gstAmount.toLocaleString('en-IN')}` : '-'}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center font-bold text-slate-600">{item.invoiceNo2 || '-'}</td>
+                                                                <td className="px-3 py-2 text-right font-medium text-slate-600">
+                                                                    {item.gstAmount2 ? `₹${item.gstAmount2.toLocaleString('en-IN')}` : '-'}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center font-bold text-slate-600">{item.invoiceNo3 || '-'}</td>
+                                                                <td className="px-3 py-2 text-right font-medium text-slate-600">
+                                                                    {item.gstAmount3 ? `₹${item.gstAmount3.toLocaleString('en-IN')}` : '-'}
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     {item.lrNo ? <Check className="w-3 h-3 mx-auto text-emerald-500" /> : <X className="w-3 h-3 mx-auto text-slate-300" />}
@@ -676,13 +688,19 @@ export default function BifurcationPage() {
             const payload = {
                 gst: item.gst,
                 gstAmount: item.gstAmount,
+                gst2: item.gst2,
+                gstAmount2: item.gstAmount2,
+                gst3: item.gst3,
+                gstAmount3: item.gstAmount3,
                 deliveryDate: item.deliveryDate,
                 from: item.from,
                 to: item.to,
                 lrNo: item.lrNo,
                 hisab: item.hisab,
                 sent: item.sent,
-                invoiceNo: item.invoiceNo
+                invoiceNo: item.invoiceNo,
+                invoiceNo2: item.invoiceNo2,
+                invoiceNo3: item.invoiceNo3
             };
 
             await API.post(`/bifurcation/${sheetId}`, payload);
@@ -1013,8 +1031,12 @@ export default function BifurcationPage() {
                                                                 <th className="px-3 py-2 text-center">From</th>
                                                                 <th className="px-3 py-2 text-center">To</th>
                                                                 <th className="px-3 py-2 text-center">Delivery</th>
-                                                                <th className="px-3 py-2 text-center">Inv #</th>
-                                                                <th className="px-3 py-2 text-right">GST</th>
+                                                                <th className="px-3 py-2 text-center min-w-[80px]">Inv #1</th>
+                                                                <th className="px-3 py-2 text-right min-w-[80px]">GST 1</th>
+                                                                <th className="px-3 py-2 text-center min-w-[80px]">Inv #2</th>
+                                                                <th className="px-3 py-2 text-right min-w-[80px]">GST 2</th>
+                                                                <th className="px-3 py-2 text-center min-w-[80px]">Inv #3</th>
+                                                                <th className="px-3 py-2 text-right min-w-[80px]">GST 3</th>
                                                                 <th className="px-3 py-2 text-center">LR</th>
                                                                 <th className="px-3 py-2 text-center">SENT</th>
                                                             </tr>
@@ -1038,7 +1060,7 @@ export default function BifurcationPage() {
                                                                     <React.Fragment key={client || 'none'}>
                                                                         {client && (
                                                                             <tr className="bg-yellow-50/50 print:bg-slate-50 border-t border-slate-200">
-                                                                                <td colSpan="14" className="px-3 py-2 border-l-4 border-yellow-400">
+                                                                                <td colSpan="18" className="px-3 py-2 border-l-4 border-yellow-400">
                                                                                     <div className="flex items-center gap-3 group/client">
                                                                                         <Users className="w-3.5 h-3.5 text-blue-500/60" />
                                                                                         <Link
@@ -1130,6 +1152,42 @@ export default function BifurcationPage() {
                                                                                             type="number"
                                                                                             onSave={(val) => handleUpdate(item.id, 'gstAmount', val)}
                                                                                             tabIndex={(gIdx * 1000) + (iIdx * 10) + 5}
+                                                                                            className="text-slate-600 font-normal text-right"
+                                                                                        />
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-3 py-2 text-center">
+                                                                                    <EditableCell
+                                                                                        value={item.invoiceNo2}
+                                                                                        onSave={(val) => handleUpdate(item.id, 'invoiceNo2', val)}
+                                                                                        className="text-slate-600 font-normal"
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="px-3 py-2 text-right">
+                                                                                    <div className="flex items-center justify-end gap-1">
+                                                                                        <span className="text-slate-300 font-medium text-[10px]">₹</span>
+                                                                                        <EditableCell
+                                                                                            value={item.gstAmount2 || 0}
+                                                                                            type="number"
+                                                                                            onSave={(val) => handleUpdate(item.id, 'gstAmount2', val)}
+                                                                                            className="text-slate-600 font-normal text-right"
+                                                                                        />
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-3 py-2 text-center">
+                                                                                    <EditableCell
+                                                                                        value={item.invoiceNo3}
+                                                                                        onSave={(val) => handleUpdate(item.id, 'invoiceNo3', val)}
+                                                                                        className="text-slate-600 font-normal"
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="px-3 py-2 text-right">
+                                                                                    <div className="flex items-center justify-end gap-1">
+                                                                                        <span className="text-slate-300 font-medium text-[10px]">₹</span>
+                                                                                        <EditableCell
+                                                                                            value={item.gstAmount3 || 0}
+                                                                                            type="number"
+                                                                                            onSave={(val) => handleUpdate(item.id, 'gstAmount3', val)}
                                                                                             className="text-slate-600 font-normal text-right"
                                                                                         />
                                                                                     </div>

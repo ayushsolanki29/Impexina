@@ -163,6 +163,15 @@ model Bifurcation {
   invoiceNo    String?
   gst          String?
   gstAmount    Float?
+  
+  invoiceNo2   String?
+  gst2         String?
+  gstAmount2   Float?
+  
+  invoiceNo3   String?
+  gst3         String?
+  gstAmount3   Float?
+  
   deliveryDate DateTime?
   from         String?
   to           String?
@@ -1614,6 +1623,8 @@ model OrderTracker {
 
   // Tracking
   notes String?
+  hisab Boolean @default(false)
+  shippingCharge Float? @default(0)
 
   // Relations
   createdById Int

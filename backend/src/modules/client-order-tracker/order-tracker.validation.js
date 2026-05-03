@@ -19,7 +19,9 @@ const orderTrackerValidation = {
     deliveryDate: Joi.string().optional().allow(''),
     loadingDate: Joi.string().optional().allow(''),
     arrivalDate: Joi.string().optional().allow(''),
-    notes: Joi.string().optional().allow('')
+    notes: Joi.string().optional().allow(''),
+    hisab: Joi.boolean().optional().default(false),
+    shippingCharge: Joi.number().min(0).optional().allow(null)
   }),
 
   updateOrder: Joi.object({
@@ -40,7 +42,9 @@ const orderTrackerValidation = {
     deliveryDate: Joi.string().allow(''),
     loadingDate: Joi.string().allow(''),
     arrivalDate: Joi.string().allow(''),
-    notes: Joi.string().allow('')
+    notes: Joi.string().allow(''),
+    hisab: Joi.boolean().allow(null),
+    shippingCharge: Joi.number().min(0).allow(null)
   }).min(1),
 
   getOrders: Joi.object({
